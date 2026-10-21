@@ -7,5 +7,5 @@ window.CONFIG = {
   // Dominio ficticio de las cuentas de alumno (alias + curso), igual que en CIFEAPORC.
   dominioAlumnos: 'alumnos.cifeaporc.app',
   urlPorcino: 'https://cifeaporc1.github.io/cifeaporc/',
-  version: '0.1.0',
+  version: '0.1.1',
 };

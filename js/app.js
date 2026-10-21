@@ -120,7 +120,7 @@
         <div class="quien peq" style="margin-top:4px">${quien}</div></header>`;
     }
     return `<header class="cab ${esProf() ? 'prof' : ''}">
-      <div class="fila"><a class="logo-enlace" href="#/granjas" aria-label="Cambiar de granja"><img class="logo" src="img/logo-mini.png" alt=""></a>
+      <div class="fila"><a class="logo-enlace" href="#/granjas" aria-label="Cambiar de granja"><img class="logo" src="img/rumi.jpg" alt=""></a>
         <div><div class="marca">CIFEARUMI</div><div class="quien">${quien}</div></div>
         <button class="refrescar" type="button" data-accion="refrescar" aria-label="Actualizar datos">Actualizar</button></div>
       ${horas}</header>`;
@@ -195,7 +195,7 @@
         <div><div class="marca">CIFEAFARM</div><div class="quien">${esProf() ? `Profesor · ${esc(yo())}` : `${curso(S.perfil.granja_id)} curso · ${esc(yo())}`}</div></div></div></header>
       <main class="cuerpo">
         <h1 style="font-size:22px">Granjas del centro</h1>
-        <a class="granja-card" href="#/inicio"><img src="img/rumi.png" alt=""><div><strong>CIFEARUMI</strong>
+        <a class="granja-card" href="#/inicio"><img src="img/rumi.jpg" alt=""><div><strong>CIFEARUMI</strong>
           <div class="suave">Cabras murciano-granadinas y ovejas segureñas · ${activos().length} animales</div></div>${ICONOS.flecha}</a>
         <a class="granja-card" href="${esc(C.urlPorcino)}"><img src="img/porc.png" alt=""><div><strong>CIFEAPORC</strong>
           <div class="suave">Porcino de ciclo cerrado, chato murciano · se abre aparte hasta que se integre</div></div>${ICONOS.flecha}</a>
@@ -217,6 +217,7 @@
     pintar(`${cabecera()}
       <main class="cuerpo">
         ${faltaSQLCaja()}
+        <div class="foto logo"><img src="img/rumi-logo.jpg" alt="Logotipo de CIFEARUMI: cabra murciano-granadina y oveja segureña"></div>
         <div class="entre"><h1 style="font-size:22px">Hoy, ${DIAS_SEM[d.getDay()]} ${d.getDate()} ${MESES[d.getMonth()]}</h1></div>
         <div class="dos">
           <a class="dato enlace" href="#/animales/caprino"><span class="et">Caprino</span><span class="val">${n.caprino}</span><span class="nota">${n.cat.cabra || 0} cabras · ${n.cat.chiva || 0} chivas · ${n.cat.macho_cabrio || 0} machos${n.cat.cabrito ? ` · ${n.cat.cabrito} cabritos` : ''}</span></a>
