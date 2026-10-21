@@ -138,7 +138,7 @@
   // ---------------------------------------------------------------- acceso
   function vistaAcceso(modo = 'alumno', mensaje = '') {
     pintar(`<main class="acceso">
-      <div class="logo-acceso"><img src="img/logo.png" alt="CIFEAFARM"></div>
+      <div class="logo-acceso"><img src="img/logo.jpg" alt="CIFEAFARM"></div>
       <h1 style="text-align:center">Entrar en CIFEAFARM</h1>
       <p class="suave" style="text-align:center;margin:0">Granjas del centro · cabras, ovejas y cerdos</p>
       <div class="pestanas" role="tablist">
@@ -184,14 +184,14 @@
     });
   }
   function vistaSinPerfil() {
-    pintar(`<main class="acceso"><div class="logo-acceso"><img src="img/logo.png" alt="CIFEAFARM"></div>
+    pintar(`<main class="acceso"><div class="logo-acceso"><img src="img/logo.jpg" alt="CIFEAFARM"></div>
       <div class="aviso-caja"><strong>Tu cuenta no tiene acceso.</strong><br>Puede que esté desactivada. Habla con tu profesor.</div>
       <button class="btn sec" type="button" data-accion="salir">Salir</button></main>`);
   }
 
   // ---------------------------------------------------------------- granjas
   function vistaGranjas() {
-    pintar(`<header class="cab ${esProf() ? 'prof' : ''}"><div class="fila"><img class="logo" src="img/logo-mini.png" alt="">
+    pintar(`<header class="cab ${esProf() ? 'prof' : ''}"><div class="fila"><img class="logo" src="img/logo-mini.jpg" alt="">
         <div><div class="marca">CIFEAFARM</div><div class="quien">${esProf() ? `Profesor · ${esc(yo())}` : `${curso(S.perfil.granja_id)} curso · ${esc(yo())}`}</div></div></div></header>
       <main class="cuerpo">
         <h1 style="font-size:22px">Granjas del centro</h1>
