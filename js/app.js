@@ -78,7 +78,12 @@
   async function cargarPerfil() {
     const { data, error } = await sb.from('perfiles').select('*').eq('user_id', uid()).maybeSingle();
     if (error) throw error;
-    S.perfil = data && data.activo ? data : null;
+    S.perfil = data && data.activo ? data : null; S.cursoCerrado = false;
+    // Alumno con el acceso de su curso cerrado: no ve su curso en la tabla de cursos.
+    if (S.perfil && S.perfil.rol === 'alumno') {
+      const g = await sb.from('granjas').select('*').eq('id', S.perfil.granja_id).maybeSingle();
+      if (!g.error && (!g.data || g.data.acceso === false)) { S.perfil = null; S.cursoCerrado = true; }
+    }
   }
   async function todasLasFilas(tabla, orden) {
     const out = [];
@@ -110,6 +115,7 @@
       S.medicamentos = rm.error ? [] : rm.data.filter((m) => !m.especies || m.especies.includes('caprino') || m.especies.includes('ovino')); }
     S.porAnimal = {};
     for (const ev of S.eventos) (S.porAnimal[ev.animal_id] = S.porAnimal[ev.animal_id] || []).push(ev);
+    if (esProf()) { const g = await sb.from('granjas').select('*').order('id'); S.cursos = g.error ? [] : g.data; }
     const nv = await sb.rpc('nombres_visibles');
     S.nombres = {};
     if (!nv.error && Array.isArray(nv.data)) for (const p of nv.data) S.nombres[p.user_id] = p;
@@ -207,7 +213,7 @@
   }
   function vistaSinPerfil() {
     pintar(`<main class="acceso"><div class="logo-acceso"><img src="img/logo.jpg" alt="CIFEAFARM"></div>
-      <div class="aviso-caja"><strong>Tu cuenta no tiene acceso.</strong><br>Puede que esté desactivada. Habla con tu profesor.</div>
+      <div class="aviso-caja">${S.cursoCerrado ? '<strong>El acceso de tu curso todavía está cerrado.</strong><br>Tu profesor lo abrirá cuando empecéis a usar la app.' : '<strong>Tu cuenta no tiene acceso.</strong><br>Puede que esté desactivada. Habla con tu profesor.'}</div>
       <button class="btn sec" type="button" data-accion="salir">Salir</button></main>`);
   }
 
@@ -1428,6 +1434,11 @@
           <div class="suave">El plan gratuito de Supabase no hace copias automáticas. Descarga una cada mes: el Excel sirve para consultar y el archivo .json para restaurar.</div>
           <div class="botones"><button class="btn sec" type="button" data-copia="xlsx">Excel</button><button class="btn sec" type="button" data-copia="json">Archivo .json</button></div><div id="estado-copia"></div></section>
         <section class="tarjeta"><h2>Corralinas</h2><div class="suave">El uso de cada corralina se cambia desde el <a href="#/mapa">Mapa</a>, tocando la corralina.</div></section>
+        <section class="tarjeta"><h2>Acceso por curso</h2>
+          ${(S.cursos || []).length && S.cursos[0].acceso === undefined ? '<div class="aviso-caja">Para usar este interruptor, ejecuta en Supabase el archivo <code>sql/04_acceso_por_curso.sql</code>.</div>' : `
+          <div class="suave">Con el acceso cerrado, los alumnos de ese curso no pueden entrar en ninguna granja. Sus cuentas no se tocan: al abrirlo, siguen como estaban.</div>
+          ${(S.cursos || []).map((g) => `<div class="entre curso-acceso"><div><strong>${g.id}.º curso</strong><div class="suave peq">${(() => { const n = Object.values(S.nombres).filter((p) => p.rol === 'alumno' && p.granja_id === g.id).length; return `${n} ${n === 1 ? 'alumno' : 'alumnos'}`; })()}</div></div>
+            <button class="btn ${g.acceso ? 'sec' : ''} peq" type="button" data-acceso="${g.id}" data-abrir="${g.acceso ? '0' : '1'}">${g.acceso ? 'Abierto · cerrar' : 'Cerrado · abrir'}</button></div>`).join('')}`}</section>
         <section class="tarjeta"><h2>Alumnos</h2><div class="suave">Las cuentas (alias, PIN y nombres) sirven para las dos granjas. Se crean y gestionan en una sola pantalla.</div><a class="btn sec" href="porc/#/admin/alumnos">Gestionar alumnos</a></section>
         <a class="btn sec" href="#/cuenta">${ICONOS.cuenta}Tu cuenta</a>
       </main>${navegacion('gestion')}`);
@@ -1435,6 +1446,13 @@
     const bi = document.getElementById('b-importar'); if (bi) bi.addEventListener('click', () => importar(buenas));
     const bc = document.getElementById('b-cancelar-imp'); if (bc) bc.addEventListener('click', () => { S.importacion = null; vistaGestion(); });
     $app.querySelectorAll('[data-copia]').forEach((b) => b.addEventListener('click', () => descargarCopia(b.dataset.copia, b)));
+    $app.querySelectorAll('[data-acceso]').forEach((b) => b.addEventListener('click', async () => {
+      const abrir = b.dataset.abrir === '1';
+      if (!abrir && b.dataset.confirmar !== '1') { b.dataset.confirmar = '1'; b.textContent = `¿Cerrar ${b.dataset.acceso}.º? Pulsa otra vez`; return; }
+      const { error } = await sb.from('granjas').update({ acceso: abrir }).eq('id', Number(b.dataset.acceso));
+      if (error) return toast(traducirError(error));
+      toast(`${b.dataset.acceso}.º curso: acceso ${abrir ? 'abierto' : 'cerrado'}`); await refrescar(); vistaGestion();
+    }));
   }
   async function leerExcel(file) {
     const est = document.getElementById('estado-imp');

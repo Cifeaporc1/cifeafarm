@@ -49,3 +49,8 @@ Los alumnos se gestionan ahora desde **CIFEAFARM → Gestión → Gestionar alum
 ## 6. Al actualizar CIFEARUMI (por ejemplo, la reproducción de la 0.3.0)
 
 Cuando una versión nueva traiga cambios en la base de datos, vuelve a ejecutar `sql/01_rumiantes.sql` entero en Supabase (SQL Editor → New query → Run). Se puede repetir siempre: añade lo nuevo y no borra datos. Si no se ejecuta, la app avisa en **Hoy** con «Para usar la reproducción…».
+
+## 7. Abrir o cerrar el acceso de un curso
+
+1. Ejecuta una vez en Supabase `sql/04_acceso_por_curso.sql`.
+2. En CIFEAFARM → **Más → Gestión → Acceso por curso**, pulsa el botón del curso para cerrarlo o abrirlo. Con el acceso cerrado, sus alumnos ven «El acceso de tu curso todavía está cerrado» y no pueden entrar en ninguna granja. Sus cuentas no se tocan.

@@ -74,6 +74,10 @@
     S.perfil = data && data.activo ? data : null;
     if (!S.perfil) return;
     S.granja = C.granjaPorcino; // una sola granja real; el curso del alumno queda en su perfil
+    if (S.perfil.rol === 'alumno') {
+      const g = await sb.from('granjas').select('*').eq('id', S.perfil.granja_id).maybeSingle();
+      if (!g.error && (!g.data || g.data.acceso === false)) { S.perfil = null; location.replace('../'); } // curso cerrado: el aviso lo da CIFEAFARM
+    }
   }
 
   async function cargarDatos() {
