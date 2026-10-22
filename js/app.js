@@ -1259,6 +1259,31 @@
   }
 
   // Actividad por alumno (para evaluar): todo lo que ha registrado cada uno en CIFEARUMI.
+  // Registros de porcino (granja real) con su autor, para sumarlos a la actividad.
+  const TIPOS_PORC = { ia: 'Inseminación', eco: 'Ecografía', paridera: 'Entrada en paridera', parto: 'Parto', aborto: 'Aborto', adopcion: 'Adopción', baja_lechones: 'Baja de lechones', destete: 'Destete', traslado: 'Traslado', nota: 'Nota' };
+  const SAN_PORC = { vacunacion: 'Vacunación', desparasitacion: 'Desparasitación', tratamiento: 'Tratamiento', hierro: 'Hierro y colmillos', colmillos: 'Corte de colmillos', raboteo: 'Raboteo', castracion: 'Castración', limpieza: 'Limpieza', desinfeccion: 'Desinfección', desinsectacion: 'Desinsectación', desratizacion: 'Desratización', otro: 'Otro' };
+  async function cargarPorcino() {
+    const g = C.granjaPorcino; const todas = async (t, conGranja) => {
+      const out = [];
+      for (let d = 0; ; d += 1000) { let q = sb.from(t).select('*'); if (conGranja) q = q.eq('granja_id', g); const r = await q.order('creado').range(d, d + 999); if (r.error) throw r.error; out.push(...r.data); if (r.data.length < 1000) break; }
+      return out; };
+    const opc = async (t, cg) => { try { return await todas(t, cg); } catch (_) { return []; } };
+    const [ev, cer, ver, san, ext, rec, mov, cen] = await Promise.all([opc('eventos', true), opc('cerdas'), opc('verracos'), opc('sanidad', true), opc('extracciones', true), opc('recuentos', true), opc('mov_grupos', true), opc('censo_mov')]);
+    const crotal = {}; for (const x of cer.concat(ver)) crotal[x.id] = x.crotal;
+    const out = [];
+    for (const e of ev) { if (e.datos && e.datos.origen === 'historico') continue; out.push({ granja: 'porc', autor: e.autor, alias: e.autor_alias, fecha: e.fecha, clase: TIPOS_PORC[e.tipo] || e.tipo, que: `Cerda ${crotal[e.cerda_id] || '?'}${e.datos && e.datos.obs ? ` · ${e.datos.obs}` : ''}`, enlace: `porc/#/cerda/${e.cerda_id}` }); }
+    for (const r of san) {
+      const que = `${r.producto || ''}${r.zona ? ` · ${r.zona}` : ''}${r.cerda_id ? ` · cerda ${crotal[r.cerda_id] || '?'}` : ''}${r.verraco_id ? ` · verraco ${crotal[r.verraco_id] || '?'}` : ''}`;
+      if (r.estado === 'realizado') out.push({ granja: 'porc', alias: r.realizado_por || r.autor_alias, fecha: r.fecha, clase: `Sanidad: ${SAN_PORC[r.tipo] || r.tipo}`, que, enlace: 'porc/#/sanidad/registro' });
+      if (r.estado === 'previsto' || (r.realizado_por && r.realizado_por !== r.autor_alias)) out.push({ granja: 'porc', alias: r.autor_alias, fecha: String(r.creado).slice(0, 10), clase: 'Sanidad programada', que: `${SAN_PORC[r.tipo] || r.tipo} · ${que}`, enlace: 'porc/#/sanidad' });
+    }
+    for (const x of ext) out.push({ granja: 'porc', alias: x.autor_alias, fecha: x.fecha, clase: 'Extracción de semen', que: `Verraco ${crotal[x.verraco_id] || '?'} · ${x.n_dosis} dosis`, enlace: `porc/#/verraco/${x.verraco_id}` });
+    for (const x of rec) out.push({ granja: 'porc', alias: x.autor_alias, fecha: x.fecha, clase: 'Recuento', que: `${x.estancia}: ${x.n}`, enlace: 'porc/#/plano' });
+    for (const x of mov) out.push({ granja: 'porc', alias: x.autor_alias, fecha: x.fecha, clase: `Lechoneras y cebo: ${x.tipo}`, que: `${x.n} · ${[x.origen, x.destino].filter(Boolean).join(' → ')}`, enlace: 'porc/#/plano' });
+    for (const x of cen) if (x.autor_alias) out.push({ granja: 'porc', alias: x.autor_alias, curso: x.granja_id, fecha: x.fecha, clase: x.mov === 'alta' ? 'Alta' : x.mov === 'baja' ? 'Baja' : 'Baja anulada', que: `${x.animal === 'cerda' ? 'Cerda' : 'Verraco'} ${x.crotal}${x.causa ? ` · ${x.causa}` : ''}`, enlace: 'porc/#/censo/historial' });
+    return out;
+  }
+
   function registrosDe() {
     const out = [];
     const auto = ['alta', 'baja', 'baja_anulada', 'datos'];
@@ -1273,46 +1298,60 @@
     }
     for (const l of S.lotes) out.push({ autor: l.autor, alias: l.autor_alias, curso: l.curso, fecha: l.fecha_entrada, clase: 'Lote de cubrición', que: l.nombre, enlace: `#/lote/${l.id}` });
     for (const m of S.manejo) out.push({ autor: m.autor, alias: m.autor_alias, curso: m.curso, fecha: m.fecha, clase: 'Manejo diario', que: `${m.tareas.map((t) => L.TAREAS[t] || t).join(', ')}${m.detalle ? ` · ${m.detalle}` : ''}`, enlace: '#/manejo' });
-    // El curso de quien valida un previsto se busca por su alias.
-    const cursoAlias = {}; for (const x of out) if (x.alias && x.curso) cursoAlias[x.alias] = x.curso;
+    for (const x of out) x.granja = 'rumi';
+    out.push(...(S.porcAct || []));
+    // El curso de cada registro es el del perfil de quien lo hizo (se busca por su alias).
+    const cursoAlias = {}; for (const p of Object.values(S.nombres)) if (p.alias && p.granja_id) cursoAlias[p.alias] = p.granja_id;
+    for (const x of out) if (x.alias && cursoAlias[x.alias]) x.curso = cursoAlias[x.alias];
     for (const x of out) if (!x.curso && x.alias && cursoAlias[x.alias]) x.curso = cursoAlias[x.alias];
     return out;
   }
-  function vistaActividad(alias) {
-    const desde = S.borrador.actDesde || `${hoy().slice(0, 7)}-01`; const hasta = S.borrador.actHasta || hoy(); const cursoF = S.borrador.actCurso || '';
+  async function vistaActividad(alias) {
+    if (!S.porcAct || !S.porcActCargado || Date.now() - S.porcActCargado > 60000) {
+      pintar(`${cabecera()}<main class="cuerpo"><div class="ok-caja">Reuniendo la actividad de las dos granjas…</div></main>${navegacion('mas')}`);
+      try { S.porcAct = await cargarPorcino(); S.porcActCargado = Date.now(); } catch (e) { S.porcAct = []; toast(`No se pudo leer porcino: ${traducirError(e)}`); }
+    }
+    return pintarActividad(alias);
+  }
+  function pintarActividad(alias) {
+    const desde = S.borrador.actDesde || `${hoy().slice(0, 7)}-01`; const hasta = S.borrador.actHasta || hoy(); const cursoF = S.borrador.actCurso || ''; const granjaF = S.borrador.actGranja || '';
+    const GR = { rumi: 'Rumiantes', porc: 'Porcino' };
     const profes = new Set(Object.values(S.nombres).filter((p) => p.rol === 'profesor').map((p) => p.alias));
-    let regs = registrosDe().filter((x) => x.fecha >= desde && x.fecha <= hasta && x.alias && !profes.has(x.alias));
+    let regs = registrosDe().filter((x) => x.fecha >= desde && x.fecha <= hasta && x.alias && !profes.has(x.alias) && (!granjaF || x.granja === granjaF));
     if (!esProf()) regs = regs.filter((x) => x.alias === S.perfil.alias);
     else if (cursoF) regs = regs.filter((x) => String(x.curso || '') === cursoF);
     const sel = esProf() ? alias && decodeURIComponent(alias) : S.perfil.alias;
     const filtros = `<div class="dos"><div class="campo"><label for="a-desde">Desde</label><input id="a-desde" type="date" value="${desde}"></div><div class="campo"><label for="a-hasta">Hasta</label><input id="a-hasta" type="date" value="${hasta}"></div></div>
+      <div class="pestanas">${[['', 'Las dos granjas'], ['rumi', 'Rumiantes'], ['porc', 'Porcino']].map(([k, t]) => `<button type="button" data-granja="${k}" class="${granjaF === k ? 'activo' : ''}">${t}</button>`).join('')}</div>
       ${esProf() ? `<div class="pestanas">${[['', 'Todos'], ['1', '1.º'], ['2', '2.º']].map(([k, t]) => `<button type="button" data-curso="${k}" class="${cursoF === k ? 'activo' : ''}">${t}</button>`).join('')}</div>` : ''}`;
     let cuerpo;
     if (sel) {
       const mios = regs.filter((x) => x.alias === sel).sort((x, y) => y.fecha.localeCompare(x.fecha));
       const nombre = Object.values(S.nombres).find((p) => p.alias === sel);
       cuerpo = `<h2>${esc(nombre && nombre.nombre ? `${nombre.nombre} (${sel})` : sel)} · ${mios.length} registros</h2>
-        ${mios.map((x) => `<a class="evento enlace" href="${x.enlace}"><div class="entre"><strong>${esc(x.clase)}</strong><span class="suave">${fmt(x.fecha)}</span></div><div class="suave peq">${esc(x.que)}</div></a>`).join('') || '<div class="vacio">Sin registros en esas fechas.</div>'}`;
+        ${mios.map((x) => `<a class="evento enlace" href="${x.enlace}"><div class="entre"><strong><span class="chip ${x.granja === 'porc' ? 'gris' : ''}">${GR[x.granja]}</span> ${esc(x.clase)}</strong><span class="suave">${fmt(x.fecha)}</span></div><div class="suave peq">${esc(x.que)}</div></a>`).join('') || '<div class="vacio">Sin registros en esas fechas.</div>'}`;
     } else {
-      const por = {}; for (const x of regs) { const k = x.alias; (por[k] = por[k] || { curso: x.curso, n: 0, tipos: {} }); por[k].n++; por[k].tipos[x.clase] = (por[k].tipos[x.clase] || 0) + 1; }
+      const por = {}; for (const x of regs) { const k = x.alias; (por[k] = por[k] || { curso: x.curso, n: 0, tipos: {}, rumi: 0, porc: 0 }); por[k].n++; por[k][x.granja]++; por[k].tipos[x.clase] = (por[k].tipos[x.clase] || 0) + 1; }
       const filas = Object.entries(por).sort((a, b) => String(a[1].curso || 9).localeCompare(String(b[1].curso || 9)) || a[0].localeCompare(b[0], 'es', { numeric: true }));
-      cuerpo = `<div class="suave">Cuenta lo que cada uno ha registrado en CIFEARUMI (sin el censo importado). Toca un alumno para ver el detalle.</div>
-        <div class="lista">${filas.map(([al, o]) => { const nm = Object.values(S.nombres).find((p) => p.alias === al); return `<a class="animal-fila" href="#/actividad/${encodeURIComponent(al)}"><div><strong>${esc(nm && nm.nombre ? `${nm.nombre} (${al})` : al)}</strong><div class="suave peq">${o.curso ? `${o.curso}.º · ` : ''}${Object.entries(o.tipos).map(([t, n]) => `${esc(t)} ${n}`).join(' · ')}</div></div><span class="chip">${o.n}</span></a>`; }).join('') || '<div class="vacio">Sin registros en esas fechas.</div>'}</div>
+      cuerpo = `<div class="suave">Cuenta lo que cada uno ha registrado en CIFEARUMI y en CIFEAPORC (sin los datos importados). Toca un alumno para ver el detalle.</div>
+        <div class="lista">${filas.map(([al, o]) => { const nm = Object.values(S.nombres).find((p) => p.alias === al); return `<a class="animal-fila" href="#/actividad/${encodeURIComponent(al)}"><div><strong>${esc(nm && nm.nombre ? `${nm.nombre} (${al})` : al)}</strong><div class="suave peq">${o.curso ? `${o.curso}.º · ` : ''}<strong>rumiantes ${o.rumi} · porcino ${o.porc}</strong></div><div class="suave peq">${Object.entries(o.tipos).map(([t, n]) => `${esc(t)} ${n}`).join(' · ')}</div></div><span class="chip">${o.n}</span></a>`; }).join('') || '<div class="vacio">Sin registros en esas fechas.</div>'}</div>
         <button class="btn sec" type="button" id="b-act-excel">Descargar en Excel</button><div id="estado-act"></div>`;
     }
     pintar(`${cabecera(sel && esProf() ? { volver: '#/actividad', textoVolver: 'Actividad', titulo: 'Actividad' } : {})}
       <main class="cuerpo"><h1 style="font-size:22px">${esProf() ? 'Actividad de los alumnos' : 'Mi actividad'}</h1>${filtros}${cuerpo}</main>${navegacion('mas')}`);
-    const cambio = () => { S.borrador.actDesde = document.getElementById('a-desde').value || desde; S.borrador.actHasta = document.getElementById('a-hasta').value || hasta; vistaActividad(alias); };
+    const cambio = () => { S.borrador.actDesde = document.getElementById('a-desde').value || desde; S.borrador.actHasta = document.getElementById('a-hasta').value || hasta; pintarActividad(alias); };
+    $app.querySelectorAll('[data-granja]').forEach((b) => b.addEventListener('click', () => { S.borrador.actGranja = b.dataset.granja; pintarActividad(alias); }));
     document.getElementById('a-desde').addEventListener('change', cambio); document.getElementById('a-hasta').addEventListener('change', cambio);
-    $app.querySelectorAll('[data-curso]').forEach((b) => b.addEventListener('click', () => { S.borrador.actCurso = b.dataset.curso; vistaActividad(alias); }));
+    $app.querySelectorAll('[data-curso]').forEach((b) => b.addEventListener('click', () => { S.borrador.actCurso = b.dataset.curso; pintarActividad(alias); }));
     const bx = document.getElementById('b-act-excel');
     if (bx) bx.addEventListener('click', async () => {
       try { await cargarXLSX(); const X = window.XLSX; const libro = X.utils.book_new();
-        const tipos = [...new Set(regs.map((x) => x.clase))].sort();
-        const por = {}; for (const x of regs) { (por[x.alias] = por[x.alias] || { Alias: x.alias, Nombre: (Object.values(S.nombres).find((p) => p.alias === x.alias) || {}).nombre || '', Curso: x.curso ? `${x.curso}.º` : '', Total: 0 }); por[x.alias].Total++; por[x.alias][x.clase] = (por[x.alias][x.clase] || 0) + 1; }
+        const col = (x) => `${GR[x.granja]}: ${x.clase}`;
+        const tipos = [...new Set(regs.map(col))].sort();
+        const por = {}; for (const x of regs) { (por[x.alias] = por[x.alias] || { Alias: x.alias, Nombre: (Object.values(S.nombres).find((p) => p.alias === x.alias) || {}).nombre || '', Curso: x.curso ? `${x.curso}.º` : '', Total: 0, Rumiantes: 0, Porcino: 0 }); por[x.alias].Total++; por[x.alias][GR[x.granja]]++; por[x.alias][col(x)] = (por[x.alias][col(x)] || 0) + 1; }
         X.utils.book_append_sheet(libro, X.utils.json_to_sheet(Object.values(por).map((o) => { for (const t of tipos) o[t] = o[t] || 0; return o; })), 'Resumen');
-        X.utils.book_append_sheet(libro, X.utils.json_to_sheet(regs.sort((x, y) => x.alias.localeCompare(y.alias) || x.fecha.localeCompare(y.fecha)).map((x) => ({ Alias: x.alias, Curso: x.curso ? `${x.curso}.º` : '', Fecha: x.fecha, Registro: x.clase, Detalle: x.que }))), 'Detalle');
-        X.writeFile(libro, `CIFEARUMI_actividad_${desde}_${hasta}.xlsx`);
+        X.utils.book_append_sheet(libro, X.utils.json_to_sheet(regs.sort((x, y) => x.alias.localeCompare(y.alias) || x.fecha.localeCompare(y.fecha)).map((x) => ({ Alias: x.alias, Curso: x.curso ? `${x.curso}.º` : '', Granja: GR[x.granja], Fecha: x.fecha, Registro: x.clase, Detalle: x.que }))), 'Detalle');
+        X.writeFile(libro, `CIFEAFARM_actividad_${desde}_${hasta}.xlsx`);
       } catch (e) { document.getElementById('estado-act').innerHTML = errorCaja(traducirError(e)); }
     });
   }
