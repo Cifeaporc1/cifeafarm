@@ -45,3 +45,7 @@ Hazlo cuando quieras que 1.º empiece con el porcino o que todos usen ya CIFEAFA
 5. Pide a Claude que deje la dirección antigua de CIFEAPORC redirigiendo a la nueva.
 
 Los alumnos se gestionan ahora desde **CIFEAFARM → Gestión → Gestionar alumnos**.
+
+## 6. Al actualizar CIFEARUMI (por ejemplo, la reproducción de la 0.3.0)
+
+Cuando una versión nueva traiga cambios en la base de datos, vuelve a ejecutar `sql/01_rumiantes.sql` entero en Supabase (SQL Editor → New query → Run). Se puede repetir siempre: añade lo nuevo y no borra datos. Si no se ejecuta, la app avisa en **Hoy** con «Para usar la reproducción…».

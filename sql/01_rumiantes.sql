@@ -1,5 +1,6 @@
 -- =====================================================================
--- CIFEAFARM · CIFEARUMI (cabras y ovejas) · V1: corralinas, censo y fichas
+-- CIFEAFARM · CIFEARUMI (cabras y ovejas): corralinas, censo, fichas (V1)
+--            y reproducción: lotes, ecografías, partos, crías, ordeño y secado (V2)
 -- Pegar entero en Supabase → SQL Editor → New query → Run. Repetible.
 --
 -- Va en el MISMO proyecto de Supabase que CIFEAPORC: usa sus perfiles
@@ -69,6 +70,8 @@ create table if not exists public.rum_animales (
 );
 -- Raza (añadida en 0.1.3). Vacía = la de la especie: murciano-granadina o segureña.
 alter table public.rum_animales add column if not exists raza text;
+-- Peso al nacer de las crías, en kg (V2).
+alter table public.rum_animales add column if not exists peso_nacimiento numeric(5,2) check (peso_nacimiento > 0 and peso_nacimiento < 20);
 create unique index if not exists rum_animales_crotal on public.rum_animales (crotal) where crotal is not null;
 -- Un nº de collar no puede estar en dos animales vivos de la misma especie a la vez.
 create unique index if not exists rum_animales_manejo on public.rum_animales (especie, upper(manejo))
@@ -131,7 +134,8 @@ declare a text; prof boolean; n integer; base text;
   libres text[] := array['fecha_baja','causa_baja','destino_baja','baja_por','modificado','modificado_por'];
 begin
   select alias into a from perfiles where user_id = auth.uid();
-  prof := auth.uid() is null or es_profesor();          -- sin usuario = SQL Editor
+  -- sin usuario = SQL Editor; rum.sistema = cambios que hace la propia base de datos (parto, acrotalado)
+  prof := auth.uid() is null or es_profesor() or coalesce(current_setting('rum.sistema', true), '') = 'on';
   if new.crotal is not null then new.crotal := nullif(upper(regexp_replace(new.crotal, '\s', '', 'g')), ''); end if;
   if new.manejo is not null then new.manejo := nullif(upper(trim(new.manejo)), ''); end if;
   if tg_op = 'INSERT' then
@@ -174,7 +178,7 @@ create or replace function public.rum_animales_registro() returns trigger
 language plpgsql security definer set search_path = public as $$
 declare a text; g smallint; cambios jsonb := '{}'::jsonb; k text;
   vigilar text[] := array['especie','categoria','sexo','crotal','manejo','codigo_cria','capa','fecha_nacimiento',
-                          'anio_nacimiento','madre_id','padre_id','madre_txt','padre_txt','origen','corralina_id','fecha_alta','obs','raza'];
+                          'anio_nacimiento','madre_id','padre_id','madre_txt','padre_txt','origen','corralina_id','fecha_alta','obs','raza','peso_nacimiento'];
 begin
   select alias, granja_id into a, g from perfiles where user_id = auth.uid();
   if tg_op = 'INSERT' then
@@ -249,12 +253,12 @@ create policy rum_eventos_alta on public.rum_eventos for insert to authenticated
 create policy rum_eventos_cambio on public.rum_eventos for update to authenticated
   using (public.es_profesor()
          or (autor = auth.uid() and creado > now() - interval '24 hours'
-             and tipo not in ('alta','baja','baja_anulada','datos')))
+             and tipo not in ('alta','baja','baja_anulada','datos','parto','acrotalado')))
   with check (public.tiene_acceso());
 create policy rum_eventos_borrado on public.rum_eventos for delete to authenticated
   using (public.es_profesor()
          or (autor = auth.uid() and creado > now() - interval '24 hours'
-             and tipo not in ('alta','baja','baja_anulada','datos')));
+             and tipo not in ('alta','baja','baja_anulada','datos','parto','acrotalado')));
 
 -- ---------- Importar el censo desde el Excel (solo profesor) -----------------
 -- Recibe una lista de animales ya normalizada por la app. Lo hace todo o nada.
@@ -292,3 +296,143 @@ begin
 end $$;
 revoke all on function public.rum_importar(jsonb) from public, anon;
 grant execute on function public.rum_importar(jsonb) to authenticated;
+
+-- =====================================================================
+-- V2 · REPRODUCCIÓN
+-- =====================================================================
+
+-- ---------- Lotes de cubrición (monta natural, machos asignados al lote) ----
+-- El macho va a la corralina de las hembras (traslado) y vuelve al sacarlo.
+create table if not exists public.rum_lotes (
+  id             uuid primary key default gen_random_uuid(),
+  especie        text not null check (especie in ('caprino','ovino')),
+  nombre         text not null,
+  corralina_id   smallint references public.rum_corralinas(id),
+  machos         uuid[] not null default '{}',
+  hembras        uuid[] not null default '{}',
+  fecha_entrada  date not null,
+  fecha_salida   date,
+  obs            text,
+  autor          uuid references auth.users(id) on delete set null,
+  autor_alias    text,
+  curso          smallint,
+  creado         timestamptz not null default now(),
+  modificado     timestamptz,
+  modificado_por text,
+  check (fecha_salida is null or fecha_salida >= fecha_entrada)
+);
+create or replace function public.rum_lotes_autoria() returns trigger
+language plpgsql security definer set search_path = public as $$
+declare a text; g smallint;
+begin
+  select alias, granja_id into a, g from perfiles where user_id = auth.uid();
+  if tg_op = 'INSERT' then
+    new.autor := auth.uid(); new.autor_alias := a; new.curso := g; new.creado := now(); new.modificado := null; new.modificado_por := null;
+  else
+    new.autor := old.autor; new.autor_alias := old.autor_alias; new.curso := old.curso; new.creado := old.creado;
+    new.modificado := now(); new.modificado_por := a;
+  end if;
+  return new;
+end $$;
+drop trigger if exists rum_lotes_autoria on public.rum_lotes;
+create trigger rum_lotes_autoria before insert or update on public.rum_lotes
+  for each row execute function public.rum_lotes_autoria();
+
+alter table public.rum_lotes enable row level security;
+drop policy if exists rum_lotes_ver on public.rum_lotes;
+drop policy if exists rum_lotes_alta on public.rum_lotes;
+drop policy if exists rum_lotes_cambio on public.rum_lotes;
+drop policy if exists rum_lotes_borrado on public.rum_lotes;
+create policy rum_lotes_ver on public.rum_lotes for select to authenticated using (public.tiene_acceso());
+create policy rum_lotes_alta on public.rum_lotes for insert to authenticated with check (public.tiene_acceso());
+-- Sacar el macho lo hace cualquiera (otro día, otro alumno).
+create policy rum_lotes_cambio on public.rum_lotes for update to authenticated
+  using (public.tiene_acceso()) with check (public.tiene_acceso());
+create policy rum_lotes_borrado on public.rum_lotes for delete to authenticated
+  using (public.es_profesor() or (autor = auth.uid() and creado > now() - interval '24 hours'));
+
+-- ---------- Parto: registra el parto, da de alta las crías vivas y, si es el
+-- primer parto de una chiva o cordera, la pasa a cabra u oveja.
+-- crias = [{"sexo":"hembra","viva":true,"peso":3.2}, …]; existentes = ids de crías ya dadas de alta.
+create or replace function public.rum_parto(p_madre uuid, p_fecha date, p_datos jsonb, p_crias jsonb,
+                                            p_corralina smallint, p_padre uuid, p_existentes uuid[] default '{}')
+returns uuid language plpgsql security definer set search_path = public as $$
+declare m rum_animales; c jsonb; nueva uuid; ids uuid[] := '{}'; ev uuid; prom jsonb := null; vivas int := 0; muertas int := 0;
+begin
+  if not tiene_acceso() then raise exception 'Sin acceso'; end if;
+  select * into m from rum_animales where id = p_madre;
+  if m.id is null or m.fecha_baja is not null then raise exception 'La madre no está en el censo'; end if;
+  if m.categoria not in ('cabra','chiva','oveja','cordera') then raise exception 'Solo paren cabras, chivas, ovejas y corderas'; end if;
+  if p_fecha > current_date then raise exception 'La fecha del parto no puede ser futura'; end if;
+  perform set_config('rum.sistema', 'on', true);
+  for c in select * from jsonb_array_elements(coalesce(p_crias, '[]'::jsonb)) loop
+    if coalesce((c->>'viva')::boolean, true) then
+      insert into rum_animales (especie, categoria, sexo, fecha_nacimiento, madre_id, padre_id, origen, corralina_id,
+                                fecha_alta, motivo_alta, peso_nacimiento, raza)
+      values (m.especie, case when m.especie = 'caprino' then 'cabrito' else 'cordero' end, nullif(c->>'sexo', ''),
+              p_fecha, m.id, p_padre, 'centro', p_corralina, p_fecha, 'Nacimiento', nullif(c->>'peso', '')::numeric,
+              case when m.raza is not null then m.raza end)
+      returning id into nueva;
+      ids := ids || nueva; vivas := vivas + 1;
+    else muertas := muertas + 1; end if;
+  end loop;
+  ids := ids || coalesce(p_existentes, '{}');
+  vivas := vivas + coalesce(array_length(p_existentes, 1), 0);
+  if m.categoria in ('chiva','cordera') then
+    prom := jsonb_build_object('de', m.categoria, 'a', case when m.categoria = 'chiva' then 'cabra' else 'oveja' end);
+    update rum_animales set categoria = prom->>'a' where id = m.id;
+  end if;
+  insert into rum_eventos (animal_id, tipo, fecha, datos)
+  values (m.id, 'parto', p_fecha, coalesce(p_datos, '{}'::jsonb) || jsonb_build_object(
+            'crias', to_jsonb(ids), 'vivas', vivas, 'muertas', muertas, 'detalle', coalesce(p_crias, '[]'::jsonb),
+            'padre', p_padre, 'promocion', prom))
+  returning id into ev;
+  perform set_config('rum.sistema', 'off', true);
+  return ev;
+end $$;
+revoke all on function public.rum_parto(uuid, date, jsonb, jsonb, smallint, uuid, uuid[]) from public, anon;
+grant execute on function public.rum_parto(uuid, date, jsonb, jsonb, smallint, uuid, uuid[]) to authenticated;
+
+-- Borrar un parto mal registrado (solo profesor): borra el registro y las crías que creó
+-- (no las que ya existían) y deshace el paso de chiva a cabra.
+create or replace function public.rum_borrar_parto(p_evento uuid)
+returns void language plpgsql security definer set search_path = public as $$
+declare e rum_eventos; x uuid;
+begin
+  if not es_profesor() then raise exception 'Solo el profesor puede borrar un parto'; end if;
+  select * into e from rum_eventos where id = p_evento and tipo = 'parto';
+  if e.id is null then raise exception 'No existe ese parto'; end if;
+  for x in select (jsonb_array_elements_text(coalesce(e.datos->'crias', '[]'::jsonb)))::uuid loop
+    delete from rum_animales where id = x and madre_id = e.animal_id and fecha_alta = e.fecha and motivo_alta = 'Nacimiento'
+      and not exists (select 1 from rum_eventos y where y.animal_id = x and y.tipo in ('acrotalado'));
+  end loop;
+  if e.datos->'promocion' is not null and jsonb_typeof(e.datos->'promocion') = 'object' then
+    update rum_animales set categoria = e.datos->'promocion'->>'de' where id = e.animal_id and categoria = e.datos->'promocion'->>'a';
+  end if;
+  delete from rum_eventos where id = e.id;
+end $$;
+revoke all on function public.rum_borrar_parto(uuid) from public, anon;
+grant execute on function public.rum_borrar_parto(uuid) to authenticated;
+
+-- ---------- Acrotalado: la cría que se queda recibe crotal y collar y pasa a reposición
+-- (hembras: chiva o cordera; machos: macho cabrío o morueco). Lo hace cualquiera.
+create or replace function public.rum_acrotalar(p_cria uuid, p_fecha date, p_crotal text, p_manejo text)
+returns void language plpgsql security definer set search_path = public as $$
+declare c rum_animales; cat text;
+begin
+  if not tiene_acceso() then raise exception 'Sin acceso'; end if;
+  select * into c from rum_animales where id = p_cria;
+  if c.id is null or c.fecha_baja is not null then raise exception 'Esa cría no está en el censo'; end if;
+  if c.categoria not in ('cabrito','cordero') then raise exception 'Solo se acrotalan cabritos y corderos'; end if;
+  if c.sexo is null then raise exception 'Anota antes el sexo de la cría'; end if;
+  if coalesce(trim(p_crotal), '') = '' then raise exception 'Falta el crotal'; end if;
+  cat := case when c.especie = 'caprino' then (case when c.sexo = 'hembra' then 'chiva' else 'macho_cabrio' end)
+              else (case when c.sexo = 'hembra' then 'cordera' else 'morueco' end) end;
+  perform set_config('rum.sistema', 'on', true);
+  update rum_animales set crotal = p_crotal, manejo = nullif(trim(p_manejo), ''), categoria = cat where id = c.id;
+  insert into rum_eventos (animal_id, tipo, fecha, datos)
+  values (c.id, 'acrotalado', p_fecha, jsonb_build_object('crotal', upper(p_crotal), 'manejo', upper(nullif(trim(p_manejo), '')), 'categoria', cat, 'codigo', c.codigo_cria));
+  perform set_config('rum.sistema', 'off', true);
+end $$;
+revoke all on function public.rum_acrotalar(uuid, date, text, text) from public, anon;
+grant execute on function public.rum_acrotalar(uuid, date, text, text) to authenticated;

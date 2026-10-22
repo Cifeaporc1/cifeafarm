@@ -9,7 +9,7 @@
   // ---------------------------------------------------------------- estado
   const S = {
     sesion: null, perfil: null, nombres: {}, corralinas: [], animales: [], eventos: [], porAnimal: {},
-    cargado: null, faltaSQL: false, borrador: {}, importacion: null,
+    cargado: null, faltaSQL: false, faltaSQL2: false, lotes: [], borrador: {}, importacion: null,
     ultimaCopia: (() => { try { const x = localStorage.getItem('farm-ultima-copia'); return x ? new Date(x) : null; } catch (_) { return null; } })(),
   };
   const $app = document.getElementById('app');
@@ -44,7 +44,7 @@
     document.body.appendChild(t); setTimeout(() => t.remove(), 3200);
   }
   function traducirError(e) {
-    const m = (e && (e.message || e.error_description)) || String(e);
+    const m = (e && (e.message || e.error_description || e.details || e.hint || e.code)) || (e && typeof e === 'object' ? JSON.stringify(e) : String(e));
     if (/Invalid login credentials/i.test(m)) return 'Alias, curso o PIN incorrectos.';
     if (/Failed to fetch|NetworkError|network/i.test(m)) return 'No hay conexión. Revisa la cobertura e inténtalo de nuevo.';
     if (/rum_animales_manejo/i.test(m)) return 'Ese nº de collar ya lo lleva otro animal vivo de la misma especie.';
@@ -64,6 +64,7 @@
     mapa: SVG('<path d="M3 4h18v16H3zM3 11h8M11 4v16M15 11h6"/>'),
     animales: SVG('<path d="M6 4h12v16H6zM9 9h6M9 13h6M9 17h3"/>'),
     censo: SVG('<path d="M5 20V10M10 20V4M15 20v-7M20 20v-4"/>'),
+    repro: SVG('<circle cx="9" cy="10" r="5"/><circle cx="15" cy="14" r="5"/>'),
     gestion: SVG('<path d="M4 6h16M4 12h16M4 18h10"/>'),
     cuenta: SVG('<circle cx="12" cy="8" r="4"/><path d="M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6"/>'),
     mas: SVG('<path d="M12 5v14M5 12h14"/>', 2.4),
@@ -98,6 +99,8 @@
       if (/does not exist|schema cache|PGRST205|42P01/i.test(`${err.message} ${err.code}`)) { S.faltaSQL = true; S.corralinas = []; S.animales = []; S.eventos = []; }
       else throw err;
     }
+    { const rl = S.faltaSQL ? { error: true } : await sb.from('rum_lotes').select('*').order('fecha_entrada', { ascending: false });
+      S.faltaSQL2 = !!rl.error; S.lotes = rl.error ? [] : rl.data; }
     S.porAnimal = {};
     for (const ev of S.eventos) (S.porAnimal[ev.animal_id] = S.porAnimal[ev.animal_id] || []).push(ev);
     const nv = await sb.rpc('nombres_visibles');
@@ -128,13 +131,20 @@
       ${horas}</header>`;
   }
   function navegacion(activa) {
-    const items = [['inicio', 'Hoy'], ['mapa', 'Mapa'], ['animales', 'Animales'], ['censo', 'Censo']];
+    const items = [['inicio', 'Hoy'], ['mapa', 'Mapa'], ['animales', 'Animales'], ['repro', 'Reprod.'], ['censo', 'Censo']];
     items.push(esProf() ? ['gestion', 'Gestión'] : ['cuenta', 'Cuenta']);
     return `<nav class="nav" aria-label="Secciones"><div class="dentro">${items.map(([id, t]) =>
-      `<a href="#/${id}" class="${activa === id ? 'activo' : ''}" ${activa === id ? 'aria-current="page"' : ''}>${ICONOS[id]}${t}</a>`).join('')}</div></nav>`;
+      `<a href="#/${id === 'repro' ? 'reproduccion' : id}" class="${activa === id ? 'activo' : ''}" ${activa === id ? 'aria-current="page"' : ''}>${ICONOS[id]}${t}</a>`).join('')}</div></nav>`;
   }
   function pintar(html) { $app.className = ''; $app.innerHTML = html; window.scrollTo(0, 0); }
   const faltaSQLCaja = () => (S.faltaSQL ? `<div class="error-caja" role="alert"><strong>Falta preparar la base de datos.</strong> ${esProf() ? 'Ejecuta en Supabase el archivo <code>sql/01_rumiantes.sql</code> (ver GUIA.md).' : 'Avisa a tu profesor.'}</div>` : '');
+  const ctxR = { eventos: (id) => S.porAnimal[id] || [], animal: (id) => animal(id) };
+  const estR = (h) => L.estadoRepro(h, S.lotes, ctxR, hoy());
+  const esHembraRepro = (a) => L.HEMBRAS.includes(a.categoria);
+  const corta = (iso) => (iso ? `${Number(iso.slice(8))} ${MESES[Number(iso.slice(5, 7)) - 1]}` : '—');
+  const chipEstado = (r) => `<span class="chip ${['gestante', 'lactacion', 'criando'].includes(r.estado) ? '' : ['lote', 'cubierta'].includes(r.estado) ? 'nar' : 'gris'}">${esc(estadoNombre(r))}</span>`;
+  const estadoNombre = (r) => (r.estado === 'lactacion' && r.ordeno ? 'En ordeño' : L.ESTADOS[r.estado].nombre);
+  const faltaSQL2Caja = () => (S.faltaSQL2 && !S.faltaSQL && esProf() ? '<div class="aviso-caja"><strong>Para usar la reproducción</strong>, vuelve a ejecutar en Supabase el archivo <code>sql/01_rumiantes.sql</code> (se puede repetir sin perder datos).</div>' : '');
   const chipCat = (a) => `<span class="chip ${a.especie === 'ovino' ? 'ovi' : ''}">${esc(catNombre(a.categoria))}</span>`;
 
   // ---------------------------------------------------------------- acceso
@@ -225,6 +235,8 @@
           <a class="dato enlace" href="#/animales/caprino"><span class="et">Caprino</span><span class="val">${n.caprino}</span><span class="nota">${n.cat.cabra || 0} cabras · ${n.cat.chiva || 0} chivas · ${n.cat.macho_cabrio || 0} machos${n.cat.cabrito ? ` · ${n.cat.cabrito} cabritos` : ''}</span></a>
           <a class="dato ovi enlace" href="#/animales/ovino"><span class="et">Ovino</span><span class="val">${n.ovino}</span><span class="nota">${n.cat.oveja || 0} ovejas · ${n.cat.cordera || 0} corderas · ${n.cat.morueco || 0} moruecos${n.cat.cordero ? ` · ${n.cat.cordero} corderos` : ''}</span></a>
         </div>
+        ${faltaSQL2Caja()}
+        ${(() => { const av = S.faltaSQL2 ? [] : L.avisosRepro(S.animales, S.lotes, ctxR, hoy()); return av.length ? `<section class="tarjeta"><h2>Avisos</h2>${av.map((x) => `<a class="evento enlace" href="${x.enlace}"><div class="entre"><strong>${esc(x.titulo)}</strong><span class="chip ${x.nivel === 'urgente' ? 'nar' : x.nivel === 'info' ? 'gris' : ''}">${x.nivel === 'urgente' ? 'Hoy' : x.nivel === 'info' ? 'En curso' : corta(x.fecha)}</span></div><div class="suave peq">${esc(x.detalle)}</div></a>`).join('')}</section>` : '<div class="vacio">No hay avisos de reproducción para hoy.</div>'; })()}
         ${porRevisar.length ? `<a class="tarjeta enlace" href="#/animales/revisar" style="border-color:var(--naranja-borde)"><div class="entre"><strong>Datos por completar</strong><span class="chip nar">${porRevisar.length}</span></div>
           <div class="suave">Crotales de 14 cifras, animales sin collar o cabras sin capa. Corrígelos desde la ficha de cada animal.</div></a>` : ''}
         ${esProf() && (!S.ultimaCopia || Date.now() - S.ultimaCopia > 30 * 864e5) && act.length ? `<a class="tarjeta enlace" href="#/gestion" style="border-color:var(--naranja-borde)"><div class="entre"><strong>Haz una copia de seguridad</strong><span class="chip nar">Profesor</span></div><div class="suave">${S.ultimaCopia ? `La última es del ${fechaHora(S.ultimaCopia)}` : 'Aún no has descargado ninguna desde este dispositivo'} · Gestión</div></a>` : ''}
@@ -273,9 +285,9 @@
         ${lista.length ? `<form id="f-sel" class="formu">
           <div class="entre"><label class="check-todos"><input type="checkbox" id="todos"> Seleccionar todos</label><span class="suave" id="n-sel">0 seleccionados</span></div>
           <div class="lista">${lista.map((a) => `<label class="animal-fila check"><input type="checkbox" name="sel" value="${a.id}">
-            <div><strong>${esc(nombreA(a))}</strong><div class="suave">${esc(catNombre(a.categoria))}${a.capa ? ` · ${esc(L.CAPAS[a.capa])}` : ''}${a.crotal ? ` · ${esc(a.crotal)}` : ''}</div></div>
+            <div><strong>${esc(nombreA(a))}</strong><div class="suave">${esc(catNombre(a.categoria))}${esHembraRepro(a) && !S.faltaSQL2 ? ` · ${esc(estadoNombre(estR(a)))}` : ''}${a.crotal ? ` · ${esc(a.crotal)}` : ''}</div></div>
             <a class="ver" href="#/animal/${a.id}" aria-label="Ver ficha de ${esc(nombreA(a))}">Ficha</a></label>`).join('')}</div>
-          <button class="btn pegado" type="submit" id="b-trasladar" disabled>${ICONOS.flecha}Trasladar seleccionados</button></form>`
+          <div class="botones pegado"><button class="btn" type="submit" id="b-trasladar" disabled>${ICONOS.flecha}Trasladar</button>${lista.some((a) => a.categoria === 'cabra') ? '<button class="btn sec" type="button" id="b-secado" disabled>Secado</button>' : ''}</div></form>`
         : '<div class="vacio">No hay animales en esta corralina.</div>'}
         ${esProf() && c ? `<form class="formu tarjeta" id="f-uso"><h2>Uso de la corralina</h2>
           <div class="campo"><label for="uso">Texto libre (p. ej. «Chivas», «Machos»)</label><input id="uso" name="uso" type="text" value="${esc(c.uso || '')}"></div>
@@ -283,8 +295,10 @@
       </main>${navegacion('mapa')}`);
     const f = document.getElementById('f-sel');
     if (f) {
-      const marcar = () => { const k = f.querySelectorAll('input[name=sel]:checked').length; document.getElementById('n-sel').textContent = `${k} ${k === 1 ? 'seleccionado' : 'seleccionados'}`; document.getElementById('b-trasladar').disabled = !k; };
+      const marcar = () => { const k = f.querySelectorAll('input[name=sel]:checked').length; document.getElementById('n-sel').textContent = `${k} ${k === 1 ? 'seleccionado' : 'seleccionados'}`; document.getElementById('b-trasladar').disabled = !k; const bs = document.getElementById('b-secado'); if (bs) bs.disabled = !k; };
       f.addEventListener('change', (ev) => { if (ev.target.id === 'todos') f.querySelectorAll('input[name=sel]').forEach((x) => { x.checked = ev.target.checked; }); marcar(); });
+      const bs = document.getElementById('b-secado');
+      if (bs) bs.addEventListener('click', () => { const ids = [...f.querySelectorAll('input[name=sel]:checked')].map((x) => x.value); S.borrador.grupo = { ids, volver: `#/corralina/${cid}` }; location.hash = '#/registro/secado'; });
       f.addEventListener('submit', (ev) => { ev.preventDefault(); const ids = [...f.querySelectorAll('input[name=sel]:checked')].map((x) => x.value); S.borrador.traslado = { ids, volver: `#/corralina/${cid}` }; location.hash = '#/trasladar'; });
     }
     const fu = document.getElementById('f-uso');
@@ -326,8 +340,10 @@
   }
 
   // ---------------------------------------------------------------- ficha
-  const TIPOS = { alta: 'Alta', baja: 'Baja', baja_anulada: 'Baja anulada', datos: 'Datos corregidos', traslado: 'Traslado', nota: 'Nota' };
-  const CAMPOS = { especie: 'Especie', raza: 'Raza', categoria: 'Categoría', sexo: 'Sexo', crotal: 'Crotal', manejo: 'Nº de manejo', codigo_cria: 'Código de cría', capa: 'Capa', fecha_nacimiento: 'Nacimiento', anio_nacimiento: 'Año de nacimiento', madre_id: 'Madre', padre_id: 'Padre', madre_txt: 'Madre', padre_txt: 'Padre', origen: 'Origen', corralina_id: 'Corralina de entrada', fecha_alta: 'Fecha de alta', obs: 'Observaciones' };
+  const TIPOS = { alta: 'Alta', baja: 'Baja', baja_anulada: 'Baja anulada', datos: 'Datos corregidos', traslado: 'Traslado', nota: 'Nota', eco: 'Ecografía', parto: 'Parto', encalostrado: 'Encalostrado', inicio_ordeno: 'Inicio del ordeño', destete: 'Destete', acrotalado: 'Acrotalado', secado: 'Secado' };
+  const TIPO_PARTO = { normal: 'Normal', asistido: 'Asistido', distocico: 'Distócico' };
+  const loteDe = (id) => S.lotes.find((l) => l.id === id);
+  const CAMPOS = { especie: 'Especie', raza: 'Raza', categoria: 'Categoría', sexo: 'Sexo', crotal: 'Crotal', manejo: 'Nº de manejo', codigo_cria: 'Código de cría', capa: 'Capa', fecha_nacimiento: 'Nacimiento', anio_nacimiento: 'Año de nacimiento', madre_id: 'Madre', padre_id: 'Padre', madre_txt: 'Madre', padre_txt: 'Padre', origen: 'Origen', corralina_id: 'Corralina de entrada', fecha_alta: 'Fecha de alta', obs: 'Observaciones', peso_nacimiento: 'Peso al nacer (kg)' };
   const nombreEvento = (e) => TIPOS[e.tipo] || e.tipo;
   function valorCampo(k, v) {
     if (v === null || v === undefined || v === '') return '—';
@@ -347,12 +363,19 @@
       case 'baja': return `${esc(d.causa || '')}${d.destino ? ` · ${esc(d.destino)}` : ''}`;
       case 'baja_anulada': return 'Vuelve al censo';
       case 'datos': return Object.entries(d.cambios || {}).map(([k, [a, b]]) => `${esc(CAMPOS[k] || k)}: ${esc(valorCampo(k, a))} → ${esc(valorCampo(k, b))}`).join(' · ');
-      case 'traslado': return `${esc(nombreCorrCorto(d.de))} → <strong>${esc(nombreCorrCorto(d.a))}</strong>`;
+      case 'traslado': return `${esc(nombreCorrCorto(d.de))} → <strong>${esc(nombreCorrCorto(d.a))}</strong>${d.lote && loteDe(d.lote) ? ` · ${esc(loteDe(d.lote).nombre)}` : ''}`;
+      case 'eco': return `${d.resultado === 'vacia' ? 'Vacía' : `<strong>Gestante</strong>${d.fetos ? ` · ${esc(d.fetos)} ${+d.fetos === 1 ? 'feto' : 'fetos'}` : ''}`}${d.lote && loteDe(d.lote) ? ` · ${esc(loteDe(d.lote).nombre)}` : ''}`;
+      case 'parto': return `${esc(TIPO_PARTO[d.tipo] || 'Normal')} · <strong>${+d.vivas || 0} ${+d.vivas === 1 ? 'viva' : 'vivas'}</strong>${+d.muertas ? ` · ${d.muertas} ${+d.muertas === 1 ? 'muerta' : 'muertas'}` : ''}${(d.crias || []).length ? ` · ${(d.crias || []).map((x) => esc(nombreA(animal(x)))).join(', ')}` : ''}${d.asistentes ? ` · asistieron ${esc(d.asistentes)}` : ''}`;
+      case 'encalostrado': return esc(d.resultado || 'Correcto');
+      case 'inicio_ordeno': return 'Empieza a ordeñarse';
+      case 'destete': return `${d.peso ? `${esc(d.peso)} kg · ` : ''}${esc(d.destino || '')}`;
+      case 'acrotalado': return `Crotal ${esc(d.crotal || '')}${d.manejo ? ` · collar ${esc(d.manejo)}` : ''} · pasa a ${esc(catNombre(d.categoria))}`;
+      case 'secado': return 'Secado natural';
       case 'nota': return esc(d.texto || '');
       default: return esc(e.tipo);
     }
   }
-  const AUTO = ['alta', 'baja', 'baja_anulada', 'datos'];
+  const AUTO = ['alta', 'baja', 'baja_anulada', 'datos', 'parto', 'acrotalado'];
   const puedeEditarEv = (e) => esProf() || (!AUTO.includes(e.tipo) && e.autor === uid() && Date.now() - new Date(e.creado).getTime() < 864e5);
   const puedeEditarAnimal = (a) => esProf() || (a.alta_autor === uid() && Date.now() - new Date(a.creado).getTime() < 864e5);
 
@@ -367,6 +390,7 @@
     const tarjetaEv = (e) => `<div class="evento"><div class="entre"><strong>${esc(nombreEvento(e))}</strong><span class="suave">${fmt(e.fecha)}</span></div>
       <div>${resumenEvento(e)}</div>${e.datos && e.datos.obs ? `<div class="suave">${esc(e.datos.obs)}</div>` : ''}
       <div class="suave peq">${e.datos && e.datos.importado ? 'Importado del Excel' : `Por ${esc(quienEs(e.autor, e.autor_alias))} (${curso(e.curso)})`}${e.modificado ? ` · corregido por ${esc(e.modificado_por || '?')}` : ''}</div>
+      ${e.tipo === 'parto' && esProf() ? `<div class="acciones"><button class="btn peligro peq" type="button" data-borrar-parto="${e.id}">Borrar parto</button></div>` : ''}
       ${puedeEditarEv(e) && !AUTO.includes(e.tipo) ? `<div class="acciones">${e.tipo === 'nota' ? `<a class="btn sec peq" href="#/nota/${a.id}/${e.id}">Corregir</a>` : ''}<button class="btn peligro peq" type="button" data-borrar="${e.id}">Borrar</button></div>` : ''}</div>`;
     const historial = evs.slice(0, 10).map(tarjetaEv).join('') + (evs.length > 10 ? `<details><summary class="suave" style="min-height:44px;display:flex;align-items:center">Ver ${evs.length - 10} registros anteriores</summary>${evs.slice(10).map(tarjetaEv).join('')}</details>` : '');
     const ident = [a.crotal ? `Crotal ${esc(a.crotal)}` : null, a.manejo && a.codigo_cria ? `antes ${esc(a.codigo_cria)}` : null].filter(Boolean).join(' · ');
@@ -379,6 +403,7 @@
         ${a.fecha_baja ? '' : `<div class="botones"><a class="btn" href="#/trasladar/${a.id}">${ICONOS.flecha}Trasladar</a><a class="btn sec" href="#/nota/${a.id}">Nota</a></div>`}
         <div class="botones">${a.fecha_baja ? (esProf() ? '<button class="btn sec peq" type="button" id="b-anular">Anular la baja</button>' : '') : `<a class="btn sec peq" href="#/baja/${a.id}">Dar de baja</a>`}
           ${puedeEditarAnimal(a) ? `<a class="btn sec peq" href="#/editar/${a.id}">Corregir datos</a>` : ''}</div>
+        ${a.fecha_baja || S.faltaSQL2 ? '' : seccionRepro(a)}
         <section class="tarjeta"><h2>Datos</h2><div class="filas">
           <div><span>Especie</span><span>${esc(L.ESPECIES[a.especie].nombre)}</span></div>
           <div><span>Raza</span><span>${esc(raza(a))}</span></div>
@@ -389,6 +414,7 @@
           <div><span>Sexo</span><span>${esc(a.sexo ? (a.sexo === 'hembra' ? 'Hembra' : 'Macho') : '—')}</span></div>
           ${a.especie === 'caprino' ? `<div><span>Capa</span><span>${esc(a.capa ? L.CAPAS[a.capa] : '—')}</span></div>` : ''}
           <div><span>Origen</span><span>${esc(a.origen ? L.ORIGENES[a.origen] : '—')}</span></div>
+          ${a.peso_nacimiento ? `<div><span>Peso al nacer</span><span>${esc(a.peso_nacimiento)} kg</span></div>` : ''}
           <div><span>Alta en el censo</span><span>${fmt(a.fecha_alta)}${a.alta_por ? ` · ${esc(a.alta_por)}` : ''}</span></div>
           ${a.obs ? `<div><span>Observaciones</span><span>${esc(a.obs)}</span></div>` : ''}</div></section>
         <section class="tarjeta"><h2>Familia</h2><div class="filas">
@@ -403,6 +429,12 @@
       const { error } = await sb.from('rum_eventos').delete().eq('id', b.dataset.borrar);
       if (error) return toast(traducirError(error));
       toast('Registro borrado'); refrescar();
+    }));
+    $app.querySelectorAll('[data-borrar-parto]').forEach((b) => b.addEventListener('click', async () => {
+      if (b.dataset.confirmar !== '1') { b.dataset.confirmar = '1'; b.textContent = '¿Seguro? Se borran también las crías que creó'; return; }
+      const { error } = await sb.rpc('rum_borrar_parto', { p_evento: b.dataset.borrarParto });
+      if (error) return toast(traducirError(error));
+      toast('Parto borrado'); refrescar();
     }));
     const an = document.getElementById('b-anular');
     if (an) an.addEventListener('click', async () => {
@@ -456,7 +488,7 @@
   function vistaNota(id, evId) {
     const a = animal(id); if (!a) return vistaNoEncontrado();
     const e = evId ? S.eventos.find((x) => x.id === evId) : null;
-    pintar(`${cabecera({ volver: `#/animal/${id}`, titulo: e ? 'Corregir nota' : 'Nota', sub: esc(nombreA(a)) })}
+    pintar(`${cabecera({ volver: `#/animal/${id}`, textoVolver: 'Ficha', titulo: e ? 'Corregir nota' : 'Nota', sub: esc(nombreA(a)) })}
       <main class="cuerpo"><div id="msg"></div>
         <form class="formu" id="f-nota" novalidate>
           <div class="campo"><label for="fecha">Fecha</label><input id="fecha" name="fecha" type="date" value="${e ? e.fecha : hoy()}" max="${hoy()}" required></div>
@@ -476,7 +508,7 @@
 
   function vistaBaja(id) {
     const a = animal(id); if (!a || a.fecha_baja) return vistaNoEncontrado();
-    pintar(`${cabecera({ volver: `#/animal/${id}`, titulo: 'Dar de baja', sub: `${esc(nombreA(a))} · ${esc(catNombre(a.categoria))}` })}
+    pintar(`${cabecera({ volver: `#/animal/${id}`, textoVolver: 'Ficha', titulo: 'Dar de baja', sub: `${esc(nombreA(a))} · ${esc(catNombre(a.categoria))}` })}
       <main class="cuerpo"><div id="msg"></div>
         <form class="formu" id="f-baja" novalidate>
           <div class="campo"><label for="fecha">Fecha de la baja</label><input id="fecha" name="fecha" type="date" value="${hoy()}" max="${hoy()}" required></div>
@@ -575,6 +607,327 @@
       const nuevo = res.data && res.data[0];
       toast(a ? 'Cambios guardados' : `${nuevo ? nombreA(nuevo) : 'Animal'} dado de alta`);
       await refrescar(); location.hash = `#/animal/${a ? a.id : nuevo.id}`;
+    });
+  }
+
+  // ---------------------------------------------------------------- reproducción
+  // Sección de la ficha: estado de la hembra, lote, ventana de parto, partos; o acciones de la cría.
+  function seccionRepro(a) {
+    if (esHembraRepro(a)) {
+      const r = estR(a); const h = hoy();
+      const partos = r.partos.slice().reverse();
+      const btn = (href, t, prin) => `<a class="btn ${prin ? '' : 'sec'} peq" href="${href}">${t}</a>`;
+      const acciones = [];
+      if (['lote', 'cubierta', 'gestante'].includes(r.estado)) acciones.push(btn(`#/eco/animal/${a.id}`, 'Ecografía', r.estado === 'cubierta'));
+      if (!['lactacion', 'criando'].includes(r.estado) || (r.diasParto ?? 99) > 30) acciones.push(btn(`#/parto/${a.id}`, 'Registrar parto', r.estado === 'gestante'));
+      if (r.estado === 'lactacion' && !r.ordeno) acciones.push(btn(`#/registro/inicio_ordeno/${a.id}`, 'Inicio del ordeño', true));
+      if (r.estado === 'lactacion') acciones.push(btn(`#/registro/secado/${a.id}`, 'Secado'));
+      return `<section class="tarjeta"><div class="entre"><h2>Reproducción</h2>${chipEstado(r)}</div><div class="filas">
+        ${r.lote ? `<div><span>Lote</span><span><a href="#/lote/${r.lote.id}">${esc(r.lote.nombre)}</a></span></div>
+          <div><span>Macho</span><span>${fmt(r.lote.fecha_entrada)} → ${r.lote.fecha_salida ? fmt(r.lote.fecha_salida) : 'sigue en el lote'}</span></div>` : ''}
+        ${r.ventana ? `<div><span>Partos previstos</span><span>${corta(r.ventana.desde)} – ${corta(r.ventana.hasta)}</span></div>` : ''}
+        ${r.estado === 'cubierta' && r.ecoDesde ? `<div><span>Ecografía</span><span>desde el ${fmt(r.ecoDesde)}</span></div>` : ''}
+        ${r.eco && ['gestante'].includes(r.estado) ? `<div><span>Ecografía</span><span>${fmt(r.eco.fecha)} · ${r.eco.datos.fetos ? `${esc(r.eco.datos.fetos)} fetos` : 'gestante'}</span></div>` : ''}
+        ${r.parto && ['lactacion', 'criando', 'seca'].includes(r.estado) ? `<div><span>Último parto</span><span>${fmt(r.parto.fecha)} · hace ${r.diasParto} días</span></div>` : ''}
+        ${r.estado === 'lactacion' ? `<div><span>Ordeño</span><span>${r.ordeno ? `desde el ${fmt(r.ordeno.fecha)}` : 'sin empezar'}</span></div>` : ''}
+        <div><span>Partos registrados</span><span>${partos.length}</span></div></div>
+        ${acciones.length ? `<div class="botones">${acciones.join('')}</div>` : ''}
+        ${partos.length ? `<table class="tabla"><thead><tr><th>Parto</th><th>Tipo</th><th class="num">Vivas</th><th class="num">Muertas</th></tr></thead><tbody>${partos.map((e) => `<tr><td>${fmt(e.fecha)}</td><td>${esc(TIPO_PARTO[e.datos.tipo] || 'Normal')}</td><td class="num">${+e.datos.vivas || 0}</td><td class="num">${+e.datos.muertas || 0}</td></tr>`).join('')}</tbody></table>` : ''}
+        ${r.estado === 'vacia' && !r.lote ? '<div class="suave peq">Entrará en reproducción cuando se forme un lote con macho en su corralina (Reprod. → Nuevo lote).</div>' : ''}</section>`;
+    }
+    if (L.esCria(a)) {
+      const evs = S.porAnimal[a.id] || [];
+      const enc = evs.find((e) => e.tipo === 'encalostrado'); const des = evs.find((e) => e.tipo === 'destete');
+      return `<section class="tarjeta"><h2>Cría</h2><div class="filas">
+        <div><span>Encalostrado</span><span>${enc ? `${fmt(enc.fecha)} · ${esc(enc.datos.resultado || 'Correcto')}` : 'sin anotar'}</span></div>
+        <div><span>Destete</span><span>${des ? `${fmt(des.fecha)}${des.datos.peso ? ` · ${esc(des.datos.peso)} kg` : ''} · ${esc(des.datos.destino || '')}` : 'sin destetar'}</span></div></div>
+        <div class="botones">${enc ? '' : `<a class="btn sec peq" href="#/registro/encalostrado/${a.id}">Encalostrado</a>`}${des ? '' : `<a class="btn sec peq" href="#/registro/destete/${a.id}">Destete</a>`}
+          <a class="btn sec peq" href="#/acrotalar/${a.id}">Acrotalar (se queda)</a></div>
+        <div class="suave peq">Si se vende, usa «Dar de baja» con la causa «Venta».</div></section>`;
+    }
+    if (L.MACHOS.includes(a.categoria)) {
+      const ls = S.lotes.filter((l) => (l.machos || []).includes(a.id));
+      return ls.length ? `<section class="tarjeta"><h2>Lotes de cubrición</h2><div class="lista">${ls.map((l) => `<a class="animal-fila mini" href="#/lote/${l.id}"><div><strong>${esc(l.nombre)}</strong><div class="suave">${fmt(l.fecha_entrada)} → ${l.fecha_salida ? fmt(l.fecha_salida) : 'en curso'} · ${l.hembras.length} hembras</div></div>${l.fecha_salida ? '' : '<span class="chip nar">En curso</span>'}</a>`).join('')}</div></section>` : '';
+    }
+    return '';
+  }
+
+  function vistaRepro(tab) {
+    const esp = S.borrador.espRepro || '';
+    const pest = [['lotes', 'Lotes'], ['hembras', 'Hembras'], ['paridera', 'Paridera']];
+    let cuerpo = '';
+    if (tab === 'lotes') {
+      const act = S.lotes.filter((l) => !l.fecha_salida); const ant = S.lotes.filter((l) => l.fecha_salida);
+      const fila = (l) => { const pend = l.fecha_salida ? l.hembras.map(animal).filter((h) => h && !h.fecha_baja && estR(h).lote && estR(h).lote.id === l.id && estR(h).estado === 'cubierta').length : 0;
+        return `<a class="animal-fila" href="#/lote/${l.id}"><div><strong>${esc(l.nombre)}</strong><div class="suave">${esc(L.ESPECIES[l.especie].nombre)} · ${esc(nombreCorrCorto(l.corralina_id))} · ${l.hembras.length} hembras · machos: ${l.machos.map((x) => esc(nombreA(animal(x)))).join(', ') || '—'}</div>
+          <div class="suave peq">Macho ${fmt(l.fecha_entrada)} → ${l.fecha_salida ? fmt(l.fecha_salida) : 'en el lote'}</div></div>${l.fecha_salida ? (pend ? `<span class="chip nar">${pend} sin eco</span>` : '') : '<span class="chip nar">En curso</span>'}</a>`; };
+      cuerpo = `<a class="btn" href="#/lote/nuevo">${ICONOS.mas}Nuevo lote de cubrición</a>
+        <div class="suave">El macho va a la corralina de las hembras. Al sacarlo vuelve a su corralina; la ecografía se hace a partir de ${L.REF.ecoTrasSalida} días.</div>
+        ${act.length ? `<h2>En curso</h2><div class="lista">${act.map(fila).join('')}</div>` : ''}
+        <h2>Anteriores</h2><div class="lista">${ant.map(fila).join('') || '<div class="vacio">Todavía no hay lotes cerrados.</div>'}</div>`;
+    } else if (tab === 'hembras') {
+      const hs = activos().filter((a) => esHembraRepro(a) && (!esp || a.especie === esp)).map((a) => ({ a, r: estR(a) }));
+      const orden = ['lote', 'cubierta', 'gestante', 'lactacion', 'criando', 'seca', 'vacia'];
+      cuerpo = `<div class="pestanas">${[['', 'Todas'], ['caprino', 'Cabras'], ['ovino', 'Ovejas']].map(([k, x]) => `<button type="button" data-esp="${k}" class="${esp === k ? 'activo' : ''}">${x}</button>`).join('')}</div>
+        ${orden.map((est) => { const g = hs.filter((x) => x.r.estado === est).sort((x, y) => String(x.r.ventana ? x.r.ventana.desde : '').localeCompare(String(y.r.ventana ? y.r.ventana.desde : '')) || L.ordenNatural(x.a, y.a)); if (!g.length) return '';
+          return `<details class="tarjeta" ${['gestante', 'lactacion', 'cubierta', 'lote'].includes(est) ? 'open' : ''}><summary><strong>${esc(L.ESTADOS[est].nombre)}</strong>&nbsp;<span class="chip gris">${g.length}</span></summary><div class="lista">${g.map(({ a, r }) => `<a class="animal-fila mini" href="#/animal/${a.id}"><div><strong>${esc(nombreA(a))}</strong><div class="suave">${esc(catNombre(a.categoria))}${r.ventana ? ` · partos ${corta(r.ventana.desde)}–${corta(r.ventana.hasta)}` : ''}${r.parto && ['lactacion', 'criando', 'seca'].includes(r.estado) ? ` · parió hace ${r.diasParto} d` : ''}${r.estado === 'lactacion' && !r.ordeno ? ' · sin ordeño' : ''}</div></div>${chipEstado(r)}</a>`).join('')}</div></details>`; }).join('') || '<div class="vacio">No hay hembras.</div>'}`;
+    } else {
+      const anios = [...new Set(S.eventos.filter((e) => e.tipo === 'parto').map((e) => e.fecha.slice(0, 4)).concat([hoy().slice(0, 4)]))].sort().reverse();
+      const an = S.borrador.anioParidera || anios[0];
+      const partos = S.eventos.filter((e) => e.tipo === 'parto' && e.fecha.startsWith(an) && (!esp || (animal(e.animal_id) || {}).especie === esp)).sort(L.porFecha).reverse();
+      const R2 = L.resumenParidera(partos); const pc = (x) => (x === null ? '—' : `${Math.round(x * 100)} %`);
+      const sinDestetar = activos().filter((a) => L.esCria(a) && (!esp || a.especie === esp) && !(S.porAnimal[a.id] || []).some((e) => e.tipo === 'destete')).sort((x, y) => String(x.fecha_nacimiento).localeCompare(String(y.fecha_nacimiento)));
+      cuerpo = `<div class="pestanas">${[['', 'Todas'], ['caprino', 'Cabras'], ['ovino', 'Ovejas']].map(([k, x]) => `<button type="button" data-esp="${k}" class="${esp === k ? 'activo' : ''}">${x}</button>`).join('')}</div>
+        <div class="campo"><label for="f-anio">Año</label><select id="f-anio">${anios.map((x) => `<option ${x === an ? 'selected' : ''}>${x}</option>`).join('')}</select></div>
+        <div class="totales3"><div class="dato"><span class="et">Partos</span><span class="val">${R2.partos}</span></div><div class="dato"><span class="et">Nacidas vivas</span><span class="val">${R2.vivas}</span></div><div class="dato gris"><span class="et">Muertas</span><span class="val">${R2.muertas}</span></div></div>
+        <section class="tarjeta"><h2>Indicadores</h2><div class="filas">
+          <div><span>Prolificidad (crías nacidas por parto)</span><span>${R2.prolificidad === null ? '—' : R2.prolificidad.toFixed(2).replace('.', ',')}</span></div>
+          <div><span>Mortalidad al nacer</span><span>${pc(R2.mortalidad)}</span></div>
+          <div><span>Partos asistidos o distócicos</span><span>${(R2.tipos.asistido || 0) + (R2.tipos.distocico || 0)}</span></div></div>
+          <div class="suave peq">Prolificidad = (vivas + muertas) ÷ partos. Mortalidad = muertas ÷ (vivas + muertas).</div></section>
+        <section class="tarjeta"><h2>Partos de ${an}</h2>${partos.map((e) => { const m = animal(e.animal_id); return `<a class="evento enlace" href="#/animal/${e.animal_id}"><div class="entre"><strong>${esc(nombreA(m))}</strong><span class="suave">${fmt(e.fecha)}</span></div><div class="suave peq">${resumenEvento(e)}</div></a>`; }).join('') || '<div class="suave">Sin partos registrados.</div>'}</section>
+        <section class="tarjeta"><h2>Crías sin destetar (${sinDestetar.length})</h2><div class="lista">${sinDestetar.map((c) => `<a class="animal-fila mini" href="#/animal/${c.id}"><div><strong>${esc(nombreA(c))}</strong><div class="suave">${esc(catNombre(c.categoria))} · ${esc(L.edad(c, hoy()))}${c.sexo ? ` · ${c.sexo}` : ''}</div></div>${chipCat(c)}</a>`).join('') || '<div class="suave">Ninguna.</div>'}</div></section>`;
+    }
+    pintar(`${cabecera()}
+      <main class="cuerpo">${faltaSQLCaja()}${faltaSQL2Caja()}
+        <h1 style="font-size:22px">Reproducción</h1>
+        <div class="pestanas">${pest.map(([k, x]) => `<a href="#/reproduccion/${k}" class="${tab === k ? 'activo' : ''}">${x}</a>`).join('')}</div>
+        ${cuerpo}
+      </main>${navegacion('repro')}`);
+    $app.querySelectorAll('[data-esp]').forEach((x) => x.addEventListener('click', () => { S.borrador.espRepro = x.dataset.esp; vistaRepro(tab); }));
+    const fa = document.getElementById('f-anio'); if (fa) fa.addEventListener('change', () => { S.borrador.anioParidera = fa.value; vistaRepro(tab); });
+  }
+
+  function vistaLote(id) {
+    const l = loteDe(id); if (!l) return vistaNoEncontrado('No se ha encontrado ese lote.');
+    const hs = l.hembras.map(animal).filter(Boolean).sort(L.ordenNatural);
+    const pend = hs.filter((h) => !h.fecha_baja && estR(h).lote && estR(h).lote.id === l.id && estR(h).estado === 'cubierta');
+    const g = L.REF.gestacion[l.especie]; const ecoDesde = l.fecha_salida ? L.sumarDias(l.fecha_salida, L.REF.ecoTrasSalida) : null;
+    const puedeBorrar = esProf() || (l.autor === uid() && Date.now() - new Date(l.creado).getTime() < 864e5);
+    pintar(`${cabecera({ volver: '#/reproduccion/lotes', textoVolver: 'Lotes', titulo: l.nombre, sub: `${esc(L.ESPECIES[l.especie].nombre)} · ${esc(nombreCorr(l.corralina_id))}` })}
+      <main class="cuerpo">
+        <div class="dos"><div class="dato ${l.fecha_salida ? 'gris' : 'nar'}"><span class="et">Macho</span><span class="val peq-val">${l.fecha_salida ? 'Fuera' : 'En el lote'}</span><span class="nota">${fmt(l.fecha_entrada)} → ${l.fecha_salida ? fmt(l.fecha_salida) : `${L.dias(l.fecha_entrada, hoy())} días`}</span></div>
+          <div class="dato"><span class="et">Partos previstos</span><span class="val peq-val">${corta(L.sumarDias(l.fecha_entrada, g))} – ${corta(L.sumarDias(l.fecha_salida || hoy(), g))}</span><span class="nota">Gestación de ${g} días</span></div></div>
+        ${l.fecha_salida ? '' : `<a class="btn" href="#/sacar/${l.id}">Sacar el macho</a>`}
+        ${l.fecha_salida && pend.length ? `<a class="btn ${hoy() >= ecoDesde ? '' : 'sec'}" href="#/eco/lote/${l.id}">Ecografía del lote (${pend.length})</a>${hoy() < ecoDesde ? `<div class="suave">La ecografía toca a partir del ${fmt(ecoDesde)}.</div>` : ''}` : ''}
+        <section class="tarjeta"><h2>Machos</h2><div class="lista">${l.machos.map(animal).filter(Boolean).map((m) => `<a class="animal-fila mini" href="#/animal/${m.id}"><div><strong>${esc(nombreA(m))}</strong><div class="suave">${esc(catNombre(m.categoria))} · ahora en ${esc(nombreCorrCorto(ubic(m)))}</div></div></a>`).join('') || '<div class="suave">—</div>'}</div></section>
+        <section class="tarjeta"><h2>Hembras (${hs.length})</h2><div class="lista">${hs.map((h) => { const r = estR(h); const deEste = r.lote && r.lote.id === l.id; return `<a class="animal-fila mini" href="#/animal/${h.id}"><div><strong>${esc(nombreA(h))}</strong><div class="suave">${esc(catNombre(h.categoria))}${h.fecha_baja ? ' · baja' : ''}</div></div>${deEste ? chipEstado(r) : '<span class="chip gris">Otro lote</span>'}</a>`; }).join('')}</div></section>
+        ${l.obs ? `<div class="tarjeta"><div class="suave">${esc(l.obs)}</div></div>` : ''}
+        <div class="suave peq">Creado por ${esc(quienEs(l.autor, l.autor_alias))} (${curso(l.curso)})${l.modificado ? ` · modificado por ${esc(l.modificado_por || '?')}` : ''}</div>
+        ${puedeBorrar ? '<details class="tarjeta"><summary class="suave">Borrar el lote (solo si es un error)</summary><p class="suave">No deshace los traslados del macho ni borra ecografías: corrígelos aparte si hace falta.</p><button class="btn peligro" type="button" id="b-borrar-lote">Borrar el lote</button></details>' : ''}
+      </main>${navegacion('repro')}`);
+    const bb = document.getElementById('b-borrar-lote');
+    if (bb) bb.addEventListener('click', async () => {
+      if (bb.dataset.confirmar !== '1') { bb.dataset.confirmar = '1'; bb.textContent = '¿Seguro? Pulsa otra vez'; return; }
+      const { error } = await sb.from('rum_lotes').delete().eq('id', l.id);
+      if (error) return toast(traducirError(error));
+      toast('Lote borrado'); await refrescar(); location.hash = '#/reproduccion/lotes';
+    });
+  }
+
+  function vistaLoteNuevo() {
+    const v = S.borrador.loteNuevo || (S.borrador.loteNuevo = { especie: 'caprino', corralina: null, fecha: hoy(), quitadas: [], machos: [] });
+    const enCorr = v.corralina ? activos().filter((a) => a.especie === v.especie && esHembraRepro(a) && ubic(a) === Number(v.corralina)).sort(L.ordenNatural) : [];
+    const machos = activos().filter((a) => a.especie === v.especie && L.MACHOS.includes(a.categoria)).sort(L.ordenNatural);
+    const ocupado = (h) => { const r = estR(h); return r.estado === 'lote' ? 'ya está con macho' : r.estado === 'gestante' ? 'gestante' : ''; };
+    const c = corralina(v.corralina); const d = new Date(`${v.fecha}T12:00:00`);
+    const nombreDef = c ? `Lote ${c.nave === 'Cría y Ordeño' ? 'CyO' : 'MyO'}-${c.numero} · ${MESES[d.getMonth()]} ${d.getFullYear()}` : '';
+    pintar(`${cabecera({ volver: '#/reproduccion/lotes', textoVolver: 'Lotes', titulo: 'Nuevo lote de cubrición' })}
+      <main class="cuerpo"><div id="msg"></div>
+        <form class="formu" id="f-lote" novalidate>
+          <div class="campo"><span class="et">Especie</span><div class="opciones">${Object.entries(L.ESPECIES).map(([k, x]) => `<label><input type="radio" name="especie" value="${k}" ${v.especie === k ? 'checked' : ''}> ${x.nombre}</label>`).join('')}</div></div>
+          <div class="campo"><label for="corralina">Corralina de las hembras</label><select id="corralina" name="corralina">${opcionesCorralinas(v.corralina, 'Elige…')}</select></div>
+          ${v.corralina ? `<fieldset><legend>Hembras del lote (${enCorr.length - v.quitadas.filter((x) => enCorr.some((h) => h.id === x)).length})</legend>
+            ${enCorr.length ? `<div class="lista">${enCorr.map((h) => `<label class="animal-fila check mini"><input type="checkbox" name="hembra" value="${h.id}" ${v.quitadas.includes(h.id) ? '' : 'checked'}><div><strong>${esc(nombreA(h))}</strong><div class="suave">${esc(catNombre(h.categoria))}${ocupado(h) ? ` · <span class="rojo">${ocupado(h)}</span>` : ''}</div></div></label>`).join('')}</div>` : '<div class="suave">No hay hembras de esta especie en esa corralina.</div>'}</fieldset>` : ''}
+          <fieldset><legend>Machos</legend>${machos.length ? `<div class="lista">${machos.map((m) => `<label class="animal-fila check mini"><input type="checkbox" name="macho" value="${m.id}" ${v.machos.includes(m.id) ? 'checked' : ''}><div><strong>${esc(nombreA(m))}</strong><div class="suave">${esc(catNombre(m.categoria))} · ahora en ${esc(nombreCorrCorto(ubic(m)))}</div></div></label>`).join('')}</div>` : '<div class="suave">No hay machos de esta especie en el censo.</div>'}
+            <span class="ayuda">Los machos se trasladan solos a la corralina de las hembras. Sirve también como efecto macho.</span></fieldset>
+          <div class="dos"><div class="campo"><label for="fecha">Entrada del macho</label><input id="fecha" name="fecha" type="date" value="${v.fecha}" max="${hoy()}"></div>
+            <div class="campo"><label for="nombre">Nombre del lote</label><input id="nombre" name="nombre" type="text" value="${esc(v.nombre || nombreDef)}"></div></div>
+          <div class="campo"><label for="obs">Observaciones (opcional)</label><textarea id="obs" name="obs">${esc(v.obs || '')}</textarea></div>
+          <button class="btn" type="submit">Crear el lote</button></form>
+      </main>${navegacion('repro')}`);
+    const f = document.getElementById('f-lote');
+    const leer = () => { const x = new FormData(f); v.especie = x.get('especie'); v.fecha = x.get('fecha') || hoy(); v.nombre = String(x.get('nombre') || '').trim() || null; v.obs = String(x.get('obs') || ''); v.machos = x.getAll('macho');
+      const marcadas = new Set(x.getAll('hembra')); v.quitadas = enCorr.filter((h) => !marcadas.has(h.id)).map((h) => h.id); };
+    f.querySelectorAll('input[name=especie]').forEach((r) => r.addEventListener('change', () => { leer(); v.machos = []; v.quitadas = []; v.nombre = null; vistaLoteNuevo(); }));
+    document.getElementById('corralina').addEventListener('change', (ev) => { leer(); v.corralina = ev.target.value ? Number(ev.target.value) : null; v.quitadas = []; v.nombre = null; vistaLoteNuevo(); });
+    f.addEventListener('submit', async (ev) => {
+      ev.preventDefault(); leer();
+      const msg = (t) => { document.getElementById('msg').innerHTML = errorCaja(t); window.scrollTo(0, 0); };
+      const hembras = enCorr.filter((h) => !v.quitadas.includes(h.id)).map((h) => h.id);
+      if (!v.corralina) return msg('Elige la corralina de las hembras.');
+      if (!hembras.length) return msg('El lote necesita al menos una hembra.');
+      if (!v.machos.length) return msg('Elige al menos un macho.');
+      const b = f.querySelector('button[type=submit]'); b.disabled = true;
+      const d2 = new Date(`${v.fecha}T12:00:00`); const def2 = c ? `Lote ${c.nave === 'Cría y Ordeño' ? 'CyO' : 'MyO'}-${c.numero} · ${MESES[d2.getMonth()]} ${d2.getFullYear()}` : '';
+      const nombre = !v.nombre || v.nombre === nombreDef ? def2 : v.nombre;
+      const { data, error } = await sb.from('rum_lotes').insert({ especie: v.especie, nombre, corralina_id: Number(v.corralina), machos: v.machos, hembras, fecha_entrada: v.fecha, obs: v.obs.trim() || null }).select();
+      if (error) { b.disabled = false; return msg(traducirError(error)); }
+      const lote = data[0];
+      const tras = v.machos.map(animal).filter((m) => ubic(m) !== Number(v.corralina)).map((m) => ({ animal_id: m.id, tipo: 'traslado', fecha: v.fecha, datos: { de: ubic(m), a: Number(v.corralina), lote: lote.id } }));
+      if (tras.length) { const r2 = await sb.from('rum_eventos').insert(tras); if (r2.error) toast(`Lote creado, pero falló el traslado del macho: ${traducirError(r2.error)}`); }
+      S.borrador.loteNuevo = null; toast(`${nombre} creado`); await refrescar(); location.hash = `#/lote/${lote.id}`;
+    });
+  }
+
+  function vistaSacar(id) {
+    const l = loteDe(id); if (!l || l.fecha_salida) return vistaNoEncontrado('Ese lote ya no tiene el macho.');
+    const machos = l.machos.map(animal).filter((m) => m && !m.fecha_baja);
+    const origen = (m) => { const t = (S.porAnimal[m.id] || []).filter((e) => e.tipo === 'traslado' && e.datos && e.datos.lote === l.id).sort(L.porFecha)[0]; return t ? t.datos.de : null; };
+    pintar(`${cabecera({ volver: `#/lote/${id}`, textoVolver: 'Lote', titulo: 'Sacar el macho', sub: esc(l.nombre) })}
+      <main class="cuerpo"><div id="msg"></div>
+        <form class="formu" id="f-sacar" novalidate>
+          <div class="campo"><label for="fecha">Fecha de salida</label><input id="fecha" name="fecha" type="date" value="${hoy()}" min="${l.fecha_entrada}" max="${hoy()}"></div>
+          ${machos.map((m) => `<div class="campo"><label for="d-${m.id}">${esc(nombreA(m))} vuelve a</label><select id="d-${m.id}" name="d-${m.id}">${opcionesCorralinas(origen(m) || '', 'Se queda donde está')}</select></div>`).join('')}
+          <div class="suave">La ecografía se podrá hacer a partir de ${L.REF.ecoTrasSalida} días después de esta fecha.</div>
+          <button class="btn" type="submit">Guardar</button></form>
+      </main>${navegacion('repro')}`);
+    document.getElementById('f-sacar').addEventListener('submit', async (ev) => {
+      ev.preventDefault(); const x = new FormData(ev.target); const fecha = String(x.get('fecha'));
+      if (!fecha || fecha < l.fecha_entrada) { document.getElementById('msg').innerHTML = errorCaja('La salida no puede ser anterior a la entrada.'); return; }
+      ev.target.querySelector('button').disabled = true;
+      const { error } = await sb.from('rum_lotes').update({ fecha_salida: fecha }).eq('id', l.id);
+      if (error) { ev.target.querySelector('button').disabled = false; document.getElementById('msg').innerHTML = errorCaja(traducirError(error)); return; }
+      const tras = machos.map((m) => ({ m, a: Number(x.get(`d-${m.id}`)) || null })).filter((t) => t.a && t.a !== ubic(t.m)).map((t) => ({ animal_id: t.m.id, tipo: 'traslado', fecha, datos: { de: ubic(t.m), a: t.a, lote: l.id } }));
+      if (tras.length) { const r2 = await sb.from('rum_eventos').insert(tras); if (r2.error) toast(traducirError(r2.error)); }
+      toast('Macho fuera del lote'); await refrescar(); location.hash = `#/lote/${l.id}`;
+    });
+  }
+
+  // Ecografía de una hembra o de todo un lote.
+  function vistaEco(modo, id) {
+    const l = modo === 'lote' ? loteDe(id) : null;
+    const lista = modo === 'lote' ? (l ? l.hembras.map(animal).filter((h) => h && !h.fecha_baja && estR(h).lote && estR(h).lote.id === l.id && ['cubierta', 'lote'].includes(estR(h).estado)).sort(L.ordenNatural) : []) : [animal(id)].filter(Boolean);
+    if (!lista.length) return vistaNoEncontrado('No hay hembras pendientes de ecografía.');
+    const volver = l ? `#/lote/${l.id}` : `#/animal/${id}`;
+    pintar(`${cabecera({ volver, textoVolver: l ? 'Lote' : 'Ficha', titulo: 'Ecografía', sub: l ? esc(l.nombre) : esc(nombreA(lista[0])) })}
+      <main class="cuerpo"><div id="msg"></div>
+        <form class="formu" id="f-eco" novalidate>
+          <div class="campo"><label for="fecha">Fecha</label><input id="fecha" name="fecha" type="date" value="${hoy()}" max="${hoy()}"></div>
+          ${lista.map((h) => `<fieldset><legend>${esc(nombreA(h))}</legend>
+            <div class="opciones"><label><input type="radio" name="r-${h.id}" value="gestante"> Gestante</label><label><input type="radio" name="r-${h.id}" value="vacia"> Vacía</label>${lista.length > 1 ? `<label><input type="radio" name="r-${h.id}" value="" checked> No vista</label>` : ''}</div>
+            <div class="campo"><label for="f-${h.id}">Fetos (si se ven)</label><select id="f-${h.id}" name="f-${h.id}"><option value="">—</option><option>1</option><option>2</option><option>3</option><option>4</option></select></div></fieldset>`).join('')}
+          <div class="campo"><label for="obs">Observaciones (opcional)</label><textarea id="obs" name="obs"></textarea></div>
+          <button class="btn" type="submit">Guardar</button></form>
+      </main>${navegacion('repro')}`);
+    document.getElementById('f-eco').addEventListener('submit', async (ev) => {
+      ev.preventDefault(); const x = new FormData(ev.target); const fecha = String(x.get('fecha')); const obs = String(x.get('obs') || '').trim();
+      const filas = lista.map((h) => ({ h, r: x.get(`r-${h.id}`), f: x.get(`f-${h.id}`) })).filter((y) => y.r).map((y) => { const lt = estR(y.h).lote; return { animal_id: y.h.id, tipo: 'eco', fecha, datos: { resultado: y.r, ...(y.r === 'gestante' && y.f ? { fetos: Number(y.f) } : {}), ...(lt ? { lote: lt.id } : {}), ...(obs ? { obs } : {}) } }; });
+      if (!filas.length) { document.getElementById('msg').innerHTML = errorCaja('Marca el resultado de al menos una hembra.'); return; }
+      const antes = lista.find((h) => { const lt = estR(h).lote; return lt && fecha < lt.fecha_entrada; });
+      if (antes) { document.getElementById('msg').innerHTML = errorCaja(`La fecha es anterior a la entrada del macho en el lote (${fmt(estR(antes).lote.fecha_entrada)}).`); return; }
+      ev.target.querySelector('button').disabled = true;
+      const { error } = await sb.from('rum_eventos').insert(filas);
+      if (error) { ev.target.querySelector('button').disabled = false; document.getElementById('msg').innerHTML = errorCaja(traducirError(error)); return; }
+      toast(`${filas.length} ${filas.length === 1 ? 'ecografía guardada' : 'ecografías guardadas'}`); await refrescar(); location.hash = volver;
+    });
+  }
+
+  function vistaParto(id) {
+    const m = animal(id); if (!m || m.fecha_baja || !esHembraRepro(m)) return vistaNoEncontrado();
+    const r = estR(m);
+    const v = S.borrador.parto && S.borrador.parto.id === id ? S.borrador.parto : (S.borrador.parto = { id, n: (r.eco && r.eco.datos.fetos) || 1, fecha: hoy(), tipo: 'normal', crias: [] });
+    const enPartos = new Set(S.eventos.filter((e) => e.tipo === 'parto').flatMap((e) => e.datos.crias || []));
+    const previas = activos().filter((c) => c.madre_id === m.id && L.esCria(c) && !enPartos.has(c.id));
+    const machosLote = r.lote ? r.lote.machos : [];
+    const crias = Array.from({ length: v.n }, (_, i) => v.crias[i] || { sexo: '', viva: true, peso: '' });
+    const pierdeCat = ['chiva', 'cordera'].includes(m.categoria);
+    pintar(`${cabecera({ volver: `#/animal/${id}`, textoVolver: 'Ficha', titulo: 'Parto', sub: `${esc(nombreA(m))} · ${esc(catNombre(m.categoria))}` })}
+      <main class="cuerpo"><div id="msg"></div>
+        ${r.ventana ? `<div class="ok-caja">Partos previstos del ${fmt(r.ventana.desde)} al ${fmt(r.ventana.hasta)}${r.eco && r.eco.datos.fetos ? ` · ecografía: ${r.eco.datos.fetos} fetos` : ''}</div>` : ''}
+        <form class="formu" id="f-parto" novalidate>
+          <div class="campo"><label for="fecha">Fecha del parto</label><input id="fecha" name="fecha" type="date" value="${v.fecha}" max="${hoy()}"></div>
+          <div class="campo"><span class="et">Tipo de parto</span><div class="opciones">${Object.entries(TIPO_PARTO).map(([k, x]) => `<label><input type="radio" name="tipo" value="${k}" ${v.tipo === k ? 'checked' : ''}> ${x}</label>`).join('')}</div></div>
+          ${previas.length ? `<fieldset><legend>Crías ya dadas de alta</legend><div class="suave peq">Márcalas si son de este parto (por ejemplo, las del censo inicial).</div>
+            ${previas.map((c) => `<label class="animal-fila check mini"><input type="checkbox" name="previa" value="${c.id}" ${(v.previas || []).includes(c.id) ? 'checked' : ''}><div><strong>${esc(nombreA(c))}</strong><div class="suave">${esc(catNombre(c.categoria))} · ${fmt(c.fecha_nacimiento)}${c.sexo ? ` · ${c.sexo}` : ''}</div></div></label>`).join('')}</fieldset>` : ''}
+          <div class="contador"><span class="et" style="font-weight:700">Crías nuevas</span><div class="ctl"><button type="button" data-n="-1" aria-label="Una menos">−</button><input type="number" id="n" value="${v.n}" readonly aria-label="Número de crías"><button type="button" data-n="1" aria-label="Una más">+</button></div></div>
+          ${crias.map((c, i) => `<fieldset><legend>Cría ${i + 1}</legend>
+            <div class="opciones"><label><input type="radio" name="s${i}" value="hembra" ${c.sexo === 'hembra' ? 'checked' : ''}> Hembra</label><label><input type="radio" name="s${i}" value="macho" ${c.sexo === 'macho' ? 'checked' : ''}> Macho</label></div>
+            <div class="dos"><div class="campo"><label for="v${i}">Estado</label><select id="v${i}" name="v${i}"><option value="1" ${c.viva ? 'selected' : ''}>Viva</option><option value="0" ${c.viva ? '' : 'selected'}>Muerta</option></select></div>
+              <div class="campo"><label for="p${i}">Peso (kg)</label><input id="p${i}" name="p${i}" type="number" step="0.1" min="0.5" max="15" inputmode="decimal" value="${esc(c.peso)}"></div></div></fieldset>`).join('')}
+          ${machosLote.length > 1 ? `<div class="campo"><label for="padre">Padre</label><select id="padre" name="padre"><option value="">No se sabe (lote con varios machos)</option>${machosLote.map((x) => `<option value="${x}" ${v.padre === x ? 'selected' : ''}>${esc(nombreA(animal(x)))}</option>`).join('')}</select></div>` : machosLote.length === 1 ? `<div class="suave">Padre: <strong>${esc(nombreA(animal(machosLote[0])))}</strong> (el macho del lote)</div>` : ''}
+          <div class="campo"><label for="asistentes">Alumnos que asistieron</label><input id="asistentes" name="asistentes" type="text" value="${esc(v.asistentes ?? yo())}"></div>
+          <div class="campo"><label for="obs">Observaciones (opcional)</label><textarea id="obs" name="obs">${esc(v.obs || '')}</textarea></div>
+          ${pierdeCat ? `<div class="suave">Es su primer parto: pasará de ${esc(catNombre(m.categoria).toLowerCase())} a ${m.categoria === 'chiva' ? 'cabra' : 'oveja'}.</div>` : ''}
+          <div class="suave">Las crías vivas se dan de alta solas, sin crotal, con el código ${esc(m.manejo || '?')}-1, ${esc(m.manejo || '?')}-2…, en ${esc(nombreCorrCorto(ubic(m)))}.</div>
+          <button class="btn" type="submit">Guardar el parto</button></form>
+      </main>${navegacion('repro')}`);
+    const f = document.getElementById('f-parto');
+    const leer = () => { const x = new FormData(f); v.fecha = x.get('fecha') || hoy(); v.tipo = x.get('tipo') || 'normal'; v.asistentes = String(x.get('asistentes') || ''); v.obs = String(x.get('obs') || ''); v.padre = x.get('padre') || null; v.previas = x.getAll('previa');
+      v.crias = crias.map((_, i) => ({ sexo: x.get(`s${i}`) || '', viva: x.get(`v${i}`) !== '0', peso: x.get(`p${i}`) || '' })); };
+    f.querySelectorAll('[data-n]').forEach((b) => b.addEventListener('click', () => { leer(); v.n = Math.max(0, Math.min(6, v.n + Number(b.dataset.n))); vistaParto(id); }));
+    f.addEventListener('submit', async (ev) => {
+      ev.preventDefault(); leer();
+      const msg = (t) => { document.getElementById('msg').innerHTML = errorCaja(t); window.scrollTo(0, 0); };
+      if (!v.n && !v.previas.length) return msg('Indica al menos una cría.');
+      if (r.desde && v.fecha < r.desde && ['lote', 'cubierta', 'gestante'].includes(r.estado)) return msg(`La fecha del parto es anterior a ${r.eco ? 'la ecografía' : 'la entrada del macho'} (${fmt(r.desde)}). Revísala.`);
+      if (v.crias.some((c) => c.peso && !(Number(c.peso) > 0 && Number(c.peso) < 20))) return msg('Revisa los pesos (en kg, por ejemplo 3,2).');
+      const b = f.querySelector('button[type=submit]'); b.disabled = true;
+      const padre = machosLote.length === 1 ? machosLote[0] : v.padre;
+      const { error } = await sb.rpc('rum_parto', { p_madre: m.id, p_fecha: v.fecha, p_datos: { tipo: v.tipo, asistentes: v.asistentes.trim() || null, ...(v.obs.trim() ? { obs: v.obs.trim() } : {}), ...(r.lote ? { lote: r.lote.id } : {}) },
+        p_crias: v.crias.map((c) => ({ sexo: c.sexo || null, viva: c.viva, ...(c.peso ? { peso: Number(String(c.peso).replace(',', '.')) } : {}) })), p_corralina: ubic(m), p_padre: padre || null, p_existentes: v.previas });
+      if (error) { b.disabled = false; return msg(traducirError(error)); }
+      S.borrador.parto = null; toast('Parto guardado'); await refrescar(); location.hash = `#/animal/${m.id}`;
+    });
+  }
+
+  // Registros sencillos: encalostrado, inicio del ordeño, destete y secado (uno o varios animales).
+  const REGISTROS = {
+    encalostrado: { titulo: 'Encalostrado', apto: (a) => L.esCria(a) },
+    inicio_ordeno: { titulo: 'Inicio del ordeño', apto: (a) => a.especie === 'caprino' && esHembraRepro(a) && estR(a).estado === 'lactacion' },
+    destete: { titulo: 'Destete', apto: (a) => L.esCria(a) },
+    secado: { titulo: 'Secado', apto: (a) => a.especie === 'caprino' && esHembraRepro(a) && estR(a).estado === 'lactacion' },
+  };
+  function vistaRegistro(tipo, id) {
+    const T = REGISTROS[tipo]; if (!T) return vistaNoEncontrado();
+    const ids = id ? [id] : ((S.borrador.grupo || {}).ids || []);
+    const todos = ids.map(animal).filter((a) => a && !a.fecha_baja);
+    const lista = todos.filter(T.apto); const fuera = todos.filter((a) => !T.apto(a));
+    const volver = id ? `#/animal/${id}` : (S.borrador.grupo || {}).volver || '#/inicio';
+    if (!lista.length) return vistaNoEncontrado(tipo === 'secado' ? 'Ninguno de los animales elegidos es una cabra en lactación.' : 'No hay animales para este registro.');
+    let fechaDef = hoy();
+    if (tipo === 'inicio_ordeno' && lista.length === 1) { const r = estR(lista[0]); if (r.parto) fechaDef = [L.sumarDias(r.parto.fecha, L.REF.ordenoTrasParto), hoy()].sort()[0]; }
+    pintar(`${cabecera({ volver, textoVolver: id ? 'Ficha' : 'Corralina', titulo: T.titulo, sub: lista.length === 1 ? esc(nombreA(lista[0])) : `${lista.length} animales` })}
+      <main class="cuerpo"><div id="msg"></div>
+        ${lista.length > 1 ? `<div class="tarjeta"><div class="suave">${lista.map((a) => esc(nombreA(a))).join(', ')}</div></div>` : ''}
+        ${fuera.length ? `<div class="aviso-caja">Se dejan fuera ${fuera.length} (no ${tipo === 'secado' ? 'son cabras en lactación' : 'corresponde'}): ${fuera.map((a) => esc(nombreA(a))).join(', ')}.</div>` : ''}
+        <form class="formu" id="f-reg" novalidate>
+          <div class="campo"><label for="fecha">${tipo === 'secado' ? 'Fecha en que quedan secas' : 'Fecha'}</label><input id="fecha" name="fecha" type="date" value="${fechaDef}" max="${hoy()}"></div>
+          ${tipo === 'encalostrado' ? '<div class="campo"><span class="et">¿Cómo ha tomado el calostro?</span><div class="opciones"><label><input type="radio" name="resultado" value="Correcto" checked> Solo, sin problemas</label><label><input type="radio" name="resultado" value="Con ayuda"> Con ayuda</label><label><input type="radio" name="resultado" value="Con biberón o sonda"> Biberón o sonda</label></div></div>' : ''}
+          ${tipo === 'destete' ? '<div class="campo"><label for="peso">Peso al destete (kg, opcional)</label><input id="peso" name="peso" type="number" step="0.1" min="1" max="60" inputmode="decimal"></div><div class="campo"><span class="et">Destino previsto</span><div class="opciones"><label><input type="radio" name="destino" value="Venta" checked> Venta</label><label><input type="radio" name="destino" value="Reposición"> Reposición</label></div></div>' : ''}
+          ${tipo === 'secado' ? '<div class="suave">Secado natural: espaciando los ordeños y bajando la ración hasta que se secan.</div>' : ''}
+          <div class="campo"><label for="obs">Observaciones (opcional)</label><textarea id="obs" name="obs"></textarea></div>
+          <button class="btn" type="submit">Guardar</button></form>
+      </main>${navegacion('repro')}`);
+    document.getElementById('f-reg').addEventListener('submit', async (ev) => {
+      ev.preventDefault(); const x = new FormData(ev.target); const obs = String(x.get('obs') || '').trim();
+      const datos = { ...(x.get('resultado') ? { resultado: x.get('resultado') } : {}), ...(x.get('peso') ? { peso: Number(String(x.get('peso')).replace(',', '.')) } : {}), ...(x.get('destino') ? { destino: x.get('destino') } : {}), ...(tipo === 'secado' ? { metodo: 'natural' } : {}), ...(obs ? { obs } : {}) };
+      ev.target.querySelector('button').disabled = true;
+      const { error } = await sb.from('rum_eventos').insert(lista.map((a) => ({ animal_id: a.id, tipo, fecha: String(x.get('fecha')), datos })));
+      if (error) { ev.target.querySelector('button').disabled = false; document.getElementById('msg').innerHTML = errorCaja(traducirError(error)); return; }
+      S.borrador.grupo = null; toast(`${T.titulo}: ${lista.length} ${lista.length === 1 ? 'animal' : 'animales'}`); await refrescar(); location.hash = volver;
+    });
+  }
+
+  function vistaAcrotalar(id) {
+    const c = animal(id); if (!c || c.fecha_baja || !L.esCria(c)) return vistaNoEncontrado();
+    const destino = c.sexo ? catNombre(c.especie === 'caprino' ? (c.sexo === 'hembra' ? 'chiva' : 'macho_cabrio') : (c.sexo === 'hembra' ? 'cordera' : 'morueco')) : null;
+    pintar(`${cabecera({ volver: `#/animal/${id}`, textoVolver: 'Ficha', titulo: 'Acrotalar', sub: `${esc(nombreA(c))} · se queda para reposición` })}
+      <main class="cuerpo"><div id="msg"></div>
+        ${destino ? `<div class="ok-caja">Pasará a <strong>${esc(destino.toLowerCase())}</strong>.</div>` : '<div class="aviso-caja">Falta el sexo de la cría: anótalo antes con «Corregir datos» (o pídeselo al profesor).</div>'}
+        <form class="formu" id="f-acr" novalidate>
+          <div class="campo"><label for="fecha">Fecha</label><input id="fecha" name="fecha" type="date" value="${hoy()}" max="${hoy()}"></div>
+          <div class="campo"><label for="crotal">Crotal</label><input id="crotal" name="crotal" type="text" inputmode="numeric" placeholder="724…"></div>
+          <div class="campo"><label for="manejo">Nº de manejo (collar)</label><input id="manejo" name="manejo" type="text" autocapitalize="characters" placeholder="A45"></div>
+          <button class="btn" type="submit" ${destino ? '' : 'disabled'}>Guardar</button></form>
+      </main>${navegacion('animales')}`);
+    document.getElementById('f-acr').addEventListener('submit', async (ev) => {
+      ev.preventDefault(); const x = new FormData(ev.target); const crotal = String(x.get('crotal') || '').replace(/\s/g, '');
+      if (!crotal) { document.getElementById('msg').innerHTML = errorCaja('Escribe el crotal.'); return; }
+      ev.target.querySelector('button').disabled = true;
+      const { error } = await sb.rpc('rum_acrotalar', { p_cria: c.id, p_fecha: String(x.get('fecha')), p_crotal: crotal, p_manejo: String(x.get('manejo') || '').trim() || null });
+      if (error) { ev.target.querySelector('button').disabled = false; document.getElementById('msg').innerHTML = errorCaja(traducirError(error)); return; }
+      toast(`${nombreA(c)} acrotalada`); await refrescar(); location.hash = `#/animal/${c.id}`;
     });
   }
 
@@ -704,11 +1057,12 @@
       await cargarDatos();
       const sello = new Date(); const fichero = `CIFEARUMI_copia_${sello.getFullYear()}-${dos(sello.getMonth() + 1)}-${dos(sello.getDate())}_${dos(sello.getHours())}${dos(sello.getMinutes())}`;
       if (formato === 'json') {
-        descargar(`${fichero}.json`, JSON.stringify({ app: 'CIFEAFARM', granja: 'CIFEARUMI', version: C.version, fecha: sello.toISOString(), rum_corralinas: S.corralinas, rum_animales: S.animales, rum_eventos: S.eventos }, null, 1), 'application/json');
+        descargar(`${fichero}.json`, JSON.stringify({ app: 'CIFEAFARM', granja: 'CIFEARUMI', version: C.version, fecha: sello.toISOString(), rum_corralinas: S.corralinas, rum_animales: S.animales, rum_eventos: S.eventos, rum_lotes: S.lotes }, null, 1), 'application/json');
       } else {
         await cargarXLSX(); const X = window.XLSX; const libro = X.utils.book_new();
         X.utils.book_append_sheet(libro, X.utils.json_to_sheet(S.animales.slice().sort((x, y) => x.especie.localeCompare(y.especie) || L.ordenNatural(x, y)).map((a) => filaExcel(a, a.fecha_baja ? null : ubic(a)))), 'Animales');
         X.utils.book_append_sheet(libro, X.utils.json_to_sheet(S.eventos.map((e) => { const a = animal(e.animal_id); return { Fecha: e.fecha, Animal: nombreA(a), Crotal: a ? a.crotal || '' : '', Registro: nombreEvento(e), Detalle: resumenEvento(e).replace(/<[^>]+>/g, ''), Observaciones: (e.datos && e.datos.obs) || '', Curso: curso(e.curso), 'Registrado por': quienEs(e.autor, e.autor_alias), 'Registrado el': String(e.creado || '').slice(0, 16).replace('T', ' '), 'Datos completos': JSON.stringify(e.datos || {}) }; }).concat([]) || [{}]), 'Historial');
+        X.utils.book_append_sheet(libro, X.utils.json_to_sheet(S.lotes.length ? S.lotes.map((l) => ({ Lote: l.nombre, Especie: L.ESPECIES[l.especie].nombre, Corralina: nombreCorr(l.corralina_id), Machos: l.machos.map((x) => nombreA(animal(x))).join(', '), Hembras: l.hembras.map((x) => nombreA(animal(x))).join(', '), 'Entrada del macho': l.fecha_entrada, 'Salida del macho': l.fecha_salida || '', 'Registrado por': l.autor_alias || '' })) : [{ '': 'Sin lotes' }]), 'Lotes');
         X.utils.book_append_sheet(libro, X.utils.json_to_sheet(S.corralinas.map((c) => ({ Nave: c.nave, Corralina: c.numero, Uso: c.uso || '', Activa: c.activa ? 'Sí' : 'No' }))), 'Corralinas');
         X.writeFile(libro, `${fichero}.xlsx`);
       }
@@ -779,6 +1133,13 @@
       case 'alta': return vistaFormAnimal(null);
       case 'editar': return vistaFormAnimal(a);
       case 'censo': return vistaCenso();
+      case 'reproduccion': return vistaRepro(a || 'lotes');
+      case 'lote': return a === 'nuevo' ? vistaLoteNuevo() : vistaLote(a);
+      case 'sacar': return vistaSacar(a);
+      case 'eco': return vistaEco(a, b);
+      case 'parto': return vistaParto(a);
+      case 'registro': return vistaRegistro(a, b);
+      case 'acrotalar': return vistaAcrotalar(a);
       case 'gestion': return vistaGestion();
       case 'cuenta': return vistaCuenta();
       default: return vistaNoEncontrado();
@@ -798,10 +1159,11 @@
   window.addEventListener('hashchange', () => {
     const r = location.hash.replace(/^#\/?/, '').split('/')[0];
     if (!['alta', 'editar'].includes(r)) S.borrador.formAnimal = null;
+    if (r !== 'lote') S.borrador.loteNuevo = null;
     render();
   });
   setInterval(() => { const h = document.getElementById('hora-consulta'); if (h) h.textContent = fechaHora(new Date()); }, 20000);
-  const escribiendo = () => /^#\/(alta|editar|trasladar|nota|baja)/.test(location.hash);
+  const escribiendo = () => /^#\/(alta|editar|trasladar|nota|baja|lote\/nuevo|sacar|eco|parto|registro|acrotalar)/.test(location.hash);
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible' && S.perfil && (!S.cargado || Date.now() - S.cargado > 120000) && !escribiendo()) refrescar();
   });

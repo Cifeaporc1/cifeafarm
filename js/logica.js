@@ -150,5 +150,104 @@
     return { fila, errores, avisos };
   }
 
-  window.Logica = { ESPECIES, CAT, CAPAS, ORIGENES, CAUSAS_BAJA, hoyISO, dias, esCria, nombreAnimal, ordenNatural, porFecha, ubicacion, vivoEn, edad, revisar, mapaColumnas, normalizarFila, fechaISO };
+  // =====================================================================
+  // V2 · Reproducción
+  // =====================================================================
+  const REF = {
+    gestacion: { caprino: 150, ovino: 147 }, // días (confirmados por Luis)
+    ecoTrasSalida: 45,                       // ecografía a partir de 45 días de sacar el macho
+    ordenoTrasParto: 1,                      // se ordeña desde el 2.º día (el 1.º, encalostrado)
+    secadoDesde: '05-20', secadoHasta: '06-30', // secado natural a finales de mayo o principios de junio
+  };
+  const sumarDias = (iso, n) => { const d = new Date(`${iso}T12:00:00Z`); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
+  const HEMBRAS = ['cabra', 'chiva', 'oveja', 'cordera'];
+  const MACHOS = ['macho_cabrio', 'morueco'];
+  const ESTADOS = {
+    vacia: { nombre: 'Vacía' }, lote: { nombre: 'Con macho' }, cubierta: { nombre: 'Cubierta, sin ecografía' },
+    gestante: { nombre: 'Gestante' }, lactacion: { nombre: 'En lactación' }, criando: { nombre: 'Criando' }, seca: { nombre: 'Seca' },
+  };
+  const ORDEN_TIPO = { lote: 0, eco: 1, parto: 2, inicio_ordeno: 3, destete: 4, secado: 5 };
+
+  // Estado reproductivo de una hembra a partir de sus lotes y sus registros.
+  // ctx = { eventos(id) → registros del animal, animal(id) → animal }
+  function estadoRepro(h, lotes, ctx, hoy) {
+    const it = [];
+    for (const l of lotes) if ((l.hembras || []).includes(h.id)) it.push({ f: l.fecha_entrada, t: 'lote', l });
+    for (const e of ctx.eventos(h.id)) if (['eco', 'parto', 'inicio_ordeno', 'secado'].includes(e.tipo) && e.estado !== 'previsto') it.push({ f: e.fecha, t: e.tipo, e });
+    it.sort((a, b) => (a.f === b.f ? ORDEN_TIPO[a.t] - ORDEN_TIPO[b.t] : a.f.localeCompare(b.f)));
+    const r = { estado: 'vacia', desde: null, lote: null, eco: null, parto: null, ordeno: null, partos: [] };
+    for (const x of it) {
+      if (x.t === 'lote') { r.estado = x.l.fecha_salida && x.l.fecha_salida <= hoy ? 'cubierta' : 'lote'; r.lote = x.l; r.eco = null; r.desde = x.f; }
+      else if (x.t === 'eco') { r.eco = x.e; r.estado = x.e.datos && x.e.datos.resultado === 'vacia' ? 'vacia' : 'gestante'; r.desde = x.f; }
+      else if (x.t === 'parto') { r.parto = x.e; r.partos.push(x.e); r.ordeno = null; r.estado = h.especie === 'caprino' ? 'lactacion' : 'criando'; r.desde = x.f; }
+      else if (x.t === 'inicio_ordeno') { if (r.estado === 'lactacion') r.ordeno = x.e; }
+      else if (x.t === 'secado') { if (r.estado === 'lactacion') { r.estado = 'seca'; r.desde = x.f; } }
+    }
+    // Ovejas: al destetar (o vender) todas las crías del último parto, vuelven a vacías.
+    if (r.estado === 'criando' && r.parto) {
+      const crias = (r.parto.datos.crias || []).map(ctx.animal).filter(Boolean);
+      const destetada = (c) => c.fecha_baja || ctx.eventos(c.id).some((e) => e.tipo === 'destete');
+      if (crias.length && crias.every(destetada)) r.estado = 'vacia';
+    }
+    if (['lote', 'cubierta', 'gestante'].includes(r.estado) && r.lote) {
+      const g = REF.gestacion[h.especie];
+      r.ventana = { desde: sumarDias(r.lote.fecha_entrada, g), hasta: sumarDias(r.lote.fecha_salida || hoy, g) };
+      if (r.lote.fecha_salida) r.ecoDesde = sumarDias(r.lote.fecha_salida, REF.ecoTrasSalida);
+    }
+    if (r.parto) r.diasParto = dias(r.parto.fecha, hoy);
+    return r;
+  }
+
+  // Avisos de reproducción para la pantalla Hoy.
+  function avisosRepro(animales, lotes, ctx, hoy) {
+    const out = [];
+    const vivos = animales.filter((a) => !a.fecha_baja);
+    const hembras = vivos.filter((a) => HEMBRAS.includes(a.categoria));
+    const est = new Map(hembras.map((h) => [h.id, estadoRepro(h, lotes, ctx, hoy)]));
+    for (const l of lotes.filter((x) => !x.fecha_salida)) {
+      out.push({ nivel: 'info', fecha: l.fecha_entrada, enlace: `#/lote/${l.id}`, titulo: `Machos en ${l.nombre}`, detalle: `Desde el ${l.fecha_entrada.split('-').reverse().join('/')} · ${dias(l.fecha_entrada, hoy)} días · ${(l.hembras || []).length} hembras` });
+    }
+    for (const l of lotes.filter((x) => x.fecha_salida)) {
+      const sin = hembras.filter((h) => { const e = est.get(h.id); return e.lote && e.lote.id === l.id && e.estado === 'cubierta'; });
+      if (!sin.length) continue;
+      const desde = sumarDias(l.fecha_salida, REF.ecoTrasSalida); const falta = dias(hoy, desde);
+      if (falta <= 7) out.push({ nivel: falta <= 0 ? 'urgente' : 'proximo', fecha: desde, enlace: `#/lote/${l.id}`, titulo: `Ecografía de ${l.nombre}`, detalle: `${sin.length} ${sin.length === 1 ? 'hembra' : 'hembras'} sin ecografía · ${falta <= 0 ? 'ya se puede hacer' : `a partir del ${desde.split('-').reverse().join('/')}`}` });
+    }
+    const porLote = new Map();
+    for (const h of hembras) {
+      const e = est.get(h.id);
+      if (!e.ventana || !['gestante', 'cubierta'].includes(e.estado)) continue;
+      if (dias(hoy, e.ventana.desde) > 10) continue;
+      const k = e.lote.id; if (!porLote.has(k)) porLote.set(k, { l: e.lote, v: e.ventana, n: 0, tarde: 0 }); const g = porLote.get(k); g.n++;
+      if (hoy > sumarDias(e.ventana.hasta, 7)) g.tarde++;
+    }
+    for (const g of porLote.values()) {
+      const f = (x) => x.split('-').reverse().join('/');
+      out.push({ nivel: hoy >= g.v.desde ? 'urgente' : 'proximo', fecha: g.v.desde, enlace: `#/lote/${g.l.id}`, titulo: g.tarde ? `Partos sin registrar en ${g.l.nombre}` : `Partos de ${g.l.nombre}`, detalle: `${g.n} ${g.n === 1 ? 'hembra pendiente' : 'hembras pendientes'} · ventana del ${f(g.v.desde)} al ${f(g.v.hasta)}${g.tarde ? ` · ${g.tarde} pasadas de fecha: ¿parto sin anotar o vacías?` : ''}` });
+    }
+    for (const c of vivos.filter((a) => esCria(a) && a.fecha_nacimiento && dias(a.fecha_nacimiento, hoy) <= 2)) {
+      if (!ctx.eventos(c.id).some((e) => e.tipo === 'encalostrado')) out.push({ nivel: 'urgente', fecha: c.fecha_nacimiento, enlace: `#/animal/${c.id}`, titulo: `Encalostrado de ${nombreAnimal(c)}`, detalle: `Nació el ${c.fecha_nacimiento.split('-').reverse().join('/')}: comprueba que ha tomado calostro` });
+    }
+    for (const h of hembras.filter((x) => x.especie === 'caprino')) {
+      const e = est.get(h.id);
+      if (e.estado === 'lactacion' && !e.ordeno && e.diasParto >= REF.ordenoTrasParto) out.push({ nivel: 'urgente', fecha: sumarDias(e.parto.fecha, REF.ordenoTrasParto), enlace: `#/animal/${h.id}`, titulo: `Empezar el ordeño de ${nombreAnimal(h)}`, detalle: `Parió el ${e.parto.fecha.split('-').reverse().join('/')}` });
+    }
+    const md = hoy.slice(5);
+    if (md >= REF.secadoDesde && md <= REF.secadoHasta) {
+      const n = hembras.filter((h) => est.get(h.id).estado === 'lactacion').length;
+      if (n) out.push({ nivel: 'proximo', fecha: hoy, enlace: '#/reproduccion/hembras', titulo: 'Época de secado', detalle: `${n} ${n === 1 ? 'cabra en lactación' : 'cabras en lactación'}: secado natural espaciando ordeños y bajando la ración` });
+    }
+    const peso = { urgente: 0, proximo: 1, info: 2 };
+    return out.sort((a, b) => peso[a.nivel] - peso[b.nivel] || String(a.fecha).localeCompare(String(b.fecha)));
+  }
+
+  // Resumen de una paridera (partos entre dos fechas).
+  function resumenParidera(partos) {
+    const vivas = partos.reduce((s, e) => s + (+e.datos.vivas || 0), 0), muertas = partos.reduce((s, e) => s + (+e.datos.muertas || 0), 0);
+    const tipos = {}; for (const e of partos) { const t = e.datos.tipo || 'normal'; tipos[t] = (tipos[t] || 0) + 1; }
+    return { partos: partos.length, vivas, muertas, prolificidad: partos.length ? (vivas + muertas) / partos.length : null, mortalidad: vivas + muertas ? muertas / (vivas + muertas) : null, tipos };
+  }
+
+  window.Logica = { ESPECIES, CAT, CAPAS, ORIGENES, CAUSAS_BAJA, hoyISO, dias, esCria, nombreAnimal, ordenNatural, porFecha, ubicacion, vivoEn, edad, revisar, mapaColumnas, normalizarFila, fechaISO,
+    REF, sumarDias, HEMBRAS, MACHOS, ESTADOS, estadoRepro, avisosRepro, resumenParidera };
 })();

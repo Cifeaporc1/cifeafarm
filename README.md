@@ -22,7 +22,7 @@ Es una herramienta docente para las clases de Luis. No sustituye a los libros of
 | `css/estilos.css` | Estilos (los de CIFEAPORC más los de rumiantes) |
 | `sw.js`, `manifest.webmanifest` | Instalación en el móvil |
 | `porc/` | Granja de porcino (pantallas, lógica, estilos e imágenes propias) |
-| `sql/01_rumiantes.sql` | Tablas, reglas de acceso e importación de CIFEARUMI (repetible) |
+| `sql/01_rumiantes.sql` | Tablas, reglas de acceso, importación y reproducción de CIFEARUMI (repetible: se vuelve a ejecutar en cada versión) |
 | `sql/02_porcino_unido.sql` | Porcino: de dos granjas por curso a una granja real (repetible, no borra nada) |
 | `sql/03_borrar_granja_1.sql` | Opcional: borra los registros de la antigua granja de 1.º de porcino |
 | `GUIA.md` | Puesta en marcha paso a paso |
@@ -38,7 +38,7 @@ Es una herramienta docente para las clases de Luis. No sustituye a los libros of
 ## Versiones
 
 1. **Hecha (0.1.0):** censo, fichas, mapa de corralinas, traslados, altas y bajas, importación del Excel, censo a fecha y copia de seguridad.
-2. Reproducción: lotes con macho, ecografías, partos (con alta de crías), encalostrado, ordeño, destete, acrotalado y secado.
+2. **Hecha (0.3.0):** reproducción: lotes de cubrición (el macho va a la corralina de las hembras), ecografía a partir de 45 días de sacar el macho, ventana de partos (150 días cabra, 147 oveja), partos con alta automática de las crías y paso de chiva/cordera a cabra/oveja, encalostrado, inicio del ordeño (día 2), destete, acrotalado (hembras y machos a reposición), secado natural, avisos en Hoy y paridera con prolificidad y mortalidad.
 3. Sanidad: medicamentos, tratamientos programados y realizados, retirada de leche y carne.
 4. Manejo diario, condición corporal, FAMACHA, control lechero de práctica, indicadores y evaluación por alumno.
 5. **Hecha (0.2.0):** integración de CIFEAPORC en una sola app, con una sola granja real de porcino y gestión de alumnos común.
