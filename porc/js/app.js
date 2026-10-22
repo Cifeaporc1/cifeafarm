@@ -95,6 +95,8 @@
       opc(sb.from('sanidad').select('*').eq('granja_id', S.granja).order('fecha').order('creado')),
       opc(sb.from('extracciones').select('*').eq('granja_id', S.granja).order('fecha').order('creado')),
     ]);
+    // Catálogo común con CIFEARUMI: aquí solo los productos para cerdos.
+    S.medicamentos = S.medicamentos.filter((m) => !m.especies || m.especies.includes('porcino'));
     { const r = await sb.from('recuentos').select('*').eq('granja_id', S.granja).order('fecha').order('creado');
       S.faltaSQL06 = !!r.error; S.recuentos = r.error ? [] : r.data; }
     { const [m, h] = await Promise.all([
@@ -1241,6 +1243,7 @@
       if (!nuevo) fila.activo = d.activo === 'on';
       if (!fila.nombre) { msj.innerHTML = '<div class="error-caja" role="alert">Falta el nombre comercial.</div>'; return; }
       if (fila.ficha_url && !/^https?:\/\//i.test(fila.ficha_url)) { msj.innerHTML = '<div class="error-caja" role="alert">El enlace debe empezar por https://</div>'; return; }
+      if (nuevo && S.medicamentos.length >= 0) fila.especies = ['porcino'];
       const { error } = nuevo ? await sb.from('medicamentos').insert(fila) : await sb.from('medicamentos').update(fila).eq('id', m.id);
       if (error) { msj.innerHTML = `<div class="error-caja" role="alert">${esc(traducirError(error))}</div>`; return; }
       toast(nuevo ? 'Añadido al catálogo' : 'Cambios guardados'); await refrescar(); location.hash = '#/sanidad/medicamentos';

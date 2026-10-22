@@ -248,6 +248,34 @@
     return { partos: partos.length, vivas, muertas, prolificidad: partos.length ? (vivas + muertas) / partos.length : null, mortalidad: vivas + muertas ? muertas / (vivas + muertas) : null, tipos };
   }
 
+  // =====================================================================
+  // V3 · Sanidad
+  // =====================================================================
+  const TIPOS_SAN = { vacunacion: 'Vacunación', desparasitacion: 'Desparasitación', tratamiento: 'Tratamiento', vitaminas: 'Vitaminas / minerales', pezunas: 'Arreglo de pezuñas', otro: 'Otro' };
+  const TIPOS_MED = [['medicamento', 'Medicamento'], ['vacuna', 'Vacuna'], ['antiparasitario', 'Antiparasitario'], ['otro', 'Otro']];
+
+  // Retiradas vigentes por animal: { id: { leche: {hasta, producto}, carne: {hasta, producto} } }
+  function retiradas(sanidad, hoy) {
+    const r = {};
+    for (const s of sanidad) {
+      if (s.estado !== 'realizado') continue;
+      for (const [k, hasta] of [['leche', s.leche_hasta], ['carne', s.carne_hasta]]) {
+        if (!hasta || hasta < hoy) continue;
+        for (const id of s.animales || []) {
+          const x = (r[id] = r[id] || {});
+          if (!x[k] || x[k].hasta < hasta) x[k] = { hasta, producto: s.producto || '' };
+        }
+      }
+    }
+    return r;
+  }
+  // Previstos vencidos, de hoy o de los próximos 7 días.
+  function avisosSanidad(sanidad, hoy) {
+    return sanidad.filter((s) => s.estado === 'previsto' && dias(hoy, s.fecha) <= 7)
+      .map((s) => ({ s, nivel: s.fecha <= hoy ? 'urgente' : 'proximo', vencido: s.fecha < hoy }))
+      .sort((a, b) => a.s.fecha.localeCompare(b.s.fecha));
+  }
+
   window.Logica = { ESPECIES, CAT, CAPAS, ORIGENES, CAUSAS_BAJA, hoyISO, dias, esCria, nombreAnimal, ordenNatural, porFecha, ubicacion, vivoEn, edad, revisar, mapaColumnas, normalizarFila, fechaISO,
-    REF, sumarDias, HEMBRAS, MACHOS, ESTADOS, estadoRepro, avisosRepro, resumenParidera };
+    REF, sumarDias, HEMBRAS, MACHOS, ESTADOS, estadoRepro, avisosRepro, resumenParidera, TIPOS_SAN, TIPOS_MED, retiradas, avisosSanidad };
 })();

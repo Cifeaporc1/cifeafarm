@@ -436,3 +436,88 @@ begin
 end $$;
 revoke all on function public.rum_acrotalar(uuid, date, text, text) from public, anon;
 grant execute on function public.rum_acrotalar(uuid, date, text, text) to authenticated;
+
+-- =====================================================================
+-- V3 · SANIDAD
+-- =====================================================================
+
+-- ---------- Catálogo de medicamentos: el de CIFEAPORC, común a las dos granjas.
+-- Se añaden los tiempos de espera para pequeños rumiantes y para qué especies sirve.
+alter table public.medicamentos add column if not exists espera_carne_rum integer check (espera_carne_rum >= 0);
+alter table public.medicamentos add column if not exists espera_leche_rum integer check (espera_leche_rum >= 0);
+alter table public.medicamentos add column if not exists especies text[];
+update public.medicamentos set especies = '{porcino}' where especies is null;   -- los de CIFEAPORC
+
+-- ---------- Tratamientos, vacunas y desparasitaciones: previstos y realizados
+create table if not exists public.rum_sanidad (
+  id              uuid primary key default gen_random_uuid(),
+  estado          text not null check (estado in ('previsto','realizado')),
+  tipo            text not null check (tipo in ('vacunacion','desparasitacion','tratamiento','vitaminas','pezunas','otro')),
+  fecha           date not null,                 -- prevista o realizada (primer día)
+  ambito          text not null check (ambito in ('animales','corralina','especie','granja')),
+  animales        uuid[] not null default '{}',  -- tratados (al realizarlo, los presentes en la corralina o especie)
+  corralina_id    smallint references public.rum_corralinas(id),
+  especie         text check (especie in ('caprino','ovino')),
+  medicamento_id  uuid references public.medicamentos(id) on delete set null,
+  producto        text,
+  dosis           text,
+  via             text,
+  lote            text,
+  caducidad       date,
+  duracion_dias   integer not null default 1 check (duracion_dias between 1 and 60),
+  espera_carne    integer check (espera_carne >= 0),
+  espera_leche    integer check (espera_leche >= 0),
+  carne_hasta     date,                          -- la calcula la base de datos
+  leche_hasta     date,
+  motivo          text,
+  veterinario     text,
+  repetir_dias    integer check (repetir_dias > 0),
+  obs             text,
+  autor           uuid references auth.users(id) on delete set null,
+  autor_alias     text,
+  curso           smallint,
+  realizado_por   text,
+  creado          timestamptz not null default now(),
+  modificado      timestamptz,
+  modificado_por  text
+);
+create index if not exists rum_sanidad_fecha on public.rum_sanidad (estado, fecha);
+
+-- Autoría, quién lo valida y fechas de retirada (último día de tratamiento + tiempo de espera).
+create or replace function public.rum_sanidad_autoria() returns trigger
+language plpgsql security definer set search_path = public as $$
+declare a text; g smallint; fin date;
+begin
+  select alias, granja_id into a, g from perfiles where user_id = auth.uid();
+  if tg_op = 'INSERT' then
+    new.autor := auth.uid(); new.autor_alias := a; new.curso := g; new.creado := now();
+    new.modificado := null; new.modificado_por := null;
+    new.realizado_por := case when new.estado = 'realizado' then a end;
+  else
+    new.autor := old.autor; new.autor_alias := old.autor_alias; new.curso := old.curso; new.creado := old.creado;
+    new.modificado := now(); new.modificado_por := a;
+    if old.estado = 'previsto' and new.estado = 'realizado' then new.realizado_por := a;
+    else new.realizado_por := old.realizado_por; end if;
+  end if;
+  fin := new.fecha + (new.duracion_dias - 1);
+  new.carne_hasta := case when new.estado = 'realizado' and coalesce(new.espera_carne, 0) > 0 then fin + new.espera_carne end;
+  new.leche_hasta := case when new.estado = 'realizado' and coalesce(new.espera_leche, 0) > 0 then fin + new.espera_leche end;
+  return new;
+end $$;
+drop trigger if exists rum_sanidad_autoria on public.rum_sanidad;
+create trigger rum_sanidad_autoria before insert or update on public.rum_sanidad
+  for each row execute function public.rum_sanidad_autoria();
+
+alter table public.rum_sanidad enable row level security;
+drop policy if exists rum_sanidad_ver on public.rum_sanidad;
+drop policy if exists rum_sanidad_alta on public.rum_sanidad;
+drop policy if exists rum_sanidad_cambio on public.rum_sanidad;
+drop policy if exists rum_sanidad_borrado on public.rum_sanidad;
+create policy rum_sanidad_ver on public.rum_sanidad for select to authenticated using (public.tiene_acceso());
+create policy rum_sanidad_alta on public.rum_sanidad for insert to authenticated with check (public.tiene_acceso());
+-- Un previsto lo valida cualquiera (profesor o alumno); lo realizado, como siempre: el autor 24 h o el profesor.
+create policy rum_sanidad_cambio on public.rum_sanidad for update to authenticated
+  using (public.es_profesor() or estado = 'previsto' or (autor = auth.uid() and creado > now() - interval '24 hours'))
+  with check (public.tiene_acceso());
+create policy rum_sanidad_borrado on public.rum_sanidad for delete to authenticated
+  using (public.es_profesor() or (autor = auth.uid() and creado > now() - interval '24 hours'));

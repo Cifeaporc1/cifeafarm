@@ -9,7 +9,7 @@
   // ---------------------------------------------------------------- estado
   const S = {
     sesion: null, perfil: null, nombres: {}, corralinas: [], animales: [], eventos: [], porAnimal: {},
-    cargado: null, faltaSQL: false, faltaSQL2: false, lotes: [], borrador: {}, importacion: null,
+    cargado: null, faltaSQL: false, faltaSQL2: false, faltaSQL3: false, lotes: [], sanidad: [], medicamentos: [], borrador: {}, importacion: null,
     ultimaCopia: (() => { try { const x = localStorage.getItem('farm-ultima-copia'); return x ? new Date(x) : null; } catch (_) { return null; } })(),
   };
   const $app = document.getElementById('app');
@@ -66,6 +66,8 @@
     censo: SVG('<path d="M5 20V10M10 20V4M15 20v-7M20 20v-4"/>'),
     repro: SVG('<circle cx="9" cy="10" r="5"/><circle cx="15" cy="14" r="5"/>'),
     gestion: SVG('<path d="M4 6h16M4 12h16M4 18h10"/>'),
+    sanidad: SVG('<path d="M9 3h6v6h6v6h-6v6H9v-6H3V9h6z"/>'),
+    puntos: SVG('<circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/>'),
     cuenta: SVG('<circle cx="12" cy="8" r="4"/><path d="M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6"/>'),
     mas: SVG('<path d="M12 5v14M5 12h14"/>', 2.4),
     atras: SVG('<path d="M15 5l-7 7 7 7"/>', 2.2),
@@ -101,6 +103,9 @@
     }
     { const rl = S.faltaSQL ? { error: true } : await sb.from('rum_lotes').select('*').order('fecha_entrada', { ascending: false });
       S.faltaSQL2 = !!rl.error; S.lotes = rl.error ? [] : rl.data; }
+    { const [rs, rm] = S.faltaSQL ? [{ error: true }, { error: true }] : await Promise.all([sb.from('rum_sanidad').select('*').order('fecha'), sb.from('medicamentos').select('*').order('nombre')]);
+      S.faltaSQL3 = !!rs.error; S.sanidad = rs.error ? [] : rs.data;
+      S.medicamentos = rm.error ? [] : rm.data.filter((m) => !m.especies || m.especies.includes('caprino') || m.especies.includes('ovino')); }
     S.porAnimal = {};
     for (const ev of S.eventos) (S.porAnimal[ev.animal_id] = S.porAnimal[ev.animal_id] || []).push(ev);
     const nv = await sb.rpc('nombres_visibles');
@@ -131,10 +136,10 @@
       ${horas}</header>`;
   }
   function navegacion(activa) {
-    const items = [['inicio', 'Hoy'], ['mapa', 'Mapa'], ['animales', 'Animales'], ['repro', 'Reprod.'], ['censo', 'Censo']];
-    items.push(esProf() ? ['gestion', 'Gestión'] : ['cuenta', 'Cuenta']);
+    const items = [['inicio', 'Hoy'], ['mapa', 'Mapa'], ['animales', 'Animales'], ['repro', 'Reprod.'], ['sanidad', 'Sanidad'], ['mas', 'Más']];
+    if (['censo', 'gestion', 'cuenta'].includes(activa)) activa = 'mas';
     return `<nav class="nav" aria-label="Secciones"><div class="dentro">${items.map(([id, t]) =>
-      `<a href="#/${id === 'repro' ? 'reproduccion' : id}" class="${activa === id ? 'activo' : ''}" ${activa === id ? 'aria-current="page"' : ''}>${ICONOS[id]}${t}</a>`).join('')}</div></nav>`;
+      `<a href="#/${id === 'repro' ? 'reproduccion' : id}" class="${activa === id ? 'activo' : ''}" ${activa === id ? 'aria-current="page"' : ''}>${ICONOS[id === 'mas' ? 'puntos' : id]}${t}</a>`).join('')}</div></nav>`;
   }
   function pintar(html) { $app.className = ''; $app.innerHTML = html; window.scrollTo(0, 0); }
   const faltaSQLCaja = () => (S.faltaSQL ? `<div class="error-caja" role="alert"><strong>Falta preparar la base de datos.</strong> ${esProf() ? 'Ejecuta en Supabase el archivo <code>sql/01_rumiantes.sql</code> (ver GUIA.md).' : 'Avisa a tu profesor.'}</div>` : '');
@@ -145,6 +150,9 @@
   const chipEstado = (r) => `<span class="chip ${['gestante', 'lactacion', 'criando'].includes(r.estado) ? '' : ['lote', 'cubierta'].includes(r.estado) ? 'nar' : 'gris'}">${esc(estadoNombre(r))}</span>`;
   const estadoNombre = (r) => (r.estado === 'lactacion' && r.ordeno ? 'En ordeño' : L.ESTADOS[r.estado].nombre);
   const faltaSQL2Caja = () => (S.faltaSQL2 && !S.faltaSQL && esProf() ? '<div class="aviso-caja"><strong>Para usar la reproducción</strong>, vuelve a ejecutar en Supabase el archivo <code>sql/01_rumiantes.sql</code> (se puede repetir sin perder datos).</div>' : '');
+  const retiradasHoy = () => L.retiradas(S.sanidad, hoy());
+  const chipRetirada = (x) => (x && x.leche ? '<span class="chip rojo">Leche retirada</span>' : x && x.carne ? '<span class="chip rojo">Carne retirada</span>' : '');
+  const faltaSQL3Caja = () => (S.faltaSQL3 && !S.faltaSQL && esProf() ? '<div class="aviso-caja"><strong>Para usar la sanidad</strong>, vuelve a ejecutar en Supabase el archivo <code>sql/01_rumiantes.sql</code> (se puede repetir sin perder datos).</div>' : '');
   const chipCat = (a) => `<span class="chip ${a.especie === 'ovino' ? 'ovi' : ''}">${esc(catNombre(a.categoria))}</span>`;
 
   // ---------------------------------------------------------------- acceso
@@ -235,7 +243,11 @@
           <a class="dato enlace" href="#/animales/caprino"><span class="et">Caprino</span><span class="val">${n.caprino}</span><span class="nota">${n.cat.cabra || 0} cabras · ${n.cat.chiva || 0} chivas · ${n.cat.macho_cabrio || 0} machos${n.cat.cabrito ? ` · ${n.cat.cabrito} cabritos` : ''}</span></a>
           <a class="dato ovi enlace" href="#/animales/ovino"><span class="et">Ovino</span><span class="val">${n.ovino}</span><span class="nota">${n.cat.oveja || 0} ovejas · ${n.cat.cordera || 0} corderas · ${n.cat.morueco || 0} moruecos${n.cat.cordero ? ` · ${n.cat.cordero} corderos` : ''}</span></a>
         </div>
-        ${faltaSQL2Caja()}
+        ${faltaSQL2Caja()}${faltaSQL3Caja()}
+        ${(() => { const ret = retiradasHoy(); const leche = activos().filter((a) => ret[a.id] && ret[a.id].leche && a.especie === 'caprino' && esHembraRepro(a)).sort(L.ordenNatural);
+          return leche.length ? `<a class="tarjeta enlace alerta" href="#/sanidad/retiradas"><div class="entre"><strong>Leche no apta: ${leche.length} ${leche.length === 1 ? 'cabra' : 'cabras'}</strong><span class="chip rojo">No al tanque</span></div>
+            <div>${leche.map((a) => `<strong>${esc(nombreA(a))}</strong> hasta el ${corta(ret[a.id].leche.hasta)}`).join(' · ')}</div></a>` : ''; })()}
+        ${(() => { const av = S.faltaSQL3 ? [] : L.avisosSanidad(S.sanidad, hoy()); return av.length ? `<section class="tarjeta"><h2>Sanidad prevista</h2>${av.map((x) => `<a class="evento enlace" href="#/sanidad/realizar/${x.s.id}"><div class="entre"><strong>${esc(L.TIPOS_SAN[x.s.tipo])} · ${esc(x.s.producto || '')}</strong><span class="chip ${x.nivel === 'urgente' ? 'nar' : ''}">${x.vencido ? 'Atrasado' : x.nivel === 'urgente' ? 'Hoy' : corta(x.s.fecha)}</span></div><div class="suave peq">${esc(destinoSan(x.s))}${x.vencido ? ` · previsto el ${fmt(x.s.fecha)}` : ''} · toca para validarlo</div></a>`).join('')}</section>` : ''; })()}
         ${(() => { const av = S.faltaSQL2 ? [] : L.avisosRepro(S.animales, S.lotes, ctxR, hoy()); return av.length ? `<section class="tarjeta"><h2>Avisos</h2>${av.map((x) => `<a class="evento enlace" href="${x.enlace}"><div class="entre"><strong>${esc(x.titulo)}</strong><span class="chip ${x.nivel === 'urgente' ? 'nar' : x.nivel === 'info' ? 'gris' : ''}">${x.nivel === 'urgente' ? 'Hoy' : x.nivel === 'info' ? 'En curso' : corta(x.fecha)}</span></div><div class="suave peq">${esc(x.detalle)}</div></a>`).join('')}</section>` : '<div class="vacio">No hay avisos de reproducción para hoy.</div>'; })()}
         ${porRevisar.length ? `<a class="tarjeta enlace" href="#/animales/revisar" style="border-color:var(--naranja-borde)"><div class="entre"><strong>Datos por completar</strong><span class="chip nar">${porRevisar.length}</span></div>
           <div class="suave">Crotales de 14 cifras, animales sin collar o cabras sin capa. Corrígelos desde la ficha de cada animal.</div></a>` : ''}
@@ -256,10 +268,10 @@
     const naves = [...new Set(S.corralinas.map((c) => c.nave))];
     const tile = (c) => {
       const l = en[c.id] || []; const k = contar(l);
-      const desglose = Object.entries(k.cat).sort((x, y) => Object.keys(L.CAT).indexOf(x[0]) - Object.keys(L.CAT).indexOf(y[0])).map(([cat, x]) => `${x} ${L.CAT[cat].plural.toLowerCase()}`).join(' · ');
+      const desglose = Object.entries(k.cat).sort((x, y) => Object.keys(L.CAT).indexOf(x[0]) - Object.keys(L.CAT).indexOf(y[0])).map(([cat, x]) => `${x} ${(x === 1 ? L.CAT[cat].nombre : L.CAT[cat].plural).toLowerCase()}`).join(' · ');
       return `<a class="corral-tile ${l.length ? 'ocupado' : ''} ${c.activa ? '' : 'inactiva'}" href="#/corralina/${c.id}">
         <span class="num">${c.numero}</span><strong>${l.length}</strong>
-        <span class="uso">${esc(c.uso || '')}</span><span class="peq suave">${desglose || 'Vacía'}</span></a>`;
+        <span class="uso">${esc(c.uso || '')}</span><span class="peq suave">${desglose || 'Vacía'}</span>${(() => { const ret = retiradasHoy(); const n = l.filter((a) => ret[a.id] && ret[a.id].leche && a.especie === 'caprino' && esHembraRepro(a)).length; return n ? `<span class="chip rojo">Leche retirada: ${n}</span>` : ''; })()}</a>`;
     };
     pintar(`${cabecera()}
       <main class="cuerpo">${faltaSQLCaja()}
@@ -285,9 +297,9 @@
         ${lista.length ? `<form id="f-sel" class="formu">
           <div class="entre"><label class="check-todos"><input type="checkbox" id="todos"> Seleccionar todos</label><span class="suave" id="n-sel">0 seleccionados</span></div>
           <div class="lista">${lista.map((a) => `<label class="animal-fila check"><input type="checkbox" name="sel" value="${a.id}">
-            <div><strong>${esc(nombreA(a))}</strong><div class="suave">${esc(catNombre(a.categoria))}${esHembraRepro(a) && !S.faltaSQL2 ? ` · ${esc(estadoNombre(estR(a)))}` : ''}${a.crotal ? ` · ${esc(a.crotal)}` : ''}</div></div>
+            <div><strong>${esc(nombreA(a))}</strong><div class="suave">${esc(catNombre(a.categoria))}${esHembraRepro(a) && !S.faltaSQL2 ? ` · ${esc(estadoNombre(estR(a)))}` : ''}${a.crotal ? ` · ${esc(a.crotal)}` : ''}</div>${chipRetirada(retiradasHoy()[a.id])}</div>
             <a class="ver" href="#/animal/${a.id}" aria-label="Ver ficha de ${esc(nombreA(a))}">Ficha</a></label>`).join('')}</div>
-          <div class="botones pegado"><button class="btn" type="submit" id="b-trasladar" disabled>${ICONOS.flecha}Trasladar</button>${lista.some((a) => a.categoria === 'cabra') ? '<button class="btn sec" type="button" id="b-secado" disabled>Secado</button>' : ''}</div></form>`
+          <div class="botones pegado"><button class="btn" type="submit" id="b-trasladar" disabled>${ICONOS.flecha}Trasladar</button><button class="btn sec" type="button" id="b-tratar" disabled>Sanidad</button>${lista.some((a) => a.categoria === 'cabra') ? '<button class="btn sec" type="button" id="b-secado" disabled>Secado</button>' : ''}</div></form>`
         : '<div class="vacio">No hay animales en esta corralina.</div>'}
         ${esProf() && c ? `<form class="formu tarjeta" id="f-uso"><h2>Uso de la corralina</h2>
           <div class="campo"><label for="uso">Texto libre (p. ej. «Chivas», «Machos»)</label><input id="uso" name="uso" type="text" value="${esc(c.uso || '')}"></div>
@@ -295,8 +307,9 @@
       </main>${navegacion('mapa')}`);
     const f = document.getElementById('f-sel');
     if (f) {
-      const marcar = () => { const k = f.querySelectorAll('input[name=sel]:checked').length; document.getElementById('n-sel').textContent = `${k} ${k === 1 ? 'seleccionado' : 'seleccionados'}`; document.getElementById('b-trasladar').disabled = !k; const bs = document.getElementById('b-secado'); if (bs) bs.disabled = !k; };
+      const marcar = () => { const k = f.querySelectorAll('input[name=sel]:checked').length; document.getElementById('n-sel').textContent = `${k} ${k === 1 ? 'seleccionado' : 'seleccionados'}`; document.getElementById('b-trasladar').disabled = !k; const bs = document.getElementById('b-secado'); if (bs) bs.disabled = !k; document.getElementById('b-tratar').disabled = !k; };
       f.addEventListener('change', (ev) => { if (ev.target.id === 'todos') f.querySelectorAll('input[name=sel]').forEach((x) => { x.checked = ev.target.checked; }); marcar(); });
+      document.getElementById('b-tratar').addEventListener('click', () => { const ids = [...f.querySelectorAll('input[name=sel]:checked')].map((x) => x.value); S.borrador.grupo = { ids, volver: `#/corralina/${cid}` }; location.hash = '#/sanidad/nuevo/grupo'; });
       const bs = document.getElementById('b-secado');
       if (bs) bs.addEventListener('click', () => { const ids = [...f.querySelectorAll('input[name=sel]:checked')].map((x) => x.value); S.borrador.grupo = { ids, volver: `#/corralina/${cid}` }; location.hash = '#/registro/secado'; });
       f.addEventListener('submit', (ev) => { ev.preventDefault(); const ids = [...f.querySelectorAll('input[name=sel]:checked')].map((x) => x.value); S.borrador.traslado = { ids, volver: `#/corralina/${cid}` }; location.hash = '#/trasladar'; });
@@ -403,7 +416,9 @@
         ${a.fecha_baja ? '' : `<div class="botones"><a class="btn" href="#/trasladar/${a.id}">${ICONOS.flecha}Trasladar</a><a class="btn sec" href="#/nota/${a.id}">Nota</a></div>`}
         <div class="botones">${a.fecha_baja ? (esProf() ? '<button class="btn sec peq" type="button" id="b-anular">Anular la baja</button>' : '') : `<a class="btn sec peq" href="#/baja/${a.id}">Dar de baja</a>`}
           ${puedeEditarAnimal(a) ? `<a class="btn sec peq" href="#/editar/${a.id}">Corregir datos</a>` : ''}</div>
+        ${(() => { const x = retiradasHoy()[a.id]; if (!x || a.fecha_baja) return ''; const t = []; if (x.leche) t.push(`<strong>Leche no apta hasta el ${fmt(x.leche.hasta)}</strong>${a.especie === 'caprino' && esHembraRepro(a) ? ': no va al tanque' : ''} (${esc(x.leche.producto)})`); if (x.carne) t.push(`Carne no apta hasta el ${fmt(x.carne.hasta)} (${esc(x.carne.producto)})`); return `<div class="error-caja">${t.join('<br>')}</div>`; })()}
         ${a.fecha_baja || S.faltaSQL2 ? '' : seccionRepro(a)}
+        ${S.faltaSQL3 ? '' : seccionSanidad(a)}
         <section class="tarjeta"><h2>Datos</h2><div class="filas">
           <div><span>Especie</span><span>${esc(L.ESPECIES[a.especie].nombre)}</span></div>
           <div><span>Raza</span><span>${esc(raza(a))}</span></div>
@@ -931,6 +946,206 @@
     });
   }
 
+  // ---------------------------------------------------------------- sanidad
+  function destinoSan(r) {
+    if (r.ambito === 'granja') return 'Toda la granja';
+    if (r.ambito === 'especie') return r.especie === 'ovino' ? 'Todas las ovejas' : 'Todas las cabras';
+    if (r.ambito === 'corralina') return nombreCorr(r.corralina_id);
+    const n = (r.animales || []).map((x) => nombreA(animal(x)));
+    return n.length > 4 ? `${n.slice(0, 4).join(', ')} y ${n.length - 4} más` : n.join(', ') || '—';
+  }
+  const aplicaA = (r, a) => (r.estado === 'realizado' ? (r.animales || []).includes(a.id)
+    : r.ambito === 'granja' || (r.ambito === 'especie' && r.especie === a.especie) || (r.ambito === 'corralina' && r.corralina_id === ubic(a)) || (r.animales || []).includes(a.id));
+  function tarjetaSan(r, conEnlace = true) {
+    const prev = r.estado === 'previsto';
+    const href = prev ? `#/sanidad/realizar/${r.id}` : `#/sanidad/editar/${r.id}`;
+    const dentro = `<div class="entre"><strong>${esc(L.TIPOS_SAN[r.tipo])}${r.producto ? ` · ${esc(r.producto)}` : ''}</strong><span class="chip ${prev ? (r.fecha < hoy() ? 'rojo' : 'nar') : 'gris'}">${prev ? (r.fecha < hoy() ? 'Atrasado' : `Previsto ${corta(r.fecha)}`) : fmt(r.fecha)}</span></div>
+      <div class="suave peq">${esc(destinoSan(r))}${r.dosis ? ` · ${esc(r.dosis)}` : ''}${r.via ? ` · ${esc(r.via)}` : ''}${r.duracion_dias > 1 ? ` · ${r.duracion_dias} días` : ''}${r.motivo ? ` · ${esc(r.motivo)}` : ''}</div>
+      ${r.leche_hasta || r.carne_hasta ? `<div class="peq ${(r.leche_hasta && r.leche_hasta >= hoy()) || (r.carne_hasta && r.carne_hasta >= hoy()) ? 'rojo' : 'suave'}">${r.leche_hasta ? `Leche no apta hasta ${fmt(r.leche_hasta)}` : ''}${r.leche_hasta && r.carne_hasta ? ' · ' : ''}${r.carne_hasta ? `Carne no apta hasta ${fmt(r.carne_hasta)}` : ''}</div>` : ''}
+      <div class="suave peq">${prev ? `Programado por ${esc(r.autor_alias || '?')}` : `Por ${esc(r.realizado_por || r.autor_alias || '?')}`}${r.veterinario ? ` · prescribe ${esc(r.veterinario)}` : ''}</div>`;
+    return conEnlace ? `<a class="evento enlace" href="${href}">${dentro}</a>` : `<div class="evento">${dentro}</div>`;
+  }
+  function seccionSanidad(a) {
+    const rs = S.sanidad.filter((r) => aplicaA(r, a));
+    const prev = rs.filter((r) => r.estado === 'previsto'); const hechos = rs.filter((r) => r.estado === 'realizado').reverse();
+    return `<section class="tarjeta"><h2>Sanidad</h2>
+      ${prev.map((r) => tarjetaSan(r)).join('')}${hechos.slice(0, 5).map((r) => tarjetaSan(r)).join('')}
+      ${hechos.length > 5 ? `<a class="suave" href="#/sanidad/registro">Ver los ${hechos.length} registros en Sanidad</a>` : ''}
+      ${!rs.length ? '<div class="suave">Sin tratamientos registrados.</div>' : ''}
+      ${a.fecha_baja ? '' : `<div class="botones"><a class="btn sec peq" href="#/sanidad/nuevo/animal/${a.id}">Registrar tratamiento</a><a class="btn sec peq" href="#/sanidad/programar/animal/${a.id}">Programar</a></div>`}</section>`;
+  }
+
+  function vistaSanidad(tab) {
+    const pest = [['calendario', 'Previsto'], ['registro', 'Hecho'], ['retiradas', 'Retiradas'], ['medicamentos', 'Productos']];
+    let cuerpo = '';
+    if (tab === 'calendario') {
+      const prev = S.sanidad.filter((r) => r.estado === 'previsto').sort((x, y) => x.fecha.localeCompare(y.fecha));
+      const atr = prev.filter((r) => r.fecha < hoy()); const resto = prev.filter((r) => r.fecha >= hoy());
+      cuerpo = `<div class="botones"><a class="btn" href="#/sanidad/nuevo/granja">${ICONOS.mas}Registrar lo hecho</a><a class="btn sec" href="#/sanidad/programar/granja">Programar</a></div>
+        <div class="suave">Lo previsto queda pendiente hasta que alguien (profesor o alumno) lo valida al hacerlo: toca el registro y pulsa «Hecho».</div>
+        ${atr.length ? `<section class="tarjeta" style="border-color:#E4A59E"><h2>Atrasado (${atr.length})</h2>${atr.map((r) => tarjetaSan(r)).join('')}</section>` : ''}
+        <section class="tarjeta"><h2>Próximamente</h2>${resto.map((r) => tarjetaSan(r)).join('') || '<div class="suave">No hay nada programado.</div>'}</section>`;
+    } else if (tab === 'registro') {
+      const hechos = S.sanidad.filter((r) => r.estado === 'realizado').sort((x, y) => y.fecha.localeCompare(x.fecha));
+      cuerpo = `<a class="btn" href="#/sanidad/nuevo/granja">${ICONOS.mas}Registrar lo hecho</a>
+        <section class="tarjeta"><h2>Registro de tratamientos (${hechos.length})</h2>${hechos.map((r) => tarjetaSan(r)).join('') || '<div class="suave">Todavía no hay nada registrado.</div>'}</section>`;
+    } else if (tab === 'retiradas') {
+      const ret = retiradasHoy(); const lista = activos().filter((a) => ret[a.id]).sort((x, y) => x.especie.localeCompare(y.especie) || L.ordenNatural(x, y));
+      cuerpo = `<div class="suave">Animales con tiempo de espera vigente. La leche de las cabras de esta lista <strong>no va al tanque</strong>.</div>
+        <div class="lista">${lista.map((a) => `<a class="animal-fila" href="#/animal/${a.id}"><div><strong>${esc(nombreA(a))}</strong><div class="suave">${esc(catNombre(a.categoria))} · ${esc(nombreCorrCorto(ubic(a)))}</div>
+          <div class="peq rojo">${ret[a.id].leche ? `Leche hasta ${fmt(ret[a.id].leche.hasta)}` : ''}${ret[a.id].leche && ret[a.id].carne ? ' · ' : ''}${ret[a.id].carne ? `Carne hasta ${fmt(ret[a.id].carne.hasta)}` : ''}</div></div>${chipRetirada(ret[a.id])}</a>`).join('') || '<div class="vacio">Ningún animal en tiempo de espera.</div>'}</div>`;
+    } else {
+      cuerpo = `${esProf() ? `<a class="btn" href="#/medicamento/nuevo">${ICONOS.mas}Añadir producto</a>` : '<div class="suave">El catálogo lo mantiene el profesor.</div>'}
+        <div class="suave">Catálogo común con CIFEAPORC. Aquí aparecen los productos marcados para cabras u ovejas, con sus tiempos de espera en pequeños rumiantes.</div>
+        <div class="lista">${S.medicamentos.filter((m) => m.activo !== false).map((m) => `<${esProf() ? `a href="#/medicamento/${m.id}"` : 'div'} class="animal-fila"><div><strong>${esc(m.nombre)}</strong><div class="suave">${esc(m.materia_activa || '')}${m.dosis ? ` · ${esc(m.dosis)}` : ''}${m.via ? ` · ${esc(m.via)}` : ''}</div>
+          <div class="suave peq">Espera: carne ${m.espera_carne_rum ?? '—'} d · leche ${m.espera_leche_rum ?? '—'} d</div></div><span class="chip gris">${esc((L.TIPOS_MED.find((t) => t[0] === m.tipo) || [0, m.tipo])[1])}</span></${esProf() ? 'a' : 'div'}>`).join('') || '<div class="vacio">Todavía no hay productos para rumiantes en el catálogo.</div>'}</div>`;
+    }
+    pintar(`${cabecera()}
+      <main class="cuerpo">${faltaSQLCaja()}${faltaSQL3Caja()}
+        <h1 style="font-size:22px">Sanidad</h1>
+        <div class="pestanas">${pest.map(([k, x]) => `<a href="#/sanidad/${k}" class="${tab === k ? 'activo' : ''}">${x}</a>`).join('')}</div>
+        ${cuerpo}
+      </main>${navegacion('sanidad')}`);
+  }
+
+  // Registrar (hecho), programar (previsto), validar un previsto o corregir un registro.
+  function vistaSanForm(modo, id, ambitoPre, refPre) {
+    const fila = id ? S.sanidad.find((r) => r.id === id) : null;
+    if (id && !fila) return vistaNoEncontrado();
+    const realizado = modo === 'nuevo' || modo === 'realizar' || (modo === 'editar' && fila.estado === 'realizado');
+    const idsPre = ambitoPre === 'animal' ? [refPre] : ambitoPre === 'grupo' ? ((S.borrador.grupo || {}).ids || []) : [];
+    const v = fila ? { ...fila } : { tipo: 'tratamiento', ambito: idsPre.length ? 'animales' : 'especie', animales: idsPre, especie: 'caprino', fecha: hoy(), duracion_dias: 1 };
+    if (modo === 'realizar') v.fecha = hoy();
+    const volver = ambitoPre === 'animal' ? `#/animal/${refPre}` : ambitoPre === 'grupo' ? ((S.borrador.grupo || {}).volver || '#/sanidad') : '#/sanidad';
+    const titulo = { nuevo: 'Registrar tratamiento', programar: 'Programar', realizar: 'Hecho: validar', editar: fila && fila.estado === 'previsto' ? 'Corregir lo previsto' : 'Corregir registro' }[modo];
+    const puedeBorrar = fila && (esProf() || (fila.autor === uid() && Date.now() - new Date(fila.creado).getTime() < 864e5));
+    const optMed = `<option value="">Otro (escribir)</option>${S.medicamentos.filter((m) => m.activo !== false || m.id === v.medicamento_id).map((m) => `<option value="${m.id}" ${v.medicamento_id === m.id ? 'selected' : ''}>${esc(m.nombre)}</option>`).join('')}`;
+    const anim = (v.animales || []).map(animal).filter(Boolean);
+    pintar(`${cabecera({ volver, textoVolver: ambitoPre === 'animal' ? 'Ficha' : 'Volver', titulo })}
+      <main class="cuerpo"><div id="msg"></div>
+        ${modo === 'realizar' ? '<div class="ok-caja">Revisa los datos, completa el lote del producto y pulsa «Guardar como hecho». Quedará validado a tu nombre.</div>' : ''}
+        <form class="formu" id="f-san" novalidate>
+          <div class="campo"><label for="tipo">Qué</label><select id="tipo" name="tipo">${Object.entries(L.TIPOS_SAN).map(([k, x]) => `<option value="${k}" ${v.tipo === k ? 'selected' : ''}>${x}</option>`).join('')}</select></div>
+          <div class="campo"><span class="et">A quién</span><div class="opciones">
+            ${anim.length || v.ambito === 'animales' ? `<label><input type="radio" name="ambito" value="animales" ${v.ambito === 'animales' ? 'checked' : ''}> ${anim.length === 1 ? esc(nombreA(anim[0])) : `${anim.length} animales`}</label>` : ''}
+            <label><input type="radio" name="ambito" value="corralina" ${v.ambito === 'corralina' ? 'checked' : ''}> Una corralina</label>
+            <label><input type="radio" name="ambito" value="especie" ${v.ambito === 'especie' ? 'checked' : ''}> Una especie</label>
+            <label><input type="radio" name="ambito" value="granja" ${v.ambito === 'granja' ? 'checked' : ''}> Toda la granja</label></div>
+            ${anim.length > 1 ? `<span class="ayuda">${anim.map((a) => esc(nombreA(a))).join(', ')}</span>` : ''}</div>
+          <div class="dos"><div class="campo"><label for="corralina_id">Corralina</label><select id="corralina_id" name="corralina_id">${opcionesCorralinas(v.corralina_id, '—')}</select></div>
+            <div class="campo"><label for="especie">Especie</label><select id="especie" name="especie"><option value="caprino" ${v.especie !== 'ovino' ? 'selected' : ''}>Cabras</option><option value="ovino" ${v.especie === 'ovino' ? 'selected' : ''}>Ovejas</option></select></div></div>
+          <div class="campo"><label for="medicamento_id">Producto del catálogo</label><select id="medicamento_id" name="medicamento_id">${optMed}</select></div>
+          <div class="campo"><label for="producto">Nombre del producto</label><input id="producto" name="producto" type="text" value="${esc(v.producto || '')}"></div>
+          <div class="dos"><div class="campo"><label for="dosis">Dosis</label><input id="dosis" name="dosis" type="text" value="${esc(v.dosis || '')}" placeholder="2 ml / animal"></div>
+            <div class="campo"><label for="via">Vía</label><input id="via" name="via" type="text" value="${esc(v.via || '')}" placeholder="SC, IM, oral…"></div></div>
+          <div class="dos"><div class="campo"><label for="fecha">${realizado ? 'Fecha (primer día)' : 'Fecha prevista'}</label><input id="fecha" name="fecha" type="date" value="${v.fecha}" ${realizado ? `max="${hoy()}"` : ''}></div>
+            <div class="campo"><label for="duracion_dias">Días de tratamiento</label><input id="duracion_dias" name="duracion_dias" type="number" min="1" max="60" value="${v.duracion_dias || 1}"></div></div>
+          <div class="dos"><div class="campo"><label for="espera_leche">Espera leche (días)</label><input id="espera_leche" name="espera_leche" type="number" min="0" value="${esc(v.espera_leche ?? '')}"></div>
+            <div class="campo"><label for="espera_carne">Espera carne (días)</label><input id="espera_carne" name="espera_carne" type="number" min="0" value="${esc(v.espera_carne ?? '')}"></div></div>
+          <div class="ayuda suave">La leche y la carne quedan retiradas hasta el último día de tratamiento más el tiempo de espera. Compruébalo en el prospecto o con el veterinario.</div>
+          ${realizado ? `<div class="dos"><div class="campo"><label for="lote">Lote del producto</label><input id="lote" name="lote" type="text" value="${esc(v.lote || '')}"></div>
+            <div class="campo"><label for="caducidad">Caducidad</label><input id="caducidad" name="caducidad" type="date" value="${esc(v.caducidad || '')}"></div></div>` : ''}
+          <div class="dos"><div class="campo"><label for="motivo">Motivo</label><input id="motivo" name="motivo" type="text" value="${esc(v.motivo || '')}" placeholder="Mamitis, cojera, plan sanitario…"></div>
+            <div class="campo"><label for="veterinario">Veterinario que lo prescribe</label><input id="veterinario" name="veterinario" type="text" value="${esc(v.veterinario || '')}"></div></div>
+          ${modo !== 'editar' ? `<div class="campo"><label for="repetir_dias">Repetir dentro de (días, opcional)</label><input id="repetir_dias" name="repetir_dias" type="number" min="1" value="${esc(v.repetir_dias || '')}"><span class="ayuda">Al guardarlo como hecho, se programa solo el siguiente.</span></div>` : ''}
+          <div class="campo"><label for="obs">Observaciones</label><textarea id="obs" name="obs">${esc(v.obs || '')}</textarea></div>
+          <button class="btn" type="submit">${realizado && modo !== 'editar' ? 'Guardar como hecho' : modo === 'programar' ? 'Programar' : 'Guardar'}</button>
+          ${modo === 'realizar' ? '<a class="btn sec" href="#/sanidad/editar/' + id + '">Solo corregir lo previsto</a>' : ''}</form>
+        ${puedeBorrar && modo === 'editar' ? '<button class="btn peligro" type="button" id="b-borrar-san">Borrar este registro</button>' : ''}
+      </main>${navegacion('sanidad')}`);
+    const f = document.getElementById('f-san');
+    document.getElementById('medicamento_id').addEventListener('change', (ev) => {
+      const m = S.medicamentos.find((x) => x.id === ev.target.value); if (!m) return;
+      f.producto.value = m.nombre; if (m.dosis) f.dosis.value = m.dosis; if (m.via) f.via.value = m.via;
+      if (m.espera_leche_rum != null) f.espera_leche.value = m.espera_leche_rum; if (m.espera_carne_rum != null) f.espera_carne.value = m.espera_carne_rum;
+      if (m.tipo === 'vacuna') f.tipo.value = 'vacunacion'; if (m.tipo === 'antiparasitario') f.tipo.value = 'desparasitacion';
+    });
+    const bb = document.getElementById('b-borrar-san');
+    if (bb) bb.addEventListener('click', async () => {
+      if (bb.dataset.confirmar !== '1') { bb.dataset.confirmar = '1'; bb.textContent = '¿Seguro? Pulsa otra vez'; return; }
+      const { error } = await sb.from('rum_sanidad').delete().eq('id', id); if (error) return toast(traducirError(error));
+      toast('Registro borrado'); await refrescar(); location.hash = '#/sanidad';
+    });
+    f.addEventListener('submit', async (ev) => {
+      ev.preventDefault();
+      const x = new FormData(f); const msg = (t) => { document.getElementById('msg').innerHTML = errorCaja(t); window.scrollTo(0, 0); };
+      const num = (k) => (x.get(k) === '' || x.get(k) === null ? null : Number(x.get(k)));
+      const r = { tipo: x.get('tipo'), ambito: x.get('ambito'), fecha: x.get('fecha'), medicamento_id: x.get('medicamento_id') || null, producto: String(x.get('producto') || '').trim() || null, dosis: String(x.get('dosis') || '').trim() || null, via: String(x.get('via') || '').trim() || null,
+        duracion_dias: num('duracion_dias') || 1, espera_leche: num('espera_leche'), espera_carne: num('espera_carne'), motivo: String(x.get('motivo') || '').trim() || null, veterinario: String(x.get('veterinario') || '').trim() || null, obs: String(x.get('obs') || '').trim() || null };
+      if (x.get('lote') !== null) { r.lote = String(x.get('lote') || '').trim() || null; r.caducidad = x.get('caducidad') || null; }
+      r.corralina_id = r.ambito === 'corralina' ? (num('corralina_id') || null) : null;
+      r.especie = r.ambito === 'especie' ? x.get('especie') : null;
+      const repetir = num('repetir_dias');
+      if (!r.ambito) return msg('Elige a quién se aplica.');
+      if (r.ambito === 'corralina' && !r.corralina_id) return msg('Elige la corralina.');
+      if (!r.producto && !['pezunas', 'otro'].includes(r.tipo)) return msg('Escribe o elige el producto.');
+      if (!r.fecha) return msg('Falta la fecha.');
+      if (realizado && r.fecha > hoy()) return msg('Lo hecho no puede tener fecha futura: prográmalo.');
+      // Animales afectados: al hacerlo, los presentes en ese momento.
+      const presentes = r.ambito === 'animales' ? (v.animales || []) : r.ambito === 'corralina' ? activos().filter((a) => ubic(a) === r.corralina_id).map((a) => a.id)
+        : r.ambito === 'especie' ? activos().filter((a) => a.especie === r.especie).map((a) => a.id) : activos().map((a) => a.id);
+      if (realizado && (modo !== 'editar' || r.ambito !== fila.ambito || r.corralina_id !== fila.corralina_id || r.especie !== fila.especie)) r.animales = presentes;
+      if (!realizado) r.animales = r.ambito === 'animales' ? (v.animales || []) : [];
+      if (realizado && !(r.animales || fila.animales || []).length) return msg('No hay animales en ese destino.');
+      const b = f.querySelector('button[type=submit]'); b.disabled = true;
+      let res;
+      if (modo === 'nuevo') res = await sb.from('rum_sanidad').insert({ ...r, estado: 'realizado', repetir_dias: repetir });
+      else if (modo === 'programar') res = await sb.from('rum_sanidad').insert({ ...r, estado: 'previsto', repetir_dias: repetir });
+      else if (modo === 'realizar') res = await sb.from('rum_sanidad').update({ ...r, estado: 'realizado', repetir_dias: repetir }).eq('id', id);
+      else res = await sb.from('rum_sanidad').update(r).eq('id', id);
+      if (res.error) { b.disabled = false; return msg(traducirError(res.error)); }
+      if (realizado && repetir && modo !== 'editar') {
+        const sig = { ...r, estado: 'previsto', fecha: L.sumarDias(r.fecha, repetir), repetir_dias: repetir, lote: null, caducidad: null, animales: r.ambito === 'animales' ? r.animales : [] };
+        const r2 = await sb.from('rum_sanidad').insert(sig); if (r2.error) toast(`Guardado, pero no se pudo programar el siguiente: ${traducirError(r2.error)}`);
+      }
+      S.borrador.grupo = null;
+      const ret = r.espera_leche && realizado ? (r.animales || []).map(animal).filter((a) => a && a.especie === 'caprino' && esHembraRepro(a) && estR(a).estado === 'lactacion').length : 0;
+      toast(ret ? `Guardado · ${ret} ${ret === 1 ? 'cabra' : 'cabras'} en ordeño con leche retirada` : modo === 'programar' ? 'Programado' : 'Guardado');
+      await refrescar(); location.hash = volver === '#/sanidad' ? (modo === 'programar' ? '#/sanidad/calendario' : '#/sanidad/registro') : volver;
+    });
+  }
+
+  function vistaMedicamento(id) {
+    if (!esProf()) return vistaNoEncontrado('El catálogo lo mantiene el profesor.');
+    const m = id === 'nuevo' ? { especies: ['caprino', 'ovino'], tipo: 'medicamento' } : S.medicamentos.find((x) => x.id === id);
+    if (!m) return vistaNoEncontrado();
+    const nuevo = !m.id;
+    const c = (n, l, tipo = 'text', extra = '') => `<div class="campo"><label for="m-${n}">${l}</label><input id="m-${n}" name="${n}" type="${tipo}" value="${esc(m[n] ?? '')}" ${extra}></div>`;
+    pintar(`${cabecera({ volver: '#/sanidad/medicamentos', textoVolver: 'Productos', titulo: nuevo ? 'Añadir producto' : m.nombre })}
+      <main class="cuerpo"><div id="msg"></div><form class="formu" id="f-med" novalidate>
+        ${c('nombre', 'Nombre comercial')}${c('materia_activa', 'Materia activa')}
+        <div class="campo"><label for="m-tipo">Tipo</label><select id="m-tipo" name="tipo">${L.TIPOS_MED.map(([k, t]) => `<option value="${k}" ${(m.tipo || 'medicamento') === k ? 'selected' : ''}>${t}</option>`).join('')}</select></div>
+        <div class="dos">${c('dosis', 'Dosificación', 'text', 'placeholder="1 ml / 10 kg"')}${c('via', 'Vía', 'text', 'placeholder="SC, IM, oral…"')}</div>
+        <div class="dos">${c('espera_leche_rum', 'Espera leche, cabra/oveja (días)', 'number', 'min="0" inputmode="numeric"')}${c('espera_carne_rum', 'Espera carne, cabra/oveja (días)', 'number', 'min="0" inputmode="numeric"')}</div>
+        <div class="campo"><span class="et">Para</span><div class="opciones">${[['caprino', 'Cabras'], ['ovino', 'Ovejas'], ['porcino', 'Cerdos']].map(([k, t]) => `<label><input type="checkbox" name="especies" value="${k}" ${(m.especies || []).includes(k) ? 'checked' : ''}> ${t}</label>`).join('')}</div></div>
+        ${c('presentacion', 'Presentación', 'text', 'placeholder="Frasco 100 ml…"')}${c('ficha_url', 'Enlace a la ficha técnica', 'url', 'placeholder="https://…" inputmode="url"')}
+        <div class="campo"><label for="m-notas">Notas</label><textarea id="m-notas" name="notas">${esc(m.notas || '')}</textarea></div>
+        ${nuevo ? '' : `<label class="check-todos"><input type="checkbox" name="activo" ${m.activo !== false ? 'checked' : ''}> En uso (desmárcalo para retirarlo sin perder el historial)</label>`}
+        <button class="btn" type="submit">${nuevo ? 'Añadir' : 'Guardar cambios'}</button></form></main>${navegacion('sanidad')}`);
+    document.getElementById('f-med').addEventListener('submit', async (ev) => {
+      ev.preventDefault(); const x = new FormData(ev.target); const t = (k) => String(x.get(k) || '').trim() || null; const n = (k) => (x.get(k) === '' ? null : Number(x.get(k)));
+      const fila = { nombre: t('nombre'), materia_activa: t('materia_activa'), tipo: x.get('tipo'), dosis: t('dosis'), via: t('via'), espera_leche_rum: n('espera_leche_rum'), espera_carne_rum: n('espera_carne_rum'), especies: x.getAll('especies'), presentacion: t('presentacion'), ficha_url: t('ficha_url'), notas: t('notas') };
+      if (!nuevo) fila.activo = x.get('activo') === 'on';
+      if (!fila.nombre) { document.getElementById('msg').innerHTML = errorCaja('Falta el nombre comercial.'); return; }
+      if (!fila.especies.length) { document.getElementById('msg').innerHTML = errorCaja('Marca para qué especies es.'); return; }
+      if (fila.ficha_url && !/^https?:\/\//i.test(fila.ficha_url)) { document.getElementById('msg').innerHTML = errorCaja('El enlace debe empezar por https://'); return; }
+      const { error } = nuevo ? await sb.from('medicamentos').insert(fila) : await sb.from('medicamentos').update(fila).eq('id', m.id);
+      if (error) { document.getElementById('msg').innerHTML = errorCaja(traducirError(error)); return; }
+      toast(nuevo ? 'Añadido al catálogo' : 'Cambios guardados'); await refrescar(); location.hash = '#/sanidad/medicamentos';
+    });
+  }
+
+  function vistaMas() {
+    pintar(`${cabecera()}
+      <main class="cuerpo"><h1 style="font-size:22px">Más</h1>
+        <a class="granja-card" href="#/censo">${ICONOS.censo}<div><strong>Censo</strong><div class="suave">A cualquier fecha, por categoría y corralina; altas y bajas; Excel</div></div>${ICONOS.flecha}</a>
+        ${esProf() ? `<a class="granja-card" href="#/gestion">${ICONOS.gestion}<div><strong>Gestión</strong><div class="suave">Importar el censo, copia de seguridad y alumnos</div></div>${ICONOS.flecha}</a>` : ''}
+        <a class="granja-card" href="#/cuenta">${ICONOS.cuenta}<div><strong>Tu cuenta</strong><div class="suave">${esProf() ? 'Contraseña' : 'PIN'} e instalación en el móvil</div></div>${ICONOS.flecha}</a>
+        <a class="granja-card" href="#/granjas"><img src="img/logo-mini.jpg" alt=""><div><strong>Granjas del centro</strong><div class="suave">Ir a CIFEAPORC</div></div>${ICONOS.flecha}</a>
+        <button class="btn sec" type="button" data-accion="salir">Salir</button>
+      </main>${navegacion('mas')}`);
+  }
+
   // ---------------------------------------------------------------- censo
   function vistaCenso() {
     const f = S.borrador.fechaCenso || hoy();
@@ -1057,11 +1272,12 @@
       await cargarDatos();
       const sello = new Date(); const fichero = `CIFEARUMI_copia_${sello.getFullYear()}-${dos(sello.getMonth() + 1)}-${dos(sello.getDate())}_${dos(sello.getHours())}${dos(sello.getMinutes())}`;
       if (formato === 'json') {
-        descargar(`${fichero}.json`, JSON.stringify({ app: 'CIFEAFARM', granja: 'CIFEARUMI', version: C.version, fecha: sello.toISOString(), rum_corralinas: S.corralinas, rum_animales: S.animales, rum_eventos: S.eventos, rum_lotes: S.lotes }, null, 1), 'application/json');
+        descargar(`${fichero}.json`, JSON.stringify({ app: 'CIFEAFARM', granja: 'CIFEARUMI', version: C.version, fecha: sello.toISOString(), rum_corralinas: S.corralinas, rum_animales: S.animales, rum_eventos: S.eventos, rum_lotes: S.lotes, rum_sanidad: S.sanidad }, null, 1), 'application/json');
       } else {
         await cargarXLSX(); const X = window.XLSX; const libro = X.utils.book_new();
         X.utils.book_append_sheet(libro, X.utils.json_to_sheet(S.animales.slice().sort((x, y) => x.especie.localeCompare(y.especie) || L.ordenNatural(x, y)).map((a) => filaExcel(a, a.fecha_baja ? null : ubic(a)))), 'Animales');
         X.utils.book_append_sheet(libro, X.utils.json_to_sheet(S.eventos.map((e) => { const a = animal(e.animal_id); return { Fecha: e.fecha, Animal: nombreA(a), Crotal: a ? a.crotal || '' : '', Registro: nombreEvento(e), Detalle: resumenEvento(e).replace(/<[^>]+>/g, ''), Observaciones: (e.datos && e.datos.obs) || '', Curso: curso(e.curso), 'Registrado por': quienEs(e.autor, e.autor_alias), 'Registrado el': String(e.creado || '').slice(0, 16).replace('T', ' '), 'Datos completos': JSON.stringify(e.datos || {}) }; }).concat([]) || [{}]), 'Historial');
+        X.utils.book_append_sheet(libro, X.utils.json_to_sheet(S.sanidad.length ? S.sanidad.map((r) => ({ Estado: r.estado === 'previsto' ? 'Previsto' : 'Realizado', Fecha: r.fecha, Qué: L.TIPOS_SAN[r.tipo], Destino: destinoSan(r), Animales: (r.animales || []).map((x) => nombreA(animal(x))).join(', '), Producto: r.producto || '', Dosis: r.dosis || '', Vía: r.via || '', 'Días de tratamiento': r.duracion_dias, Lote: r.lote || '', Caducidad: r.caducidad || '', 'Espera carne (días)': r.espera_carne ?? '', 'Espera leche (días)': r.espera_leche ?? '', 'Carne no apta hasta': r.carne_hasta || '', 'Leche no apta hasta': r.leche_hasta || '', Motivo: r.motivo || '', Veterinario: r.veterinario || '', Observaciones: r.obs || '', 'Registrado por': r.autor_alias || '', 'Realizado por': r.realizado_por || '' })) : [{ '': 'Sin registros' }]), 'Sanidad');
         X.utils.book_append_sheet(libro, X.utils.json_to_sheet(S.lotes.length ? S.lotes.map((l) => ({ Lote: l.nombre, Especie: L.ESPECIES[l.especie].nombre, Corralina: nombreCorr(l.corralina_id), Machos: l.machos.map((x) => nombreA(animal(x))).join(', '), Hembras: l.hembras.map((x) => nombreA(animal(x))).join(', '), 'Entrada del macho': l.fecha_entrada, 'Salida del macho': l.fecha_salida || '', 'Registrado por': l.autor_alias || '' })) : [{ '': 'Sin lotes' }]), 'Lotes');
         X.utils.book_append_sheet(libro, X.utils.json_to_sheet(S.corralinas.map((c) => ({ Nave: c.nave, Corralina: c.numero, Uso: c.uso || '', Activa: c.activa ? 'Sí' : 'No' }))), 'Corralinas');
         X.writeFile(libro, `${fichero}.xlsx`);
@@ -1140,6 +1356,12 @@
       case 'parto': return vistaParto(a);
       case 'registro': return vistaRegistro(a, b);
       case 'acrotalar': return vistaAcrotalar(a);
+      case 'sanidad':
+        if (['nuevo', 'programar'].includes(a)) return vistaSanForm(a, null, b, location.hash.split('/')[4]);
+        if (['realizar', 'editar'].includes(a)) return vistaSanForm(a, b);
+        return vistaSanidad(a || 'calendario');
+      case 'medicamento': return vistaMedicamento(a);
+      case 'mas': return vistaMas();
       case 'gestion': return vistaGestion();
       case 'cuenta': return vistaCuenta();
       default: return vistaNoEncontrado();
@@ -1163,7 +1385,7 @@
     render();
   });
   setInterval(() => { const h = document.getElementById('hora-consulta'); if (h) h.textContent = fechaHora(new Date()); }, 20000);
-  const escribiendo = () => /^#\/(alta|editar|trasladar|nota|baja|lote\/nuevo|sacar|eco|parto|registro|acrotalar)/.test(location.hash);
+  const escribiendo = () => /^#\/(alta|editar|trasladar|nota|baja|lote\/nuevo|sacar|eco|parto|registro|acrotalar|sanidad\/(nuevo|programar|realizar|editar)|medicamento)/.test(location.hash);
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible' && S.perfil && (!S.cargado || Date.now() - S.cargado > 120000) && !escribiendo()) refrescar();
   });

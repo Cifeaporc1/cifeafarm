@@ -274,3 +274,8 @@ ul.saltan { margin: 6px 0; padding-left: 20px; font-size: 14px; }
 .dato.nar .val { color: var(--naranja-osc); }
 details.tarjeta > summary { display: flex; align-items: center; gap: 6px; }
 h2 { margin-top: 4px; }
+.tarjeta.alerta { border: 2px solid var(--rojo); background: var(--rojo-claro); color: var(--rojo); }
+.tarjeta.alerta strong { color: var(--rojo); }
+.granja-card > svg:first-child { width: 28px; height: 28px; color: var(--verde); flex: none; margin: 0 16px; }
+.corral-tile .chip { align-self: flex-start; margin-top: 2px; }
+.animal-fila.check .chip { margin-top: 4px; display: inline-block; }
