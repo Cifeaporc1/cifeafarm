@@ -155,7 +155,7 @@
               <label><input type="radio" name="curso" value="1" checked> 1.º curso</label>
               <label><input type="radio" name="curso" value="2"> 2.º curso</label></div></div>
           <div class="campo"><label for="alias">Alias</label>
-            <input id="alias" name="alias" type="text" autocomplete="username" autocapitalize="characters" placeholder="El mismo que en CIFEAPORC" required></div>
+            <input id="alias" name="alias" type="text" autocomplete="username" autocapitalize="characters" placeholder="Ej.: A07" required></div>
           <div class="campo"><label for="pin">PIN</label>
             <input id="pin" name="pin" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="6" autocomplete="current-password" placeholder="6 cifras" required></div>`
         : `
@@ -163,7 +163,7 @@
           <div class="campo"><label for="clave">Contraseña</label><input id="clave" name="clave" type="password" autocomplete="current-password" required></div>`}
         <button class="btn" type="submit">Entrar</button>
       </form>
-      <p class="suave" style="text-align:center">Se entra con el mismo alias y PIN que en CIFEAPORC. Si lo has olvidado, pide uno nuevo a tu profesor.</p>
+      <p class="suave" style="text-align:center">Si has olvidado el PIN, pide uno nuevo a tu profesor.</p>
     </main>`);
     $app.querySelectorAll('[data-modo]').forEach((b) => b.addEventListener('click', () => vistaAcceso(b.dataset.modo)));
     document.getElementById('f-acceso').addEventListener('submit', async (ev) => {
@@ -200,7 +200,7 @@
         <a class="granja-card" href="#/inicio"><img src="img/rumi.jpg" alt=""><div><strong>CIFEARUMI</strong>
           <div class="suave">Cabras murciano-granadinas y ovejas segureñas · ${activos().length} animales</div></div>${ICONOS.flecha}</a>
         <a class="granja-card" href="${esc(C.urlPorcino)}"><img src="img/porc.png" alt=""><div><strong>CIFEAPORC</strong>
-          <div class="suave">Porcino de ciclo cerrado, chato murciano · se abre aparte hasta que se integre</div></div>${ICONOS.flecha}</a>
+          <div class="suave">Porcino de ciclo cerrado, chato murciano</div></div>${ICONOS.flecha}</a>
         <button class="btn sec" type="button" data-accion="salir">Salir</button>
         <div class="suave peq" style="text-align:center">CIFEAFARM · versión ${esc(C.version)}</div>
       </main>`);
@@ -650,7 +650,7 @@
           <div class="suave">El plan gratuito de Supabase no hace copias automáticas. Descarga una cada mes: el Excel sirve para consultar y el archivo .json para restaurar.</div>
           <div class="botones"><button class="btn sec" type="button" data-copia="xlsx">Excel</button><button class="btn sec" type="button" data-copia="json">Archivo .json</button></div><div id="estado-copia"></div></section>
         <section class="tarjeta"><h2>Corralinas</h2><div class="suave">El uso de cada corralina se cambia desde el <a href="#/mapa">Mapa</a>, tocando la corralina.</div></section>
-        <section class="tarjeta"><h2>Alumnos</h2><div class="suave">Las cuentas (alias y PIN) son las mismas que en CIFEAPORC. De momento se crean y se gestionan allí: <a href="${esc(C.urlPorcino)}">CIFEAPORC → Gestión → Alumnos</a>.</div></section>
+        <section class="tarjeta"><h2>Alumnos</h2><div class="suave">Las cuentas (alias, PIN y nombres) sirven para las dos granjas. Se crean y gestionan en una sola pantalla.</div><a class="btn sec" href="porc/#/admin/alumnos">Gestionar alumnos</a></section>
         <a class="btn sec" href="#/cuenta">${ICONOS.cuenta}Tu cuenta</a>
       </main>${navegacion('gestion')}`);
     document.getElementById('archivo').addEventListener('change', (ev) => leerExcel(ev.target.files[0]));
@@ -731,7 +731,7 @@
         ${mensaje || ''}
         <form class="formu tarjeta" id="f-clave" novalidate>
           <h2>${esProf() ? 'Cambiar contraseña' : 'Cambiar PIN'}</h2>
-          <div class="suave peq">Cambia también la de CIFEAPORC: es la misma cuenta.</div>
+          <div class="suave peq">Sirve para las dos granjas.</div>
           <div class="campo"><label for="n1">${esProf() ? 'Nueva contraseña (mínimo 8 caracteres)' : 'Nuevo PIN (6 cifras)'}</label>
             <input id="n1" name="n1" type="password" ${esProf() ? '' : 'inputmode="numeric" maxlength="6"'} autocomplete="new-password"></div>
           <div class="campo"><label for="n2">Repítelo</label>

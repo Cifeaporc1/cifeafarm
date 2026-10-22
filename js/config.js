@@ -6,6 +6,7 @@ window.CONFIG = {
   supabaseKey: 'sb_publishable_oX5DsKI3WIhqkY-j6EDgKg_jJ84vVwh',
   // Dominio ficticio de las cuentas de alumno (alias + curso), igual que en CIFEAPORC.
   dominioAlumnos: 'alumnos.cifeaporc.app',
-  urlPorcino: 'https://cifeaporc1.github.io/cifeaporc/',
-  version: '0.1.4',
+  urlPorcino: 'porc/',              // granja de porcino integrada (antes, la app CIFEAPORC aparte)
+  granjaPorcino: 2,                 // la granja real de porcino (la que usaba 2.º)
+  version: '0.2.0',
 };

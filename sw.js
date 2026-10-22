@@ -1,9 +1,10 @@
 // Guarda la "carcasa" de la app para que abra rápido y se pueda instalar.
 // Los datos siempre se piden a Supabase (no se guardan en el móvil).
-const CACHE = 'cifeafarm-v0.1.4';
+const CACHE = 'cifeafarm-v0.2.0';
 const ARCHIVOS = [
   './', 'index.html', 'css/estilos.css', 'js/config.js', 'js/logica.js', 'js/app.js', 'manifest.webmanifest',
   'img/logo.jpg', 'img/logo-mini.jpg', 'img/icono-192.png', 'img/icono-512.png', 'img/rumi.jpg', 'img/rumi-logo.jpg', 'img/porc.png',
+  'porc/', 'porc/index.html', 'porc/css/estilos.css', 'porc/js/logica.js', 'porc/js/app.js', 'porc/img/logo.jpg', 'porc/img/logo-mini.jpg',
 ];
 self.addEventListener('install', (e) => {
   e.waitUntil(caches.open(CACHE).then((c) => c.addAll(ARCHIVOS)).then(() => self.skipWaiting()));

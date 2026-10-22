@@ -2,8 +2,8 @@
 
 App web instalable para gestionar las granjas del centro en clase. Reúne:
 
-- **CIFEARUMI**: cabras murciano-granadinas y ovejas segureñas (esta versión).
-- **CIFEAPORC**: porcino de ciclo cerrado. De momento sigue siendo una app aparte ([repositorio](https://github.com/Cifeaporc1/cifeaporc)); se integrará más adelante.
+- **CIFEARUMI** (`/`): cabras murciano-granadinas y ovejas segureñas.
+- **CIFEAPORC** (`/porc/`): porcino de ciclo cerrado, chato murciano. Integrada desde la 0.2.0: es el código de la app CIFEAPORC ([repositorio antiguo](https://github.com/Cifeaporc1/cifeaporc)) adaptado a una sola granja real, con el acceso, la instalación y la gestión de alumnos de CIFEAFARM.
 
 Es una herramienta docente para las clases de Luis. No sustituye a los libros oficiales de la explotación.
 
@@ -21,7 +21,10 @@ Es una herramienta docente para las clases de Luis. No sustituye a los libros of
 | `js/app.js` | Pantallas y conexión con la base de datos |
 | `css/estilos.css` | Estilos (los de CIFEAPORC más los de rumiantes) |
 | `sw.js`, `manifest.webmanifest` | Instalación en el móvil |
+| `porc/` | Granja de porcino (pantallas, lógica, estilos e imágenes propias) |
 | `sql/01_rumiantes.sql` | Tablas, reglas de acceso e importación de CIFEARUMI (repetible) |
+| `sql/02_porcino_unido.sql` | Porcino: de dos granjas por curso a una granja real (repetible, no borra nada) |
+| `sql/03_borrar_granja_1.sql` | Opcional: borra los registros de la antigua granja de 1.º de porcino |
 | `GUIA.md` | Puesta en marcha paso a paso |
 
 ## Reglas
@@ -38,4 +41,4 @@ Es una herramienta docente para las clases de Luis. No sustituye a los libros of
 2. Reproducción: lotes con macho, ecografías, partos (con alta de crías), encalostrado, ordeño, destete, acrotalado y secado.
 3. Sanidad: medicamentos, tratamientos programados y realizados, retirada de leche y carne.
 4. Manejo diario, condición corporal, FAMACHA, control lechero de práctica, indicadores y evaluación por alumno.
-5. Integración de CIFEAPORC.
+5. **Hecha (0.2.0):** integración de CIFEAPORC en una sola app, con una sola granja real de porcino y gestión de alumnos común.

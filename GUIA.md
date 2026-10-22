@@ -33,3 +33,15 @@ Se hace una sola vez. Unos 10 minutos. No hace falta crear otro proyecto de Supa
 - **«Falta preparar la base de datos»**: falta el paso 1.
 - **«Tu cuenta no tiene acceso»**: la cuenta está desactivada en CIFEAPORC → Gestión → Alumnos.
 - **La base de datos se ha pausado**: la tarea *Mantener activa la base de datos* del repositorio de CIFEAPORC lo evita para las dos apps. Si aun así ocurre, en Supabase pulsa **Restore project**.
+
+## 5. Paso de CIFEAPORC a CIFEAFARM (una sola app)
+
+Hazlo cuando quieras que 1.º empiece con el porcino o que todos usen ya CIFEAFARM. Hasta entonces CIFEAPORC sigue funcionando igual.
+
+1. En CIFEAPORC: **Gestión → Granja → Descargar Excel** y **Archivo para restaurar** (copia de seguridad).
+2. En Supabase → **SQL Editor**: ejecuta `sql/02_porcino_unido.sql`. Desde ese momento la granja de porcino es una sola (la que usaba 2.º) y los dos cursos registran en ella. No borra nada.
+3. (Opcional) Ejecuta `sql/03_borrar_granja_1.sql` para borrar los registros de la antigua granja de 1.º. No se puede deshacer.
+4. Diles a los alumnos que instalen **CIFEAFARM** (`https://cifeaporc1.github.io/cifeafarm/`) y desinstalen CIFEAPORC. Entran con el mismo alias y PIN; el porcino está en **Granjas del centro → CIFEAPORC** (o tocando el logo de la cabecera).
+5. Pide a Claude que deje la dirección antigua de CIFEAPORC redirigiendo a la nueva.
+
+Los alumnos se gestionan ahora desde **CIFEAFARM → Gestión → Gestionar alumnos**.
