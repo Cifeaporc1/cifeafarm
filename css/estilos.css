@@ -279,3 +279,6 @@ h2 { margin-top: 4px; }
 .granja-card > svg:first-child { width: 28px; height: 28px; color: var(--verde); flex: none; margin: 0 16px; }
 .corral-tile .chip { align-self: flex-start; margin-top: 2px; }
 .animal-fila.check .chip { margin-top: 4px; display: inline-block; }
+.animal-fila.seg { gap: 8px; }
+.animal-fila.seg > div { flex: 1; min-width: 0; }
+.animal-fila.seg select, .animal-fila.seg input { width: 84px; min-height: 44px; padding: 6px 8px; font-size: 16px; flex: none; }

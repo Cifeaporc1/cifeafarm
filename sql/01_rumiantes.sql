@@ -521,3 +521,39 @@ create policy rum_sanidad_cambio on public.rum_sanidad for update to authenticat
   with check (public.tiene_acceso());
 create policy rum_sanidad_borrado on public.rum_sanidad for delete to authenticated
   using (public.es_profesor() or (autor = auth.uid() and creado > now() - interval '24 hours'));
+
+-- =====================================================================
+-- V4 · MANEJO DIARIO Y SEGUIMIENTO
+-- (condición corporal, FAMACHA y control lechero van en rum_eventos:
+--  tipos 'condicion' y 'lechero')
+-- =====================================================================
+create table if not exists public.rum_manejo (
+  id             uuid primary key default gen_random_uuid(),
+  fecha          date not null,
+  corralinas     smallint[] not null default '{}',
+  tareas         text[] not null default '{}',   -- limpieza, alimentacion, agua, cama, ordeno, otra
+  detalle        text,                           -- ración, observaciones…
+  participantes  text,                           -- alumnos que lo hicieron
+  autor          uuid references auth.users(id) on delete set null,
+  autor_alias    text,
+  curso          smallint,
+  creado         timestamptz not null default now(),
+  modificado     timestamptz,
+  modificado_por text
+);
+create index if not exists rum_manejo_fecha on public.rum_manejo (fecha desc);
+drop trigger if exists rum_manejo_autoria on public.rum_manejo;
+create trigger rum_manejo_autoria before insert or update on public.rum_manejo
+  for each row execute function public.rum_lotes_autoria();
+
+alter table public.rum_manejo enable row level security;
+drop policy if exists rum_manejo_ver on public.rum_manejo;
+drop policy if exists rum_manejo_alta on public.rum_manejo;
+drop policy if exists rum_manejo_cambio on public.rum_manejo;
+drop policy if exists rum_manejo_borrado on public.rum_manejo;
+create policy rum_manejo_ver on public.rum_manejo for select to authenticated using (public.tiene_acceso());
+create policy rum_manejo_alta on public.rum_manejo for insert to authenticated with check (public.tiene_acceso());
+create policy rum_manejo_cambio on public.rum_manejo for update to authenticated
+  using (public.es_profesor() or (autor = auth.uid() and creado > now() - interval '24 hours')) with check (public.tiene_acceso());
+create policy rum_manejo_borrado on public.rum_manejo for delete to authenticated
+  using (public.es_profesor() or (autor = auth.uid() and creado > now() - interval '24 hours'));

@@ -276,6 +276,32 @@
       .sort((a, b) => a.s.fecha.localeCompare(b.s.fecha));
   }
 
-  window.Logica = { ESPECIES, CAT, CAPAS, ORIGENES, CAUSAS_BAJA, hoyISO, dias, esCria, nombreAnimal, ordenNatural, porFecha, ubicacion, vivoEn, edad, revisar, mapaColumnas, normalizarFila, fechaISO,
+  // =====================================================================
+  // V4 · Manejo y seguimiento
+  // =====================================================================
+  const TAREAS = { limpieza: 'Limpieza', alimentacion: 'Alimentación', agua: 'Agua', cama: 'Cama', ordeno: 'Ordeño', otra: 'Otra' };
+  const REF4 = { famachaAviso: 4, ccBaja: 1.5, dias: 30 }; // escalas estándar: CC 1-5, FAMACHA 1-5
+  // Última condición corporal y FAMACHA anotadas (cada una puede venir de un registro distinto).
+  function ultimoSeguimiento(evs) {
+    const o = {};
+    for (const e of evs.filter((x) => x.tipo === 'condicion').sort(porFecha)) {
+      if (e.datos.cc != null) o.cc = { valor: e.datos.cc, fecha: e.fecha };
+      if (e.datos.famacha != null) o.famacha = { valor: e.datos.famacha, fecha: e.fecha };
+    }
+    return o;
+  }
+  // Avisos: FAMACHA alto o condición baja en los últimos 30 días, sin desparasitar o tratar después.
+  function avisosSeguimiento(animales, eventosDe, sanidad, hoy) {
+    const out = [];
+    for (const a of animales.filter((x) => !x.fecha_baja)) {
+      const u = ultimoSeguimiento(eventosDe(a.id));
+      const tratadoDesde = (f) => sanidad.some((s) => s.estado === 'realizado' && s.fecha >= f && (s.animales || []).includes(a.id) && ['desparasitacion', 'tratamiento'].includes(s.tipo));
+      if (u.famacha && u.famacha.valor >= REF4.famachaAviso && dias(u.famacha.fecha, hoy) <= REF4.dias && !tratadoDesde(u.famacha.fecha)) out.push({ a, tipo: 'famacha', valor: u.famacha.valor, fecha: u.famacha.fecha });
+      if (u.cc && u.cc.valor <= REF4.ccBaja && dias(u.cc.fecha, hoy) <= REF4.dias) out.push({ a, tipo: 'cc', valor: u.cc.valor, fecha: u.cc.fecha });
+    }
+    return out;
+  }
+
+  window.Logica = { TAREAS, REF4, ultimoSeguimiento, avisosSeguimiento, ESPECIES, CAT, CAPAS, ORIGENES, CAUSAS_BAJA, hoyISO, dias, esCria, nombreAnimal, ordenNatural, porFecha, ubicacion, vivoEn, edad, revisar, mapaColumnas, normalizarFila, fechaISO,
     REF, sumarDias, HEMBRAS, MACHOS, ESTADOS, estadoRepro, avisosRepro, resumenParidera, TIPOS_SAN, TIPOS_MED, retiradas, avisosSanidad };
 })();

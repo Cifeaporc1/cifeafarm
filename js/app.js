@@ -9,7 +9,7 @@
   // ---------------------------------------------------------------- estado
   const S = {
     sesion: null, perfil: null, nombres: {}, corralinas: [], animales: [], eventos: [], porAnimal: {},
-    cargado: null, faltaSQL: false, faltaSQL2: false, faltaSQL3: false, lotes: [], sanidad: [], medicamentos: [], borrador: {}, importacion: null,
+    cargado: null, faltaSQL: false, faltaSQL2: false, faltaSQL3: false, faltaSQL4: false, lotes: [], sanidad: [], medicamentos: [], manejo: [], borrador: {}, importacion: null,
     ultimaCopia: (() => { try { const x = localStorage.getItem('farm-ultima-copia'); return x ? new Date(x) : null; } catch (_) { return null; } })(),
   };
   const $app = document.getElementById('app');
@@ -105,6 +105,8 @@
       S.faltaSQL2 = !!rl.error; S.lotes = rl.error ? [] : rl.data; }
     { const [rs, rm] = S.faltaSQL ? [{ error: true }, { error: true }] : await Promise.all([sb.from('rum_sanidad').select('*').order('fecha'), sb.from('medicamentos').select('*').order('nombre')]);
       S.faltaSQL3 = !!rs.error; S.sanidad = rs.error ? [] : rs.data;
+      const rmj = S.faltaSQL ? { error: true } : await sb.from('rum_manejo').select('*').order('fecha', { ascending: false }).order('creado', { ascending: false }).limit(400);
+      S.faltaSQL4 = !!rmj.error; S.manejo = rmj.error ? [] : rmj.data;
       S.medicamentos = rm.error ? [] : rm.data.filter((m) => !m.especies || m.especies.includes('caprino') || m.especies.includes('ovino')); }
     S.porAnimal = {};
     for (const ev of S.eventos) (S.porAnimal[ev.animal_id] = S.porAnimal[ev.animal_id] || []).push(ev);
@@ -247,6 +249,8 @@
         ${(() => { const ret = retiradasHoy(); const leche = activos().filter((a) => ret[a.id] && ret[a.id].leche && a.especie === 'caprino' && esHembraRepro(a)).sort(L.ordenNatural);
           return leche.length ? `<a class="tarjeta enlace alerta" href="#/sanidad/retiradas"><div class="entre"><strong>Leche no apta: ${leche.length} ${leche.length === 1 ? 'cabra' : 'cabras'}</strong><span class="chip rojo">No al tanque</span></div>
             <div>${leche.map((a) => `<strong>${esc(nombreA(a))}</strong> hasta el ${corta(ret[a.id].leche.hasta)}`).join(' · ')}</div></a>` : ''; })()}
+        ${(() => { const av = S.faltaSQL4 ? [] : L.avisosSeguimiento(S.animales, (id) => S.porAnimal[id] || [], S.sanidad, hoy()); return av.length ? `<section class="tarjeta"><h2>Seguimiento</h2>${av.map((x) => `<a class="evento enlace" href="#/animal/${x.a.id}"><div class="entre"><strong>${esc(nombreA(x.a))} · ${x.tipo === 'famacha' ? `FAMACHA ${x.valor}` : `CC ${String(x.valor).replace('.', ',')}`}</strong><span class="chip nar">${corta(x.fecha)}</span></div><div class="suave peq">${x.tipo === 'famacha' ? 'Anemia: valorar desparasitar' : 'Condición corporal baja: revisar la ración y la salud'}</div></a>`).join('')}</section>` : ''; })()}
+        ${(() => { if (S.faltaSQL4) return ''; const h = S.manejo.filter((m) => m.fecha === hoy()); const hechas = new Set(h.flatMap((m) => m.tareas)); return `<a class="tarjeta enlace" href="#/manejo"><div class="entre"><strong>Manejo de hoy</strong><span class="chip ${h.length ? '' : 'gris'}">${h.length ? `${h.length} ${h.length === 1 ? 'registro' : 'registros'}` : 'Sin anotar'}</span></div><div class="suave peq">${h.length ? Object.entries(L.TAREAS).filter(([k]) => hechas.has(k)).map(([, t]) => t).join(' · ') : 'Anota limpieza, alimentación, ordeño… por corralina'}</div></a>`; })()}
         ${(() => { const av = S.faltaSQL3 ? [] : L.avisosSanidad(S.sanidad, hoy()); return av.length ? `<section class="tarjeta"><h2>Sanidad prevista</h2>${av.map((x) => `<a class="evento enlace" href="#/sanidad/realizar/${x.s.id}"><div class="entre"><strong>${esc(L.TIPOS_SAN[x.s.tipo])} · ${esc(x.s.producto || '')}</strong><span class="chip ${x.nivel === 'urgente' ? 'nar' : ''}">${x.vencido ? 'Atrasado' : x.nivel === 'urgente' ? 'Hoy' : corta(x.s.fecha)}</span></div><div class="suave peq">${esc(destinoSan(x.s))}${x.vencido ? ` · previsto el ${fmt(x.s.fecha)}` : ''} · toca para validarlo</div></a>`).join('')}</section>` : ''; })()}
         ${(() => { const av = S.faltaSQL2 ? [] : L.avisosRepro(S.animales, S.lotes, ctxR, hoy()); return av.length ? `<section class="tarjeta"><h2>Avisos</h2>${av.map((x) => `<a class="evento enlace" href="${x.enlace}"><div class="entre"><strong>${esc(x.titulo)}</strong><span class="chip ${x.nivel === 'urgente' ? 'nar' : x.nivel === 'info' ? 'gris' : ''}">${x.nivel === 'urgente' ? 'Hoy' : x.nivel === 'info' ? 'En curso' : corta(x.fecha)}</span></div><div class="suave peq">${esc(x.detalle)}</div></a>`).join('')}</section>` : '<div class="vacio">No hay avisos de reproducción para hoy.</div>'; })()}
         ${porRevisar.length ? `<a class="tarjeta enlace" href="#/animales/revisar" style="border-color:var(--naranja-borde)"><div class="entre"><strong>Datos por completar</strong><span class="chip nar">${porRevisar.length}</span></div>
@@ -299,7 +303,7 @@
           <div class="lista">${lista.map((a) => `<label class="animal-fila check"><input type="checkbox" name="sel" value="${a.id}">
             <div><strong>${esc(nombreA(a))}</strong><div class="suave">${esc(catNombre(a.categoria))}${esHembraRepro(a) && !S.faltaSQL2 ? ` · ${esc(estadoNombre(estR(a)))}` : ''}${a.crotal ? ` · ${esc(a.crotal)}` : ''}</div>${chipRetirada(retiradasHoy()[a.id])}</div>
             <a class="ver" href="#/animal/${a.id}" aria-label="Ver ficha de ${esc(nombreA(a))}">Ficha</a></label>`).join('')}</div>
-          <div class="botones pegado"><button class="btn" type="submit" id="b-trasladar" disabled>${ICONOS.flecha}Trasladar</button><button class="btn sec" type="button" id="b-tratar" disabled>Sanidad</button>${lista.some((a) => a.categoria === 'cabra') ? '<button class="btn sec" type="button" id="b-secado" disabled>Secado</button>' : ''}</div></form>`
+          <div class="botones pegado"><button class="btn" type="submit" id="b-trasladar" disabled>${ICONOS.flecha}Trasladar</button><button class="btn sec" type="button" id="b-tratar" disabled>Sanidad</button><button class="btn sec" type="button" id="b-cc" disabled>CC / FAMACHA</button>${lista.some((a) => a.categoria === 'cabra') ? '<button class="btn sec" type="button" id="b-leche" disabled>Leche</button>' : ''}${lista.some((a) => a.categoria === 'cabra') ? '<button class="btn sec" type="button" id="b-secado" disabled>Secado</button>' : ''}</div></form>`
         : '<div class="vacio">No hay animales en esta corralina.</div>'}
         ${esProf() && c ? `<form class="formu tarjeta" id="f-uso"><h2>Uso de la corralina</h2>
           <div class="campo"><label for="uso">Texto libre (p. ej. «Chivas», «Machos»)</label><input id="uso" name="uso" type="text" value="${esc(c.uso || '')}"></div>
@@ -307,8 +311,11 @@
       </main>${navegacion('mapa')}`);
     const f = document.getElementById('f-sel');
     if (f) {
-      const marcar = () => { const k = f.querySelectorAll('input[name=sel]:checked').length; document.getElementById('n-sel').textContent = `${k} ${k === 1 ? 'seleccionado' : 'seleccionados'}`; document.getElementById('b-trasladar').disabled = !k; const bs = document.getElementById('b-secado'); if (bs) bs.disabled = !k; document.getElementById('b-tratar').disabled = !k; };
+      const marcar = () => { const k = f.querySelectorAll('input[name=sel]:checked').length; document.getElementById('n-sel').textContent = `${k} ${k === 1 ? 'seleccionado' : 'seleccionados'}`; document.getElementById('b-trasladar').disabled = !k; const bs = document.getElementById('b-secado'); if (bs) bs.disabled = !k; document.getElementById('b-tratar').disabled = !k; document.getElementById('b-cc').disabled = !k; const bl = document.getElementById('b-leche'); if (bl) bl.disabled = !k; };
       f.addEventListener('change', (ev) => { if (ev.target.id === 'todos') f.querySelectorAll('input[name=sel]').forEach((x) => { x.checked = ev.target.checked; }); marcar(); });
+      const grupo = (ruta) => () => { const ids = [...f.querySelectorAll('input[name=sel]:checked')].map((x) => x.value); S.borrador.grupo = { ids, volver: `#/corralina/${cid}` }; location.hash = ruta; };
+      document.getElementById('b-cc').addEventListener('click', grupo('#/seguimiento/condicion'));
+      const bl = document.getElementById('b-leche'); if (bl) bl.addEventListener('click', grupo('#/seguimiento/lechero'));
       document.getElementById('b-tratar').addEventListener('click', () => { const ids = [...f.querySelectorAll('input[name=sel]:checked')].map((x) => x.value); S.borrador.grupo = { ids, volver: `#/corralina/${cid}` }; location.hash = '#/sanidad/nuevo/grupo'; });
       const bs = document.getElementById('b-secado');
       if (bs) bs.addEventListener('click', () => { const ids = [...f.querySelectorAll('input[name=sel]:checked')].map((x) => x.value); S.borrador.grupo = { ids, volver: `#/corralina/${cid}` }; location.hash = '#/registro/secado'; });
@@ -353,7 +360,7 @@
   }
 
   // ---------------------------------------------------------------- ficha
-  const TIPOS = { alta: 'Alta', baja: 'Baja', baja_anulada: 'Baja anulada', datos: 'Datos corregidos', traslado: 'Traslado', nota: 'Nota', eco: 'Ecografía', parto: 'Parto', encalostrado: 'Encalostrado', inicio_ordeno: 'Inicio del ordeño', destete: 'Destete', acrotalado: 'Acrotalado', secado: 'Secado' };
+  const TIPOS = { alta: 'Alta', baja: 'Baja', baja_anulada: 'Baja anulada', datos: 'Datos corregidos', traslado: 'Traslado', nota: 'Nota', condicion: 'Condición corporal / FAMACHA', lechero: 'Control lechero', eco: 'Ecografía', parto: 'Parto', encalostrado: 'Encalostrado', inicio_ordeno: 'Inicio del ordeño', destete: 'Destete', acrotalado: 'Acrotalado', secado: 'Secado' };
   const TIPO_PARTO = { normal: 'Normal', asistido: 'Asistido', distocico: 'Distócico' };
   const loteDe = (id) => S.lotes.find((l) => l.id === id);
   const CAMPOS = { especie: 'Especie', raza: 'Raza', categoria: 'Categoría', sexo: 'Sexo', crotal: 'Crotal', manejo: 'Nº de manejo', codigo_cria: 'Código de cría', capa: 'Capa', fecha_nacimiento: 'Nacimiento', anio_nacimiento: 'Año de nacimiento', madre_id: 'Madre', padre_id: 'Padre', madre_txt: 'Madre', padre_txt: 'Padre', origen: 'Origen', corralina_id: 'Corralina de entrada', fecha_alta: 'Fecha de alta', obs: 'Observaciones', peso_nacimiento: 'Peso al nacer (kg)' };
@@ -384,6 +391,8 @@
       case 'destete': return `${d.peso ? `${esc(d.peso)} kg · ` : ''}${esc(d.destino || '')}`;
       case 'acrotalado': return `Crotal ${esc(d.crotal || '')}${d.manejo ? ` · collar ${esc(d.manejo)}` : ''} · pasa a ${esc(catNombre(d.categoria))}`;
       case 'secado': return 'Secado natural';
+      case 'condicion': return [d.cc != null ? `CC ${String(d.cc).replace('.', ',')}` : null, d.famacha != null ? `FAMACHA ${d.famacha}` : null].filter(Boolean).join(' · ');
+      case 'lechero': return `${String(d.litros).replace('.', ',')} litros`;
       case 'nota': return esc(d.texto || '');
       default: return esc(e.tipo);
     }
@@ -419,6 +428,7 @@
         ${(() => { const x = retiradasHoy()[a.id]; if (!x || a.fecha_baja) return ''; const t = []; if (x.leche) t.push(`<strong>Leche no apta hasta el ${fmt(x.leche.hasta)}</strong>${a.especie === 'caprino' && esHembraRepro(a) ? ': no va al tanque' : ''} (${esc(x.leche.producto)})`); if (x.carne) t.push(`Carne no apta hasta el ${fmt(x.carne.hasta)} (${esc(x.carne.producto)})`); return `<div class="error-caja">${t.join('<br>')}</div>`; })()}
         ${a.fecha_baja || S.faltaSQL2 ? '' : seccionRepro(a)}
         ${S.faltaSQL3 ? '' : seccionSanidad(a)}
+        ${S.faltaSQL4 || a.fecha_baja ? '' : seccionSeguimiento(a)}
         <section class="tarjeta"><h2>Datos</h2><div class="filas">
           <div><span>Especie</span><span>${esc(L.ESPECIES[a.especie].nombre)}</span></div>
           <div><span>Raza</span><span>${esc(raza(a))}</span></div>
@@ -1138,12 +1148,173 @@
   function vistaMas() {
     pintar(`${cabecera()}
       <main class="cuerpo"><h1 style="font-size:22px">Más</h1>
+        <a class="granja-card" href="#/manejo">${ICONOS.mapa}<div><strong>Manejo diario</strong><div class="suave">Limpieza, alimentación, agua, cama y ordeño por corralina</div></div>${ICONOS.flecha}</a>
+        <a class="granja-card" href="#/actividad">${ICONOS.cuenta}<div><strong>${esProf() ? 'Actividad de los alumnos' : 'Mi actividad'}</strong><div class="suave">${esProf() ? 'Qué ha registrado cada alumno, por curso y fechas, para evaluar' : 'Todo lo que has registrado'}</div></div>${ICONOS.flecha}</a>
         <a class="granja-card" href="#/censo">${ICONOS.censo}<div><strong>Censo</strong><div class="suave">A cualquier fecha, por categoría y corralina; altas y bajas; Excel</div></div>${ICONOS.flecha}</a>
         ${esProf() ? `<a class="granja-card" href="#/gestion">${ICONOS.gestion}<div><strong>Gestión</strong><div class="suave">Importar el censo, copia de seguridad y alumnos</div></div>${ICONOS.flecha}</a>` : ''}
         <a class="granja-card" href="#/cuenta">${ICONOS.cuenta}<div><strong>Tu cuenta</strong><div class="suave">${esProf() ? 'Contraseña' : 'PIN'} e instalación en el móvil</div></div>${ICONOS.flecha}</a>
         <a class="granja-card" href="#/granjas"><img src="img/logo-mini.jpg" alt=""><div><strong>Granjas del centro</strong><div class="suave">Ir a CIFEAPORC</div></div>${ICONOS.flecha}</a>
         <button class="btn sec" type="button" data-accion="salir">Salir</button>
       </main>${navegacion('mas')}`);
+  }
+
+  // ---------------------------------------------------------------- manejo diario y seguimiento
+  const CC_VALORES = ['1', '1.5', '2', '2.5', '3', '3.5', '4', '4.5', '5'];
+  function seccionSeguimiento(a) {
+    if (L.esCria(a)) return '';
+    const evs = (S.porAnimal[a.id] || []);
+    const cc = evs.filter((e) => e.tipo === 'condicion').sort(L.porFecha).reverse();
+    const lt = evs.filter((e) => e.tipo === 'lechero').sort(L.porFecha).reverse();
+    const u = L.ultimoSeguimiento(evs);
+    const esCabra = a.categoria === 'cabra';
+    return `<section class="tarjeta"><h2>Seguimiento</h2>
+      <div class="dos"><div class="dato ${u.cc && u.cc.valor <= L.REF4.ccBaja ? 'nar' : 'gris'}"><span class="et">Condición corporal</span><span class="val peq-val">${u.cc ? String(u.cc.valor).replace('.', ',') : '—'}</span><span class="nota">${u.cc ? fmt(u.cc.fecha) : 'Escala 1–5'}</span></div>
+        <div class="dato ${u.famacha && u.famacha.valor >= L.REF4.famachaAviso ? 'nar' : 'gris'}"><span class="et">FAMACHA</span><span class="val peq-val">${u.famacha ? u.famacha.valor : '—'}</span><span class="nota">${u.famacha ? fmt(u.famacha.fecha) : 'Escala 1–5'}</span></div></div>
+      ${esCabra && lt.length ? `<div class="suave peq" style="font-weight:700">CONTROL LECHERO</div><table class="tabla"><tbody>${lt.slice(0, 6).map((e) => `<tr><td>${fmt(e.fecha)}</td><td class="num">${String(e.datos.litros).replace('.', ',')} l</td></tr>`).join('')}</tbody></table>` : ''}
+      ${cc.length > 1 ? `<details><summary class="suave">Ver ${cc.length} revisiones</summary><table class="tabla"><tbody>${cc.map((e) => `<tr><td>${fmt(e.fecha)}</td><td>${resumenEvento(e)}</td></tr>`).join('')}</tbody></table></details>` : ''}
+      <div class="botones"><a class="btn sec peq" href="#/seguimiento/condicion/${a.id}">CC / FAMACHA</a>${esCabra ? `<a class="btn sec peq" href="#/seguimiento/lechero/${a.id}">Litros</a>` : ''}</div></section>`;
+  }
+
+  // Condición corporal / FAMACHA o control lechero de uno o varios animales (con su valor cada uno).
+  function vistaSeguimiento(tipo, id) {
+    if (!['condicion', 'lechero'].includes(tipo)) return vistaNoEncontrado();
+    const ids = id ? [id] : ((S.borrador.grupo || {}).ids || []);
+    const apto = tipo === 'lechero' ? (a) => a.categoria === 'cabra' : (a) => !L.esCria(a);
+    const lista = ids.map(animal).filter((a) => a && !a.fecha_baja && apto(a)).sort(L.ordenNatural);
+    if (!lista.length) return vistaNoEncontrado(tipo === 'lechero' ? 'No hay cabras en la selección.' : 'No hay animales adultos en la selección.');
+    const volver = id ? `#/animal/${id}` : (S.borrador.grupo || {}).volver || '#/mapa';
+    const opts = (vals, ph) => `<option value="">${ph}</option>${vals.map((x) => `<option value="${x}">${x.replace('.', ',')}</option>`).join('')}`;
+    pintar(`${cabecera({ volver, textoVolver: id ? 'Ficha' : 'Corralina', titulo: tipo === 'lechero' ? 'Control lechero' : 'Condición corporal y FAMACHA', sub: lista.length === 1 ? esc(nombreA(lista[0])) : `${lista.length} animales` })}
+      <main class="cuerpo"><div id="msg"></div>
+        ${tipo === 'condicion' ? '<div class="suave">Condición corporal de 1 (muy delgada) a 5 (muy grasa). FAMACHA de 1 (mucosa roja, sana) a 5 (blanca, anemia grave): con 4 o 5, valorar desparasitar. Deja en blanco lo que no se mire.</div>' : '<div class="suave">Litros de cada cabra en el ordeño del día. Deja en blanco las que no se midan.</div>'}
+        <form class="formu" id="f-seg" novalidate>
+          <div class="campo"><label for="fecha">Fecha</label><input id="fecha" name="fecha" type="date" value="${hoy()}" max="${hoy()}"></div>
+          <div class="lista">${lista.map((a) => `<div class="animal-fila seg"><div><strong>${esc(nombreA(a))}</strong><div class="suave peq">${esc(catNombre(a.categoria))}</div></div>
+            ${tipo === 'condicion' ? `<select name="cc-${a.id}" aria-label="Condición corporal de ${esc(nombreA(a))}">${opts(CC_VALORES, 'CC')}</select><select name="fa-${a.id}" aria-label="FAMACHA de ${esc(nombreA(a))}">${opts(['1', '2', '3', '4', '5'], 'FAM.')}</select>`
+              : `<input name="l-${a.id}" type="number" step="0.1" min="0" max="10" inputmode="decimal" placeholder="litros" aria-label="Litros de ${esc(nombreA(a))}">`}</div>`).join('')}</div>
+          <div class="campo"><label for="obs">Observaciones (opcional)</label><textarea id="obs" name="obs"></textarea></div>
+          <button class="btn" type="submit">Guardar</button></form>
+      </main>${navegacion('mapa')}`);
+    document.getElementById('f-seg').addEventListener('submit', async (ev) => {
+      ev.preventDefault(); const x = new FormData(ev.target); const fecha = String(x.get('fecha')); const obs = String(x.get('obs') || '').trim();
+      const num = (k) => { const v = x.get(k); return v === null || v === '' ? null : Number(String(v).replace(',', '.')); };
+      const filas = lista.map((a) => {
+        if (tipo === 'condicion') { const cc = num(`cc-${a.id}`), fa = num(`fa-${a.id}`); if (cc === null && fa === null) return null; return { animal_id: a.id, tipo, fecha, datos: { ...(cc !== null ? { cc } : {}), ...(fa !== null ? { famacha: fa } : {}), ...(obs ? { obs } : {}) } }; }
+        const l = num(`l-${a.id}`); if (l === null) return null; return { animal_id: a.id, tipo, fecha, datos: { litros: l, ...(obs ? { obs } : {}) } };
+      }).filter(Boolean);
+      if (!filas.length) { document.getElementById('msg').innerHTML = errorCaja('Anota al menos un valor.'); return; }
+      if (tipo === 'lechero' && filas.some((r) => !(r.datos.litros >= 0 && r.datos.litros <= 10))) { document.getElementById('msg').innerHTML = errorCaja('Revisa los litros (entre 0 y 10).'); return; }
+      ev.target.querySelector('button').disabled = true;
+      const { error } = await sb.from('rum_eventos').insert(filas);
+      if (error) { ev.target.querySelector('button').disabled = false; document.getElementById('msg').innerHTML = errorCaja(traducirError(error)); return; }
+      S.borrador.grupo = null; toast(`${filas.length} ${filas.length === 1 ? 'registro guardado' : 'registros guardados'}`); await refrescar(); location.hash = volver;
+    });
+  }
+
+  function vistaManejo() {
+    const dias = [...new Set(S.manejo.map((m) => m.fecha))].slice(0, 14);
+    const tarj = (m) => { const puede = esProf() || (m.autor === uid() && Date.now() - new Date(m.creado).getTime() < 864e5);
+      return `<${puede ? `a href="#/manejo/editar/${m.id}"` : 'div'} class="evento ${puede ? 'enlace' : ''}"><div class="entre"><strong>${m.tareas.map((t) => esc(L.TAREAS[t] || t)).join(' · ')}</strong><span class="suave peq">${esc(m.corralinas.map((c) => nombreCorrCorto(c)).join(', ') || 'Toda la granja')}</span></div>
+        ${m.detalle ? `<div>${esc(m.detalle)}</div>` : ''}<div class="suave peq">${m.participantes ? `${esc(m.participantes)} · ` : ''}anotado por ${esc(quienEs(m.autor, m.autor_alias))} (${curso(m.curso)})</div></${puede ? 'a' : 'div'}>`; };
+    pintar(`${cabecera()}
+      <main class="cuerpo">${S.faltaSQL4 && esProf() ? '<div class="aviso-caja"><strong>Para usar el manejo diario</strong>, vuelve a ejecutar en Supabase <code>sql/01_rumiantes.sql</code>.</div>' : ''}
+        <h1 style="font-size:22px">Manejo diario</h1>
+        <a class="btn" href="#/manejo/nuevo">${ICONOS.mas}Anotar manejo</a>
+        ${dias.map((d) => `<section class="tarjeta"><h2>${d === hoy() ? 'Hoy' : `${DIAS_SEM[new Date(`${d}T12:00:00`).getDay()]} ${corta(d)}`}</h2>${S.manejo.filter((m) => m.fecha === d).map(tarj).join('')}</section>`).join('') || '<div class="vacio">Todavía no hay manejo anotado.</div>'}
+      </main>${navegacion('mas')}`);
+  }
+
+  function vistaManejoForm(id) {
+    const m = id ? S.manejo.find((x) => x.id === id) : null;
+    if (id && !m) return vistaNoEncontrado();
+    const v = m || { fecha: hoy(), corralinas: [], tareas: [], participantes: yo() };
+    const naves = [...new Set(S.corralinas.map((c) => c.nave))];
+    pintar(`${cabecera({ volver: '#/manejo', textoVolver: 'Manejo', titulo: m ? 'Corregir manejo' : 'Anotar manejo' })}
+      <main class="cuerpo"><div id="msg"></div>
+        <form class="formu" id="f-man" novalidate>
+          <div class="campo"><label for="fecha">Fecha</label><input id="fecha" name="fecha" type="date" value="${v.fecha}" max="${hoy()}"></div>
+          <fieldset><legend>Qué se ha hecho</legend><div class="opciones">${Object.entries(L.TAREAS).map(([k, t]) => `<label><input type="checkbox" name="tarea" value="${k}" ${v.tareas.includes(k) ? 'checked' : ''}> ${t}</label>`).join('')}</div></fieldset>
+          <fieldset><legend>Dónde</legend>${naves.map((nv) => `<div class="suave peq" style="font-weight:700">${esc(nv.toUpperCase())}</div><div class="opciones">${S.corralinas.filter((c) => c.nave === nv && c.activa).sort((x, y) => x.numero - y.numero).map((c) => `<label><input type="checkbox" name="corr" value="${c.id}" ${v.corralinas.includes(c.id) ? 'checked' : ''}> ${c.numero}${c.uso ? ` · ${esc(c.uso)}` : ''}</label>`).join('')}</div>`).join('')}
+            <span class="ayuda">Sin marcar ninguna = toda la granja.</span></fieldset>
+          <div class="campo"><label for="detalle">Detalle (ración, incidencias…)</label><textarea id="detalle" name="detalle" placeholder="Ej.: 1,5 kg de pienso por cabra + paja a voluntad">${esc(v.detalle || '')}</textarea></div>
+          <div class="campo"><label for="participantes">Quiénes lo han hecho</label><input id="participantes" name="participantes" type="text" value="${esc(v.participantes || '')}"></div>
+          <button class="btn" type="submit">Guardar</button></form>
+        ${m ? '<button class="btn peligro" type="button" id="b-borrar-man">Borrar</button>' : ''}
+      </main>${navegacion('mas')}`);
+    document.getElementById('f-man').addEventListener('submit', async (ev) => {
+      ev.preventDefault(); const x = new FormData(ev.target);
+      const fila = { fecha: String(x.get('fecha')), tareas: x.getAll('tarea'), corralinas: x.getAll('corr').map(Number), detalle: String(x.get('detalle') || '').trim() || null, participantes: String(x.get('participantes') || '').trim() || null };
+      if (!fila.tareas.length) { document.getElementById('msg').innerHTML = errorCaja('Marca al menos una tarea.'); return; }
+      ev.target.querySelector('button').disabled = true;
+      const { error } = m ? await sb.from('rum_manejo').update(fila).eq('id', m.id) : await sb.from('rum_manejo').insert(fila);
+      if (error) { ev.target.querySelector('button').disabled = false; document.getElementById('msg').innerHTML = errorCaja(traducirError(error)); return; }
+      toast('Manejo guardado'); await refrescar(); location.hash = '#/manejo';
+    });
+    const bb = document.getElementById('b-borrar-man');
+    if (bb) bb.addEventListener('click', async () => {
+      if (bb.dataset.confirmar !== '1') { bb.dataset.confirmar = '1'; bb.textContent = '¿Seguro? Pulsa otra vez'; return; }
+      const { error } = await sb.from('rum_manejo').delete().eq('id', m.id); if (error) return toast(traducirError(error));
+      toast('Borrado'); await refrescar(); location.hash = '#/manejo';
+    });
+  }
+
+  // Actividad por alumno (para evaluar): todo lo que ha registrado cada uno en CIFEARUMI.
+  function registrosDe() {
+    const out = [];
+    const auto = ['alta', 'baja', 'baja_anulada', 'datos'];
+    for (const e of S.eventos) {
+      if (e.datos && e.datos.importado) continue;
+      if (auto.includes(e.tipo) && !['alta', 'baja'].includes(e.tipo)) continue;
+      out.push({ autor: e.autor, alias: e.autor_alias, curso: e.curso, fecha: e.fecha, clase: TIPOS[e.tipo] || e.tipo, que: `${nombreA(animal(e.animal_id))}: ${resumenEvento(e).replace(/<[^>]+>/g, '')}`, enlace: `#/animal/${e.animal_id}` });
+    }
+    for (const r of S.sanidad) {
+      if (r.estado === 'realizado') out.push({ autor: r.realizado_por === r.autor_alias ? r.autor : null, alias: r.realizado_por || r.autor_alias, curso: r.realizado_por === r.autor_alias ? r.curso : null, fecha: r.fecha, clase: 'Sanidad', que: `${L.TIPOS_SAN[r.tipo]} · ${r.producto || ''} · ${destinoSan(r)}`, enlace: `#/sanidad/editar/${r.id}` });
+      if (r.estado === 'previsto' || r.realizado_por !== r.autor_alias) out.push({ autor: r.autor, alias: r.autor_alias, curso: r.curso, fecha: String(r.creado).slice(0, 10), clase: 'Sanidad programada', que: `${L.TIPOS_SAN[r.tipo]} · ${r.producto || ''}`, enlace: `#/sanidad/editar/${r.id}` });
+    }
+    for (const l of S.lotes) out.push({ autor: l.autor, alias: l.autor_alias, curso: l.curso, fecha: l.fecha_entrada, clase: 'Lote de cubrición', que: l.nombre, enlace: `#/lote/${l.id}` });
+    for (const m of S.manejo) out.push({ autor: m.autor, alias: m.autor_alias, curso: m.curso, fecha: m.fecha, clase: 'Manejo diario', que: `${m.tareas.map((t) => L.TAREAS[t] || t).join(', ')}${m.detalle ? ` · ${m.detalle}` : ''}`, enlace: '#/manejo' });
+    // El curso de quien valida un previsto se busca por su alias.
+    const cursoAlias = {}; for (const x of out) if (x.alias && x.curso) cursoAlias[x.alias] = x.curso;
+    for (const x of out) if (!x.curso && x.alias && cursoAlias[x.alias]) x.curso = cursoAlias[x.alias];
+    return out;
+  }
+  function vistaActividad(alias) {
+    const desde = S.borrador.actDesde || `${hoy().slice(0, 7)}-01`; const hasta = S.borrador.actHasta || hoy(); const cursoF = S.borrador.actCurso || '';
+    const profes = new Set(Object.values(S.nombres).filter((p) => p.rol === 'profesor').map((p) => p.alias));
+    let regs = registrosDe().filter((x) => x.fecha >= desde && x.fecha <= hasta && x.alias && !profes.has(x.alias));
+    if (!esProf()) regs = regs.filter((x) => x.alias === S.perfil.alias);
+    else if (cursoF) regs = regs.filter((x) => String(x.curso || '') === cursoF);
+    const sel = esProf() ? alias && decodeURIComponent(alias) : S.perfil.alias;
+    const filtros = `<div class="dos"><div class="campo"><label for="a-desde">Desde</label><input id="a-desde" type="date" value="${desde}"></div><div class="campo"><label for="a-hasta">Hasta</label><input id="a-hasta" type="date" value="${hasta}"></div></div>
+      ${esProf() ? `<div class="pestanas">${[['', 'Todos'], ['1', '1.º'], ['2', '2.º']].map(([k, t]) => `<button type="button" data-curso="${k}" class="${cursoF === k ? 'activo' : ''}">${t}</button>`).join('')}</div>` : ''}`;
+    let cuerpo;
+    if (sel) {
+      const mios = regs.filter((x) => x.alias === sel).sort((x, y) => y.fecha.localeCompare(x.fecha));
+      const nombre = Object.values(S.nombres).find((p) => p.alias === sel);
+      cuerpo = `<h2>${esc(nombre && nombre.nombre ? `${nombre.nombre} (${sel})` : sel)} · ${mios.length} registros</h2>
+        ${mios.map((x) => `<a class="evento enlace" href="${x.enlace}"><div class="entre"><strong>${esc(x.clase)}</strong><span class="suave">${fmt(x.fecha)}</span></div><div class="suave peq">${esc(x.que)}</div></a>`).join('') || '<div class="vacio">Sin registros en esas fechas.</div>'}`;
+    } else {
+      const por = {}; for (const x of regs) { const k = x.alias; (por[k] = por[k] || { curso: x.curso, n: 0, tipos: {} }); por[k].n++; por[k].tipos[x.clase] = (por[k].tipos[x.clase] || 0) + 1; }
+      const filas = Object.entries(por).sort((a, b) => String(a[1].curso || 9).localeCompare(String(b[1].curso || 9)) || a[0].localeCompare(b[0], 'es', { numeric: true }));
+      cuerpo = `<div class="suave">Cuenta lo que cada uno ha registrado en CIFEARUMI (sin el censo importado). Toca un alumno para ver el detalle.</div>
+        <div class="lista">${filas.map(([al, o]) => { const nm = Object.values(S.nombres).find((p) => p.alias === al); return `<a class="animal-fila" href="#/actividad/${encodeURIComponent(al)}"><div><strong>${esc(nm && nm.nombre ? `${nm.nombre} (${al})` : al)}</strong><div class="suave peq">${o.curso ? `${o.curso}.º · ` : ''}${Object.entries(o.tipos).map(([t, n]) => `${esc(t)} ${n}`).join(' · ')}</div></div><span class="chip">${o.n}</span></a>`; }).join('') || '<div class="vacio">Sin registros en esas fechas.</div>'}</div>
+        <button class="btn sec" type="button" id="b-act-excel">Descargar en Excel</button><div id="estado-act"></div>`;
+    }
+    pintar(`${cabecera(sel && esProf() ? { volver: '#/actividad', textoVolver: 'Actividad', titulo: 'Actividad' } : {})}
+      <main class="cuerpo"><h1 style="font-size:22px">${esProf() ? 'Actividad de los alumnos' : 'Mi actividad'}</h1>${filtros}${cuerpo}</main>${navegacion('mas')}`);
+    const cambio = () => { S.borrador.actDesde = document.getElementById('a-desde').value || desde; S.borrador.actHasta = document.getElementById('a-hasta').value || hasta; vistaActividad(alias); };
+    document.getElementById('a-desde').addEventListener('change', cambio); document.getElementById('a-hasta').addEventListener('change', cambio);
+    $app.querySelectorAll('[data-curso]').forEach((b) => b.addEventListener('click', () => { S.borrador.actCurso = b.dataset.curso; vistaActividad(alias); }));
+    const bx = document.getElementById('b-act-excel');
+    if (bx) bx.addEventListener('click', async () => {
+      try { await cargarXLSX(); const X = window.XLSX; const libro = X.utils.book_new();
+        const tipos = [...new Set(regs.map((x) => x.clase))].sort();
+        const por = {}; for (const x of regs) { (por[x.alias] = por[x.alias] || { Alias: x.alias, Nombre: (Object.values(S.nombres).find((p) => p.alias === x.alias) || {}).nombre || '', Curso: x.curso ? `${x.curso}.º` : '', Total: 0 }); por[x.alias].Total++; por[x.alias][x.clase] = (por[x.alias][x.clase] || 0) + 1; }
+        X.utils.book_append_sheet(libro, X.utils.json_to_sheet(Object.values(por).map((o) => { for (const t of tipos) o[t] = o[t] || 0; return o; })), 'Resumen');
+        X.utils.book_append_sheet(libro, X.utils.json_to_sheet(regs.sort((x, y) => x.alias.localeCompare(y.alias) || x.fecha.localeCompare(y.fecha)).map((x) => ({ Alias: x.alias, Curso: x.curso ? `${x.curso}.º` : '', Fecha: x.fecha, Registro: x.clase, Detalle: x.que }))), 'Detalle');
+        X.writeFile(libro, `CIFEARUMI_actividad_${desde}_${hasta}.xlsx`);
+      } catch (e) { document.getElementById('estado-act').innerHTML = errorCaja(traducirError(e)); }
+    });
   }
 
   // ---------------------------------------------------------------- censo
@@ -1272,7 +1443,7 @@
       await cargarDatos();
       const sello = new Date(); const fichero = `CIFEARUMI_copia_${sello.getFullYear()}-${dos(sello.getMonth() + 1)}-${dos(sello.getDate())}_${dos(sello.getHours())}${dos(sello.getMinutes())}`;
       if (formato === 'json') {
-        descargar(`${fichero}.json`, JSON.stringify({ app: 'CIFEAFARM', granja: 'CIFEARUMI', version: C.version, fecha: sello.toISOString(), rum_corralinas: S.corralinas, rum_animales: S.animales, rum_eventos: S.eventos, rum_lotes: S.lotes, rum_sanidad: S.sanidad }, null, 1), 'application/json');
+        descargar(`${fichero}.json`, JSON.stringify({ app: 'CIFEAFARM', granja: 'CIFEARUMI', version: C.version, fecha: sello.toISOString(), rum_corralinas: S.corralinas, rum_animales: S.animales, rum_eventos: S.eventos, rum_lotes: S.lotes, rum_sanidad: S.sanidad, rum_manejo: S.manejo }, null, 1), 'application/json');
       } else {
         await cargarXLSX(); const X = window.XLSX; const libro = X.utils.book_new();
         X.utils.book_append_sheet(libro, X.utils.json_to_sheet(S.animales.slice().sort((x, y) => x.especie.localeCompare(y.especie) || L.ordenNatural(x, y)).map((a) => filaExcel(a, a.fecha_baja ? null : ubic(a)))), 'Animales');
@@ -1362,6 +1533,9 @@
         return vistaSanidad(a || 'calendario');
       case 'medicamento': return vistaMedicamento(a);
       case 'mas': return vistaMas();
+      case 'manejo': return a === 'nuevo' ? vistaManejoForm(null) : a === 'editar' ? vistaManejoForm(b) : vistaManejo();
+      case 'seguimiento': return vistaSeguimiento(a, b);
+      case 'actividad': return vistaActividad(a);
       case 'gestion': return vistaGestion();
       case 'cuenta': return vistaCuenta();
       default: return vistaNoEncontrado();
@@ -1385,7 +1559,7 @@
     render();
   });
   setInterval(() => { const h = document.getElementById('hora-consulta'); if (h) h.textContent = fechaHora(new Date()); }, 20000);
-  const escribiendo = () => /^#\/(alta|editar|trasladar|nota|baja|lote\/nuevo|sacar|eco|parto|registro|acrotalar|sanidad\/(nuevo|programar|realizar|editar)|medicamento)/.test(location.hash);
+  const escribiendo = () => /^#\/(alta|editar|trasladar|nota|baja|lote\/nuevo|sacar|eco|parto|registro|acrotalar|sanidad\/(nuevo|programar|realizar|editar)|medicamento|manejo\/|seguimiento)/.test(location.hash);
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible' && S.perfil && (!S.cargado || Date.now() - S.cargado > 120000) && !escribiendo()) refrescar();
   });
