@@ -67,6 +67,8 @@ create table if not exists public.rum_animales (
   check (categoria not in ('cabrito','cordero') or madre_id is not null or madre_txt is not null),
   check (fecha_baja is null or causa_baja is not null)
 );
+-- Raza (añadida en 0.1.3). Vacía = la de la especie: murciano-granadina o segureña.
+alter table public.rum_animales add column if not exists raza text;
 create unique index if not exists rum_animales_crotal on public.rum_animales (crotal) where crotal is not null;
 -- Un nº de collar no puede estar en dos animales vivos de la misma especie a la vez.
 create unique index if not exists rum_animales_manejo on public.rum_animales (especie, upper(manejo))
@@ -172,7 +174,7 @@ create or replace function public.rum_animales_registro() returns trigger
 language plpgsql security definer set search_path = public as $$
 declare a text; g smallint; cambios jsonb := '{}'::jsonb; k text;
   vigilar text[] := array['especie','categoria','sexo','crotal','manejo','codigo_cria','capa','fecha_nacimiento',
-                          'anio_nacimiento','madre_id','padre_id','madre_txt','padre_txt','origen','corralina_id','fecha_alta','obs'];
+                          'anio_nacimiento','madre_id','padre_id','madre_txt','padre_txt','origen','corralina_id','fecha_alta','obs','raza'];
 begin
   select alias, granja_id into a, g from perfiles where user_id = auth.uid();
   if tg_op = 'INSERT' then

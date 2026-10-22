@@ -35,6 +35,7 @@
   const ubic = (a) => L.ubicacion(a, S.porAnimal[a.id], null);
   const nombreA = (a) => (a ? L.nombreAnimal(a) : '?');
   const catNombre = (k) => (L.CAT[k] || {}).nombre || k;
+  const raza = (a) => a.raza || (L.ESPECIES[a.especie] || {}).raza || '—';
 
   function toast(msg) {
     const t = document.createElement('div');
@@ -325,7 +326,7 @@
 
   // ---------------------------------------------------------------- ficha
   const TIPOS = { alta: 'Alta', baja: 'Baja', baja_anulada: 'Baja anulada', datos: 'Datos corregidos', traslado: 'Traslado', nota: 'Nota' };
-  const CAMPOS = { especie: 'Especie', categoria: 'Categoría', sexo: 'Sexo', crotal: 'Crotal', manejo: 'Nº de manejo', codigo_cria: 'Código de cría', capa: 'Capa', fecha_nacimiento: 'Nacimiento', anio_nacimiento: 'Año de nacimiento', madre_id: 'Madre', padre_id: 'Padre', madre_txt: 'Madre', padre_txt: 'Padre', origen: 'Origen', corralina_id: 'Corralina de entrada', fecha_alta: 'Fecha de alta', obs: 'Observaciones' };
+  const CAMPOS = { especie: 'Especie', raza: 'Raza', categoria: 'Categoría', sexo: 'Sexo', crotal: 'Crotal', manejo: 'Nº de manejo', codigo_cria: 'Código de cría', capa: 'Capa', fecha_nacimiento: 'Nacimiento', anio_nacimiento: 'Año de nacimiento', madre_id: 'Madre', padre_id: 'Padre', madre_txt: 'Madre', padre_txt: 'Padre', origen: 'Origen', corralina_id: 'Corralina de entrada', fecha_alta: 'Fecha de alta', obs: 'Observaciones' };
   const nombreEvento = (e) => TIPOS[e.tipo] || e.tipo;
   function valorCampo(k, v) {
     if (v === null || v === undefined || v === '') return '—';
@@ -368,7 +369,7 @@
       ${puedeEditarEv(e) && !AUTO.includes(e.tipo) ? `<div class="acciones">${e.tipo === 'nota' ? `<a class="btn sec peq" href="#/nota/${a.id}/${e.id}">Corregir</a>` : ''}<button class="btn peligro peq" type="button" data-borrar="${e.id}">Borrar</button></div>` : ''}</div>`;
     const historial = evs.slice(0, 10).map(tarjetaEv).join('') + (evs.length > 10 ? `<details><summary class="suave" style="min-height:44px;display:flex;align-items:center">Ver ${evs.length - 10} registros anteriores</summary>${evs.slice(10).map(tarjetaEv).join('')}</details>` : '');
     const ident = [a.crotal ? `Crotal ${esc(a.crotal)}` : null, a.manejo && a.codigo_cria ? `antes ${esc(a.codigo_cria)}` : null].filter(Boolean).join(' · ');
-    pintar(`${cabecera({ volver: '#/animales', textoVolver: 'Animales', titulo: nombreA(a), sub: `${esc(catNombre(a.categoria))} · ${esc(L.ESPECIES[a.especie].raza)}${ident ? ` · ${ident}` : ''}` })}
+    pintar(`${cabecera({ volver: '#/animales', textoVolver: 'Animales', titulo: nombreA(a), sub: `${esc(catNombre(a.categoria))} · ${esc(raza(a))}${ident ? ` · ${ident}` : ''}` })}
       <main class="cuerpo">
         ${a.fecha_baja ? `<div class="error-caja"><strong>Dado de baja el ${fmt(a.fecha_baja)}</strong> · ${esc(a.causa_baja)}${a.destino_baja ? ` · ${esc(a.destino_baja)}` : ''}${a.baja_por ? ` · por ${esc(a.baja_por)}` : ''}</div>` : ''}
         ${rev.length ? `<div class="aviso-caja"><strong>Por completar:</strong> ${esc(rev.join(' · '))}. <a href="#/editar/${a.id}">Corregir datos</a></div>` : ''}
@@ -379,6 +380,7 @@
           ${puedeEditarAnimal(a) ? `<a class="btn sec peq" href="#/editar/${a.id}">Corregir datos</a>` : ''}</div>
         <section class="tarjeta"><h2>Datos</h2><div class="filas">
           <div><span>Especie</span><span>${esc(L.ESPECIES[a.especie].nombre)}</span></div>
+          <div><span>Raza</span><span>${esc(raza(a))}</span></div>
           <div><span>Categoría</span><span>${esc(catNombre(a.categoria))}</span></div>
           <div><span>Nº de manejo (collar)</span><span>${esc(a.manejo || '—')}</span></div>
           ${a.codigo_cria ? `<div><span>Código de cría</span><span>${esc(a.codigo_cria)}</span></div>` : ''}
@@ -514,6 +516,8 @@
             <div class="campo"><label for="crotal">Crotal</label><input id="crotal" name="crotal" type="text" inputmode="numeric" value="${esc(v.crotal || '')}" placeholder="724…"></div></div>
           <div class="ayuda suave">Las crías se registran sin crotal ni collar: la app les da un código con el nº de la madre (A12-1). Al acrotalarlas, pasan a chiva o cordera de reposición.</div>
           ${esp === 'caprino' ? `<div class="campo"><span class="et">Capa</span><div class="opciones"><label><input type="radio" name="capa" value="" ${!v.capa ? 'checked' : ''}> Sin anotar</label>${Object.entries(L.CAPAS).map(([k, x]) => `<label><input type="radio" name="capa" value="${k}" ${v.capa === k ? 'checked' : ''}> ${x}</label>`).join('')}</div></div>` : ''}
+          <div class="campo"><label for="raza">Raza</label><input id="raza" name="raza" type="text" list="razas" value="${esc(v.raza || '')}" placeholder="${esc(L.ESPECIES[esp].raza)}">
+            <datalist id="razas"><option value="${esc(L.ESPECIES[esp].raza)}"><option value="Cruce"></datalist><span class="ayuda">Si se deja vacía, es ${esc(L.ESPECIES[esp].raza.toLowerCase())}. Para animales no puros, escribe «Cruce» o la raza que sea.</span></div>
           <div class="dos"><div class="campo"><label for="fecha_nacimiento">Fecha de nacimiento</label><input id="fecha_nacimiento" name="fecha_nacimiento" type="date" max="${hoy()}" value="${esc(v.fecha_nacimiento || '')}"></div>
             <div class="campo"><label for="anio_nacimiento">o año aproximado</label><input id="anio_nacimiento" name="anio_nacimiento" type="number" min="1990" max="2100" value="${esc(v.anio_nacimiento || '')}"></div></div>
           <div class="dos"><div class="campo"><label for="madre_id">Madre</label><select id="madre_id" name="madre_id">${opt(madres, v.madre_id)}</select>${v.madre_txt ? `<span class="ayuda">Anotada como «${esc(v.madre_txt)}» (no está en el censo)</span>` : ''}</div>
@@ -528,7 +532,7 @@
     const form = document.getElementById('f-animal');
     const leer = () => {
       const f = new FormData(form); const o = {};
-      for (const k of ['especie', 'categoria', 'sexo', 'manejo', 'crotal', 'capa', 'fecha_nacimiento', 'anio_nacimiento', 'madre_id', 'padre_id', 'origen', 'corralina_id', 'fecha_alta', 'motivo_alta', 'obs']) {
+      for (const k of ['especie', 'categoria', 'sexo', 'manejo', 'crotal', 'capa', 'raza', 'fecha_nacimiento', 'anio_nacimiento', 'madre_id', 'padre_id', 'origen', 'corralina_id', 'fecha_alta', 'motivo_alta', 'obs']) {
         const x = f.get(k); o[k] = x === null ? (k in v ? v[k] : null) : String(x).trim() || null;
       }
       o.madre_txt = o.madre_id ? null : v.madre_txt || null; o.padre_txt = o.padre_id ? null : v.padre_txt || null;
@@ -555,11 +559,12 @@
       let res;
       if (a) {
         const cambios = {};
-        for (const k of ['categoria', 'sexo', 'manejo', 'crotal', 'capa', 'fecha_nacimiento', 'anio_nacimiento', 'madre_id', 'padre_id', 'madre_txt', 'padre_txt', 'origen', 'obs', 'especie']) if ((o[k] ?? null) !== (a[k] ?? null)) cambios[k] = o[k];
+        for (const k of ['categoria', 'sexo', 'manejo', 'crotal', 'capa', 'raza', 'fecha_nacimiento', 'anio_nacimiento', 'madre_id', 'padre_id', 'madre_txt', 'padre_txt', 'origen', 'obs', 'especie']) if ((o[k] ?? null) !== (a[k] ?? null)) cambios[k] = o[k];
         if (!Object.keys(cambios).length) { boton.disabled = false; location.hash = `#/animal/${a.id}`; return; }
         res = await sb.from('rum_animales').update(cambios).eq('id', a.id).select();
       } else {
         const { motivo_alta: motivo, ...resto } = o;
+        if (!resto.raza) delete resto.raza;
         res = await sb.from('rum_animales').insert({ ...resto, motivo_alta: motivo || 'Nacimiento' }).select();
       }
       if (res.error) { boton.disabled = false; return msg(traducirError(res.error)); }
@@ -610,7 +615,7 @@
       ev.target.disabled = false;
     });
   }
-  const filaExcel = (a, u) => ({ Especie: L.ESPECIES[a.especie].nombre, 'Nº manejo': a.manejo || '', 'Código cría': a.codigo_cria || '', Crotal: a.crotal || '', Categoría: catNombre(a.categoria), Sexo: a.sexo || '', Capa: a.capa ? L.CAPAS[a.capa] : '', Nacimiento: a.fecha_nacimiento || a.anio_nacimiento || '', Madre: a.madre_id ? nombreA(animal(a.madre_id)) : a.madre_txt || '', Padre: a.padre_id ? nombreA(animal(a.padre_id)) : a.padre_txt || '', Origen: a.origen ? L.ORIGENES[a.origen] : '', Corralina: u ? nombreCorr(u) : '', Alta: a.fecha_alta, Baja: a.fecha_baja || '', 'Causa baja': a.causa_baja || '', Observaciones: a.obs || '' });
+  const filaExcel = (a, u) => ({ Especie: L.ESPECIES[a.especie].nombre, Raza: raza(a), 'Nº manejo': a.manejo || '', 'Código cría': a.codigo_cria || '', Crotal: a.crotal || '', Categoría: catNombre(a.categoria), Sexo: a.sexo || '', Capa: a.capa ? L.CAPAS[a.capa] : '', Nacimiento: a.fecha_nacimiento || a.anio_nacimiento || '', Madre: a.madre_id ? nombreA(animal(a.madre_id)) : a.madre_txt || '', Padre: a.padre_id ? nombreA(animal(a.padre_id)) : a.padre_txt || '', Origen: a.origen ? L.ORIGENES[a.origen] : '', Corralina: u ? nombreCorr(u) : '', Alta: a.fecha_alta, Baja: a.fecha_baja || '', 'Causa baja': a.causa_baja || '', Observaciones: a.obs || '' });
   const cargarScript = (src) => new Promise((ok, mal) => { const sc = document.createElement('script'); sc.src = src; sc.onload = ok; sc.onerror = () => mal(new Error('No se pudo cargar el lector de Excel. Revisa la conexión.')); document.head.appendChild(sc); });
   const cargarXLSX = async () => { if (!window.XLSX) await cargarScript('https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js'); };
   function descargar(nombre, contenido, tipo) {
