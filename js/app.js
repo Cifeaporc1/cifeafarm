@@ -35,7 +35,8 @@
   const ubic = (a) => L.ubicacion(a, S.porAnimal[a.id], null);
   const nombreA = (a) => (a ? L.nombreAnimal(a) : '?');
   const catNombre = (k) => (L.CAT[k] || {}).nombre || k;
-  const raza = (a) => a.raza || (L.ESPECIES[a.especie] || {}).raza || '—';
+  // Sin raza anotada: la capa bicolor es cruce; si no, la raza de la especie.
+  const raza = (a) => a.raza || (a.capa === 'bicolor' ? 'Cruce' : (L.ESPECIES[a.especie] || {}).raza || '—');
 
   function toast(msg) {
     const t = document.createElement('div');
@@ -517,7 +518,7 @@
           <div class="ayuda suave">Las crías se registran sin crotal ni collar: la app les da un código con el nº de la madre (A12-1). Al acrotalarlas, pasan a chiva o cordera de reposición.</div>
           ${esp === 'caprino' ? `<div class="campo"><span class="et">Capa</span><div class="opciones"><label><input type="radio" name="capa" value="" ${!v.capa ? 'checked' : ''}> Sin anotar</label>${Object.entries(L.CAPAS).map(([k, x]) => `<label><input type="radio" name="capa" value="${k}" ${v.capa === k ? 'checked' : ''}> ${x}</label>`).join('')}</div></div>` : ''}
           <div class="campo"><label for="raza">Raza</label><input id="raza" name="raza" type="text" list="razas" value="${esc(v.raza || '')}" placeholder="${esc(L.ESPECIES[esp].raza)}">
-            <datalist id="razas"><option value="${esc(L.ESPECIES[esp].raza)}"><option value="Cruce"></datalist><span class="ayuda">Si se deja vacía, es ${esc(L.ESPECIES[esp].raza.toLowerCase())}. Para animales no puros, escribe «Cruce» o la raza que sea.</span></div>
+            <datalist id="razas"><option value="${esc(L.ESPECIES[esp].raza)}"><option value="Cruce"></datalist><span class="ayuda">Si se deja vacía, es ${esc(L.ESPECIES[esp].raza.toLowerCase())}${esp === 'caprino' ? ' (o cruce, si la capa es bicolor)' : ''}. Para animales no puros, escribe «Cruce» o la raza que sea.</span></div>
           <div class="dos"><div class="campo"><label for="fecha_nacimiento">Fecha de nacimiento</label><input id="fecha_nacimiento" name="fecha_nacimiento" type="date" max="${hoy()}" value="${esc(v.fecha_nacimiento || '')}"></div>
             <div class="campo"><label for="anio_nacimiento">o año aproximado</label><input id="anio_nacimiento" name="anio_nacimiento" type="number" min="1990" max="2100" value="${esc(v.anio_nacimiento || '')}"></div></div>
           <div class="dos"><div class="campo"><label for="madre_id">Madre</label><select id="madre_id" name="madre_id">${opt(madres, v.madre_id)}</select>${v.madre_txt ? `<span class="ayuda">Anotada como «${esc(v.madre_txt)}» (no está en el censo)</span>` : ''}</div>
@@ -537,12 +538,14 @@
       }
       o.madre_txt = o.madre_id ? null : v.madre_txt || null; o.padre_txt = o.padre_id ? null : v.padre_txt || null;
       if (o.especie !== 'caprino') o.capa = null;
+      if (o.capa === 'bicolor' && !o.raza) o.raza = 'Cruce';
       if (o.manejo) o.manejo = o.manejo.toUpperCase();
       if (o.crotal) o.crotal = o.crotal.replace(/\s/g, '').toUpperCase();
       o.anio_nacimiento = o.anio_nacimiento ? Number(o.anio_nacimiento) : null;
       o.corralina_id = o.corralina_id ? Number(o.corralina_id) : null;
       return o;
     };
+    form.querySelectorAll('input[name=capa]').forEach((r) => r.addEventListener('change', () => { const z = document.getElementById('raza'); if (r.checked && r.value === 'bicolor' && !z.value.trim()) z.value = 'Cruce'; }));
     form.querySelectorAll('input[name=especie]').forEach((r) => r.addEventListener('change', () => { const o = leer(); o.categoria = null; o.madre_id = null; o.padre_id = null; S.borrador.formAnimal = { id: id || null, v: { ...v, ...o } }; vistaFormAnimal(id); }));
     form.addEventListener('submit', async (ev) => {
       ev.preventDefault();
