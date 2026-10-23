@@ -252,7 +252,11 @@
   // V3 · Sanidad
   // =====================================================================
   const TIPOS_SAN = { vacunacion: 'Vacunación', desparasitacion: 'Desparasitación', tratamiento: 'Tratamiento', vitaminas: 'Vitaminas / minerales', pezunas: 'Arreglo de pezuñas', otro: 'Otro' };
-  const TIPOS_MED = [['medicamento', 'Medicamento'], ['vacuna', 'Vacuna'], ['antiparasitario', 'Antiparasitario'], ['otro', 'Otro']];
+  const TIPOS_MED = [['medicamento', 'Medicamento'], ['vacuna', 'Vacuna'], ['antiparasitario', 'Antiparasitario'], ['hierro', 'Hierro'], ['biocida', 'Biocida (desinfectante, insecticida, raticida)'], ['otro', 'Otro']];
+  const CLASES_MED = { antibiotico: 'Antibiótico', antiinflamatorio: 'Antiinflamatorio', analgesico: 'Analgésico', tranquilizante: 'Tranquilizante / sedante', anestesico: 'Anestésico',
+    antiparasitario_int: 'Antiparasitario interno', antiparasitario_ext: 'Antiparasitario externo', vacuna: 'Vacuna', hormonal: 'Hormonal', vitaminas: 'Vitaminas y minerales',
+    desinfectante: 'Desinfectante', insecticida: 'Insecticida', raticida: 'Raticida' };
+  const nombreClase = (k) => CLASES_MED[k] || (k ? k.charAt(0).toUpperCase() + k.slice(1) : k);
 
   // Retiradas vigentes por animal: { id: { leche: {hasta, producto}, carne: {hasta, producto} } }
   function retiradas(sanidad, hoy) {
@@ -303,5 +307,5 @@
   }
 
   window.Logica = { TAREAS, REF4, ultimoSeguimiento, avisosSeguimiento, ESPECIES, CAT, CAPAS, ORIGENES, CAUSAS_BAJA, hoyISO, dias, esCria, nombreAnimal, ordenNatural, porFecha, ubicacion, vivoEn, edad, revisar, mapaColumnas, normalizarFila, fechaISO,
-    REF, sumarDias, HEMBRAS, MACHOS, ESTADOS, estadoRepro, avisosRepro, resumenParidera, TIPOS_SAN, TIPOS_MED, retiradas, avisosSanidad };
+    REF, sumarDias, HEMBRAS, MACHOS, ESTADOS, estadoRepro, avisosRepro, resumenParidera, TIPOS_SAN, TIPOS_MED, CLASES_MED, nombreClase, retiradas, avisosSanidad };
 })();

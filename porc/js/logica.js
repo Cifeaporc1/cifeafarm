@@ -427,7 +427,11 @@
     return { dia, restantes, estado };
   }
 
-  const api = { REF, CAUSAS_BAJA, CAUSAS_ADULTO, CAUSAS_CEBO, CAPACIDAD, SANIDAD, ZONAS, usaProducto, comprobarSanidad, avisosSanidad, estadoDosis, FASES, sumarDias, dias, hoyISO, ordenar, estadoCerda, camada, fechasCiclo, indicesCiclo, avisos, ocupacion, capacidadDe, sitioPlano, ESTANCIAS, cuentaGrupos, comprobarMovGrupo, comprobar };
+  // Clases de producto (catálogo común con CIFEARUMI)
+  const CLASES_MED = { antibiotico: 'Antibiótico', antiinflamatorio: 'Antiinflamatorio', analgesico: 'Analgésico', tranquilizante: 'Tranquilizante / sedante', anestesico: 'Anestésico',
+    antiparasitario_int: 'Antiparasitario interno', antiparasitario_ext: 'Antiparasitario externo', vacuna: 'Vacuna', hormonal: 'Hormonal', vitaminas: 'Vitaminas y minerales',
+    desinfectante: 'Desinfectante', insecticida: 'Insecticida', raticida: 'Raticida' };
+  const api = { CLASES_MED, REF, CAUSAS_BAJA, CAUSAS_ADULTO, CAUSAS_CEBO, CAPACIDAD, SANIDAD, ZONAS, usaProducto, comprobarSanidad, avisosSanidad, estadoDosis, FASES, sumarDias, dias, hoyISO, ordenar, estadoCerda, camada, fechasCiclo, indicesCiclo, avisos, ocupacion, capacidadDe, sitioPlano, ESTANCIAS, cuentaGrupos, comprobarMovGrupo, comprobar };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else raiz.Logica = api;
 })(typeof window !== 'undefined' ? window : globalThis);

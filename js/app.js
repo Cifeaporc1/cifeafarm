@@ -122,7 +122,7 @@
       const rmj = S.faltaSQL ? { error: true } : await sb.from('rum_manejo').select('*').order('fecha', { ascending: false }).order('creado', { ascending: false }).limit(400);
       S.faltaSQL4 = !!rmj.error; S.manejo = rmj.error ? [] : rmj.data;
       if (esAdmin()) { const rc = await sb.from('correcciones').select('*').like('tabla', 'rum_%').order('creado', { ascending: false }).limit(300); S.faltaCorr = !!rc.error; S.correcciones = rc.error ? [] : rc.data; } else S.correcciones = [];
-      S.medicamentos = rm.error ? [] : rm.data.filter((m) => !m.especies || m.especies.includes('caprino') || m.especies.includes('ovino')); }
+      S.medicamentos = rm.error ? [] : rm.data; } // catálogo común a todas las especies
     S.porAnimal = {};
     for (const ev of S.eventos) (S.porAnimal[ev.animal_id] = S.porAnimal[ev.animal_id] || []).push(ev);
     if (esAdmin()) { const g = await sb.from('granjas').select('*').order('id'); S.cursos = g.error ? [] : g.data; }
@@ -1114,9 +1114,10 @@
           <div class="peq rojo">${ret[a.id].leche ? `Leche hasta ${fmt(ret[a.id].leche.hasta)}` : ''}${ret[a.id].leche && ret[a.id].carne ? ' · ' : ''}${ret[a.id].carne ? `Carne hasta ${fmt(ret[a.id].carne.hasta)}` : ''}</div></div>${chipRetirada(ret[a.id])}</a>`).join('') || '<div class="vacio">Ningún animal en tiempo de espera.</div>'}</div>`;
     } else {
       cuerpo = `<a class="btn" href="#/medicamento/nuevo">${ICONOS.mas}Añadir producto</a><div class="suave peq">Toca un producto para ver su ficha técnica o completar sus datos.</div>
-        <div class="suave">Catálogo común con CIFEAPORC. Aquí aparecen los productos marcados para cabras u ovejas, con sus tiempos de espera en pequeños rumiantes.</div>
+        <div class="suave">Catálogo común a todas las especies (también lo usa CIFEAPORC). La especie se elige al aplicarlo.</div>
         <div class="lista">${S.medicamentos.filter((m) => m.activo !== false).map((m) => `<a href="#/medicamento/${m.id}" class="animal-fila"><div><strong>${esc(m.nombre)}</strong><div class="suave">${esc(m.materia_activa || '')}${m.dosis ? ` · ${esc(m.dosis)}` : ''}${m.via ? ` · ${esc(m.via)}` : ''}</div>
-          <div class="suave peq">Espera: carne ${m.espera_carne_rum ?? '—'} d · leche ${m.espera_leche_rum ?? '—'} d</div></div><span class="chip ${m.ficha_url ? '' : 'gris'}">${m.ficha_url ? 'Ficha técnica' : esc((L.TIPOS_MED.find((t) => t[0] === m.tipo) || [0, m.tipo])[1])}</span></a>`).join('') || '<div class="vacio">Todavía no hay productos para rumiantes en el catálogo.</div>'}</div>`;
+          ${(m.clases || []).length ? `<div class="opciones" style="gap:4px;margin-top:4px">${m.clases.map((c) => `<span class="chip">${esc(L.nombreClase(c))}</span>`).join('')}</div>` : ''}
+          <div class="suave peq">Espera rumiantes: carne ${m.espera_carne_rum ?? '—'} d · leche ${m.espera_leche_rum ?? '—'} d · porcino: carne ${m.supresion_dias ?? '—'} d</div></div><span class="chip ${m.ficha_url ? '' : 'gris'}">${m.ficha_url ? 'Ficha técnica' : esc((L.TIPOS_MED.find((t) => t[0] === m.tipo) || [0, m.tipo])[1])}</span></a>`).join('') || '<div class="vacio">Todavía no hay productos para rumiantes en el catálogo.</div>'}</div>`;
     }
     pintar(`${cabecera()}
       <main class="cuerpo">${faltaSQLCaja()}${faltaSQL3Caja()}
@@ -1152,7 +1153,7 @@
             ${anim.length > 1 ? `<span class="ayuda">${anim.map((a) => esc(nombreA(a))).join(', ')}</span>` : ''}</div>
           <div class="dos"><div class="campo"><label for="corralina_id">Corralina</label><select id="corralina_id" name="corralina_id">${opcionesCorralinas(v.corralina_id, '—')}</select></div>
             <div class="campo"><label for="especie">Especie</label><select id="especie" name="especie"><option value="caprino" ${v.especie !== 'ovino' ? 'selected' : ''}>Cabras</option><option value="ovino" ${v.especie === 'ovino' ? 'selected' : ''}>Ovejas</option></select></div></div>
-          <div class="campo"><label for="medicamento_id">Producto del catálogo</label><select id="medicamento_id" name="medicamento_id">${optMed}</select></div>
+          <div class="campo"><label for="medicamento_id">Producto del catálogo</label><select id="medicamento_id" name="medicamento_id">${optMed}</select><span class="ayuda" id="clase-med">${(() => { const m = S.medicamentos.find((z) => z.id === v.medicamento_id); return m && (m.clases || []).length ? m.clases.map(L.nombreClase).join(' · ') : ''; })()}</span></div>
           <div class="campo"><label for="producto">Nombre del producto</label><input id="producto" name="producto" type="text" value="${esc(v.producto || '')}"></div>
           <div class="dos"><div class="campo"><label for="dosis">Dosis</label><input id="dosis" name="dosis" type="text" value="${esc(v.dosis || '')}" placeholder="2 ml / animal"></div>
             <div class="campo"><label for="via">Vía</label><input id="via" name="via" type="text" value="${esc(v.via || '')}" placeholder="SC, IM, oral…"></div></div>
@@ -1173,10 +1174,10 @@
       </main>${navegacion('sanidad')}`);
     const f = document.getElementById('f-san');
     document.getElementById('medicamento_id').addEventListener('change', (ev) => {
-      const m = S.medicamentos.find((x) => x.id === ev.target.value); if (!m) return;
+      const m = S.medicamentos.find((x) => x.id === ev.target.value); document.getElementById('clase-med').textContent = m && (m.clases || []).length ? m.clases.map(L.nombreClase).join(' · ') : ''; if (!m) return;
       f.producto.value = m.nombre; if (m.dosis) f.dosis.value = m.dosis; if (m.via) f.via.value = m.via;
       if (m.espera_leche_rum != null) f.espera_leche.value = m.espera_leche_rum; if (m.espera_carne_rum != null) f.espera_carne.value = m.espera_carne_rum;
-      if (m.tipo === 'vacuna') f.tipo.value = 'vacunacion'; if (m.tipo === 'antiparasitario') f.tipo.value = 'desparasitacion';
+      if (m.tipo === 'vacuna' || (m.clases || []).includes('vacuna')) f.tipo.value = 'vacunacion'; if (m.tipo === 'antiparasitario' || (m.clases || []).some((c) => /^antiparasitario/.test(c))) f.tipo.value = 'desparasitacion'; if ((m.clases || []).includes('vitaminas')) f.tipo.value = 'vitaminas';
     });
     const bb = document.getElementById('b-borrar-san');
     if (bb) bb.addEventListener('click', async () => {
@@ -1223,12 +1224,14 @@
     });
   }
 
-  function vistaMedicamento(id) {
-    const m = id === 'nuevo' ? { especies: ['caprino', 'ovino'], tipo: 'medicamento' } : S.medicamentos.find((x) => x.id === id);
+  function vistaMedicamento(id, desde) {
+    const m = id === 'nuevo' ? { especies: [], clases: [], tipo: 'medicamento' } : S.medicamentos.find((x) => x.id === id);
+    const volver = desde === 'porc' ? 'porc/#/sanidad/medicamentos' : '#/sanidad/medicamentos';
     if (!m) return vistaNoEncontrado();
     const nuevo = !m.id;
     const c = (n, l, tipo = 'text', extra = '') => `<div class="campo"><label for="m-${n}">${l}</label><input id="m-${n}" name="${n}" type="${tipo}" value="${esc(m[n] ?? '')}" ${extra}></div>`;
-    pintar(`${cabecera({ volver: '#/sanidad/medicamentos', textoVolver: 'Productos', titulo: nuevo ? 'Añadir producto' : m.nombre })}
+    const otras = (m.clases || []).filter((c) => !L.CLASES_MED[c]);
+    pintar(`${cabecera({ volver, textoVolver: 'Productos', titulo: nuevo ? 'Añadir producto' : m.nombre, sub: 'Catálogo común a todas las especies' })}
       <main class="cuerpo">${m.ficha_url ? `<a class="btn" href="${esc(m.ficha_url)}" target="_blank" rel="noopener">Abrir la ficha técnica</a>` : ''}
         ${!nuevo && (m.autor_alias || m.modificado_por) ? `<div class="suave peq">${m.autor_alias ? `Añadido por ${esc(verAlias(m.autor_alias))}` : ''}${m.autor_alias && m.modificado_por ? ' · ' : ''}${m.modificado_por ? `última modificación de ${esc(verAlias(m.modificado_por))}` : ''}</div>` : ''}
         ${!nuevo && !esProf() ? '<div class="suave">Puedes completar o corregir los datos del producto (por ejemplo, el enlace a la ficha técnica). El profesor verá los cambios.</div>' : ''}
@@ -1237,22 +1240,30 @@
         ${c('nombre', 'Nombre comercial')}${c('materia_activa', 'Materia activa')}
         <div class="campo"><label for="m-tipo">Tipo</label><select id="m-tipo" name="tipo">${L.TIPOS_MED.map(([k, t]) => `<option value="${k}" ${(m.tipo || 'medicamento') === k ? 'selected' : ''}>${t}</option>`).join('')}</select></div>
         <div class="dos">${c('dosis', 'Dosificación', 'text', 'placeholder="1 ml / 10 kg"')}${c('via', 'Vía', 'text', 'placeholder="SC, IM, oral…"')}</div>
-        <div class="dos">${c('espera_leche_rum', 'Espera leche, cabra/oveja (días)', 'number', 'min="0" inputmode="numeric"')}${c('espera_carne_rum', 'Espera carne, cabra/oveja (días)', 'number', 'min="0" inputmode="numeric"')}</div>
-        <div class="campo"><span class="et">Para</span><div class="opciones">${[['caprino', 'Cabras'], ['ovino', 'Ovejas'], ['porcino', 'Cerdos']].map(([k, t]) => `<label><input type="checkbox" name="especies" value="${k}" ${(m.especies || []).includes(k) ? 'checked' : ''}> ${t}</label>`).join('')}</div></div>
+        <fieldset><legend>Clase</legend><div class="opciones">${Object.entries(L.CLASES_MED).map(([k, t]) => `<label><input type="checkbox" name="clases" value="${k}" ${(m.clases || []).includes(k) ? 'checked' : ''}> ${t}</label>`).join('')}</div>
+          <div class="campo"><label for="m-otra">Otra clase (opcional)</label><input id="m-otra" name="otra" type="text" value="${esc(otras.join(', '))}" placeholder="Ej.: mucolítico"></div></fieldset>
+        <fieldset><legend>Tiempos de espera (días)</legend>
+          <div class="dos">${c('espera_leche_rum', 'Leche · cabra y oveja', 'number', 'min="0" inputmode="numeric"')}${c('espera_carne_rum', 'Carne · cabra y oveja', 'number', 'min="0" inputmode="numeric"')}</div>
+          ${c('supresion_dias', 'Carne · cerdo', 'number', 'min="0" inputmode="numeric"')}
+          <span class="ayuda">Déjalo vacío si no se usa en esa especie o no tiene espera. Compruébalo en la ficha técnica.</span></fieldset>
+        <div class="campo"><span class="et">Especies de destino (según la ficha técnica, opcional)</span><div class="opciones">${[['caprino', 'Cabras'], ['ovino', 'Ovejas'], ['porcino', 'Cerdos']].map(([k, t]) => `<label><input type="checkbox" name="especies" value="${k}" ${(m.especies || []).includes(k) ? 'checked' : ''}> ${t}</label>`).join('')}</div></div>
+        <div class="dos">${c('lote', 'Lote')}${c('caducidad', 'Caducidad', 'date')}</div>
         ${c('presentacion', 'Presentación', 'text', 'placeholder="Frasco 100 ml…"')}
         <div class="campo"><label for="m-notas">Notas</label><textarea id="m-notas" name="notas">${esc(m.notas || '')}</textarea></div>
         ${nuevo || !esProf() ? '' : `<label class="check-todos"><input type="checkbox" name="activo" ${m.activo !== false ? 'checked' : ''}> En uso (desmárcalo para retirarlo sin perder el historial)</label>`}
         <button class="btn" type="submit">${nuevo ? 'Añadir' : 'Guardar cambios'}</button></form></main>${navegacion('sanidad')}`);
     document.getElementById('f-med').addEventListener('submit', async (ev) => {
       ev.preventDefault(); const x = new FormData(ev.target); const t = (k) => String(x.get(k) || '').trim() || null; const n = (k) => (x.get(k) === '' ? null : Number(x.get(k)));
-      const fila = { nombre: t('nombre'), materia_activa: t('materia_activa'), tipo: x.get('tipo'), dosis: t('dosis'), via: t('via'), espera_leche_rum: n('espera_leche_rum'), espera_carne_rum: n('espera_carne_rum'), especies: x.getAll('especies'), presentacion: t('presentacion'), ficha_url: t('ficha_url'), notas: t('notas') };
+      const otras = String(x.get('otra') || '').split(',').map((z) => z.trim().toLowerCase()).filter(Boolean);
+      const fila = { nombre: t('nombre'), materia_activa: t('materia_activa'), tipo: x.get('tipo'), clases: [...x.getAll('clases'), ...otras], dosis: t('dosis'), via: t('via'), espera_leche_rum: n('espera_leche_rum'), espera_carne_rum: n('espera_carne_rum'), supresion_dias: n('supresion_dias'), especies: x.getAll('especies'), presentacion: t('presentacion'), ficha_url: t('ficha_url'), lote: t('lote'), caducidad: x.get('caducidad') || null, notas: t('notas') };
       if (!nuevo && esProf()) fila.activo = x.get('activo') === 'on';
       if (!fila.nombre) { document.getElementById('msg').innerHTML = errorCaja('Falta el nombre comercial.'); return; }
-      if (!fila.especies.length) { document.getElementById('msg').innerHTML = errorCaja('Marca para qué especies es.'); return; }
       if (fila.ficha_url && !/^https?:\/\//i.test(fila.ficha_url)) { document.getElementById('msg').innerHTML = errorCaja('El enlace debe empezar por https://'); return; }
       const { error } = nuevo ? await sb.from('medicamentos').insert(fila) : await sb.from('medicamentos').update(fila).eq('id', m.id);
       if (error) { document.getElementById('msg').innerHTML = errorCaja(traducirError(error)); return; }
-      toast(nuevo ? 'Añadido al catálogo' : 'Cambios guardados'); await refrescar(); location.hash = '#/sanidad/medicamentos';
+      toast(nuevo ? 'Añadido al catálogo' : 'Cambios guardados');
+      if (desde === 'porc') { location.href = 'porc/#/sanidad/medicamentos'; return; }
+      await refrescar(); location.hash = '#/sanidad/medicamentos';
     });
   }
 
@@ -1656,6 +1667,7 @@
         await cargarXLSX(); const X = window.XLSX; const libro = X.utils.book_new();
         X.utils.book_append_sheet(libro, X.utils.json_to_sheet(S.animales.slice().sort((x, y) => x.especie.localeCompare(y.especie) || L.ordenNatural(x, y)).map((a) => filaExcel(a, a.fecha_baja ? null : ubic(a)))), 'Animales');
         X.utils.book_append_sheet(libro, X.utils.json_to_sheet(S.eventos.map((e) => { const a = animal(e.animal_id); return { Fecha: e.fecha, Animal: nombreA(a), Crotal: a ? a.crotal || '' : '', Registro: nombreEvento(e), Detalle: resumenEvento(e).replace(/<[^>]+>/g, ''), Observaciones: (e.datos && e.datos.obs) || '', Curso: curso(e.curso), 'Registrado por': quienEs(e.autor, e.autor_alias), 'Registrado el': String(e.creado || '').slice(0, 16).replace('T', ' '), 'Datos completos': JSON.stringify(esVet() ? { ...(e.datos || {}), asistentes: undefined } : (e.datos || {})) }; }).concat([]) || [{}]), 'Historial');
+        X.utils.book_append_sheet(libro, X.utils.json_to_sheet(S.medicamentos.length ? S.medicamentos.map((m) => ({ Producto: m.nombre, 'Materia activa': m.materia_activa || '', Clase: (m.clases || []).map(L.nombreClase).join(', '), Dosis: m.dosis || '', Vía: m.via || '', 'Espera leche rumiantes (d)': m.espera_leche_rum ?? '', 'Espera carne rumiantes (d)': m.espera_carne_rum ?? '', 'Espera carne cerdo (d)': m.supresion_dias ?? '', 'En uso': m.activo !== false ? 'Sí' : 'No' })) : [{ '': 'Sin productos' }]), 'Productos');
         X.utils.book_append_sheet(libro, X.utils.json_to_sheet(S.sanidad.length ? S.sanidad.map((r) => ({ Estado: r.estado === 'previsto' ? 'Previsto' : 'Realizado', Fecha: r.fecha, Qué: L.TIPOS_SAN[r.tipo], Destino: destinoSan(r), Animales: (r.animales || []).map((x) => nombreA(animal(x))).join(', '), Producto: r.producto || '', Dosis: r.dosis || '', Vía: r.via || '', 'Días de tratamiento': r.duracion_dias, Lote: r.lote || '', Caducidad: r.caducidad || '', 'Espera carne (días)': r.espera_carne ?? '', 'Espera leche (días)': r.espera_leche ?? '', 'Carne no apta hasta': r.carne_hasta || '', 'Leche no apta hasta': r.leche_hasta || '', Motivo: r.motivo || '', Veterinario: r.veterinario || '', Observaciones: r.obs || '', 'Registrado por': verAlias(r.autor_alias, r.curso) || '', 'Realizado por': verAlias(r.realizado_por) || '' })) : [{ '': 'Sin registros' }]), 'Sanidad');
         X.utils.book_append_sheet(libro, X.utils.json_to_sheet(S.lotes.length ? S.lotes.map((l) => ({ Lote: l.nombre, Especie: L.ESPECIES[l.especie].nombre, Corralina: nombreCorr(l.corralina_id), Machos: l.machos.map((x) => nombreA(animal(x))).join(', '), Hembras: l.hembras.map((x) => nombreA(animal(x))).join(', '), 'Entrada del macho': l.fecha_entrada, 'Salida del macho': l.fecha_salida || '', 'Registrado por': verAlias(l.autor_alias, l.curso) || '' })) : [{ '': 'Sin lotes' }]), 'Lotes');
         X.utils.book_append_sheet(libro, X.utils.json_to_sheet(S.corralinas.map((c) => ({ Nave: c.nave, Corralina: c.numero, Uso: c.uso || '', Activa: c.activa ? 'Sí' : 'No' }))), 'Corralinas');
@@ -1741,7 +1753,7 @@
         if (['nuevo', 'programar'].includes(a)) return vistaSanForm(a, null, b, location.hash.split('/')[4]);
         if (['realizar', 'editar'].includes(a)) return vistaSanForm(a, b);
         return vistaSanidad(a || 'calendario');
-      case 'medicamento': return vistaMedicamento(a);
+      case 'medicamento': return vistaMedicamento(a, b);
       case 'mas': return vistaMas();
       case 'manejo': return a === 'nuevo' ? vistaManejoForm(null) : a === 'editar' ? vistaManejoForm(b) : vistaManejo();
       case 'seguimiento': return vistaSeguimiento(a, b);

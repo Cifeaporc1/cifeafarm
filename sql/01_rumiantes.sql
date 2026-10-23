@@ -448,8 +448,15 @@ grant execute on function public.rum_acrotalar(uuid, date, text, text) to authen
 -- Se añaden los tiempos de espera para pequeños rumiantes y para qué especies sirve.
 alter table public.medicamentos add column if not exists espera_carne_rum integer check (espera_carne_rum >= 0);
 alter table public.medicamentos add column if not exists espera_leche_rum integer check (espera_leche_rum >= 0);
-alter table public.medicamentos add column if not exists especies text[];
-update public.medicamentos set especies = '{porcino}' where especies is null;   -- los de CIFEAPORC
+alter table public.medicamentos add column if not exists especies text[];   -- informativo: el catálogo es común a todas
+-- Clase del producto (puede tener varias): antibiotico, antiinflamatorio, tranquilizante…
+alter table public.medicamentos add column if not exists clases text[] not null default '{}';
+-- Tipos de CIFEAPORC más los de rumiantes (el tipo decide qué registro se propone).
+do $$ declare c record; begin
+  for c in select conname from pg_constraint where conrelid = 'public.medicamentos'::regclass and contype = 'c' and pg_get_constraintdef(oid) ilike '%tipo%' loop
+    execute format('alter table public.medicamentos drop constraint %I', c.conname); end loop; end $$;
+alter table public.medicamentos add constraint medicamentos_tipo_check
+  check (tipo in ('medicamento','vacuna','antiparasitario','hierro','biocida','otro'));
 
 -- ---------- Tratamientos, vacunas y desparasitaciones: previstos y realizados
 create table if not exists public.rum_sanidad (

@@ -107,8 +107,7 @@
       opc(sb.from('sanidad').select('*').eq('granja_id', S.granja).order('fecha').order('creado')),
       opc(sb.from('extracciones').select('*').eq('granja_id', S.granja).order('fecha').order('creado')),
     ]);
-    // Catálogo común con CIFEARUMI: aquí solo los productos para cerdos.
-    S.medicamentos = S.medicamentos.filter((m) => !m.especies || m.especies.includes('porcino'));
+    // Catálogo común a todas las especies (se edita en la ficha de producto de CIFEAFARM).
     { const r = await sb.from('recuentos').select('*').eq('granja_id', S.granja).order('fecha').order('creado');
       S.faltaSQL06 = !!r.error; S.recuentos = r.error ? [] : r.data; }
     { const [m, h] = await Promise.all([
@@ -1109,11 +1108,12 @@
   function medicamentosHTML() {
     const usos = {}; for (const r of S.sanidad) if (r.medicamento_id && r.estado === 'realizado') { const u = (usos[r.medicamento_id] = usos[r.medicamento_id] || { n: 0, ultimo: '' }); u.n += 1; if (r.fecha > u.ultimo) u.ultimo = r.fecha; }
     const h = hoy(); const meds = S.medicamentos.filter((m) => m.activo || S.borrador.verInactivos);
-    return `<a class="btn" href="#/medicamento/nuevo">${ICONOS.mas}Añadir medicamento o producto</a>
+    return `<a class="btn" href="../#/medicamento/nuevo/porc">${ICONOS.mas}Añadir medicamento o producto</a>
       <div class="suave peq">Toca el nombre de un producto para ver su ficha, añadir el enlace a la ficha técnica o completar sus datos.</div>
-      <div class="tabla-scroll"><table class="tabla ancha"><thead><tr><th>Nombre comercial</th><th>Ficha técnica</th><th>Materia activa</th><th>Tipo</th><th>Dosificación</th><th>Vía</th><th>Lote</th><th>Caducidad</th><th>Supresión</th><th>Usos</th></tr></thead><tbody>
+      <div class="suave">Catálogo común a todas las especies (también lo usa CIFEARUMI). La especie se elige al aplicarlo.</div>
+      <div class="tabla-scroll"><table class="tabla ancha"><thead><tr><th>Nombre comercial</th><th>Ficha técnica</th><th>Materia activa</th><th>Clase</th><th>Dosificación</th><th>Vía</th><th>Lote</th><th>Caducidad</th><th>Supresión</th><th>Usos</th></tr></thead><tbody>
       ${meds.map((m) => { const cad = m.caducidad ? (m.caducidad < h ? 'rojo' : L.dias(h, m.caducidad) <= 30 ? 'nar' : '') : ''; const u = usos[m.id];
-        return `<tr><td><a href="#/medicamento/${m.id}"><strong>${esc(m.nombre)}</strong></a>${m.activo ? '' : ' <span class="chip gris">Retirado</span>'}</td><td>${m.ficha_url ? `<a href="${esc(m.ficha_url)}" target="_blank" rel="noopener">Abrir</a>` : `<a class="suave" href="#/medicamento/${m.id}">Añadir</a>`}</td><td>${esc(m.materia_activa || '—')}</td><td>${esc((TIPOS_MED.find((t) => t[0] === m.tipo) || ['', m.tipo])[1].split(' (')[0])}</td><td>${esc(m.dosis || '—')}</td><td>${esc(m.via || '—')}</td><td>${esc(m.lote || '—')}</td><td>${m.caducidad ? `<span class="chip ${cad}">${fmt(m.caducidad)}</span>` : '—'}</td><td>${m.supresion_dias ?? '—'}${m.supresion_dias != null ? ' d' : ''}</td><td>${u ? `${u.n} · ${corta(u.ultimo)}` : '—'}</td></tr>`; }).join('') || '<tr><td colspan="10">Aún no hay productos en el catálogo.</td></tr>'}
+        return `<tr><td><a href="../#/medicamento/${m.id}/porc"><strong>${esc(m.nombre)}</strong></a>${m.activo ? '' : ' <span class="chip gris">Retirado</span>'}</td><td>${m.ficha_url ? `<a href="${esc(m.ficha_url)}" target="_blank" rel="noopener">Abrir</a>` : `<a class="suave" href="../#/medicamento/${m.id}/porc">Añadir</a>`}</td><td>${esc(m.materia_activa || '—')}</td><td>${esc((m.clases || []).length ? m.clases.map((c) => (L.CLASES_MED || {})[c] || (c.charAt(0).toUpperCase() + c.slice(1))).join(', ') : (TIPOS_MED.find((t) => t[0] === m.tipo) || ['', m.tipo])[1].split(' (')[0])}</td><td>${esc(m.dosis || '—')}</td><td>${esc(m.via || '—')}</td><td>${esc(m.lote || '—')}</td><td>${m.caducidad ? `<span class="chip ${cad}">${fmt(m.caducidad)}</span>` : '—'}</td><td>${m.supresion_dias ?? '—'}${m.supresion_dias != null ? ' d' : ''}</td><td>${u ? `${u.n} · ${corta(u.ultimo)}` : '—'}</td></tr>`; }).join('') || '<tr><td colspan="10">Aún no hay productos en el catálogo.</td></tr>'}
       </tbody></table></div>
       ${S.medicamentos.some((m) => !m.activo) ? `<label class="opciones"><input type="checkbox" id="ver-inactivos" ${S.borrador.verInactivos ? 'checked' : ''}> Ver también los retirados</label>` : ''}
       <div class="suave peq">Caducidad en naranja: caduca en menos de 30 días; en rojo: caducado.</div>`;
@@ -1290,7 +1290,6 @@
       if (!nuevo && esProf()) fila.activo = d.activo === 'on';
       if (!fila.nombre) { msj.innerHTML = '<div class="error-caja" role="alert">Falta el nombre comercial.</div>'; return; }
       if (fila.ficha_url && !/^https?:\/\//i.test(fila.ficha_url)) { msj.innerHTML = '<div class="error-caja" role="alert">El enlace debe empezar por https://</div>'; return; }
-      if (nuevo && S.medicamentos.length >= 0) fila.especies = ['porcino'];
       const { error } = nuevo ? await sb.from('medicamentos').insert(fila) : await sb.from('medicamentos').update(fila).eq('id', m.id);
       if (error) { msj.innerHTML = `<div class="error-caja" role="alert">${esc(/row-level|permission/i.test(error.message || '') && !esProf() ? 'Falta que el profesor ejecute en Supabase el archivo 06_porcino_correcciones.sql para que los alumnos puedan añadir productos.' : traducirError(error))}</div>`; return; }
       toast(nuevo ? 'Añadido al catálogo' : 'Cambios guardados'); await refrescar(); location.hash = '#/sanidad/medicamentos';
@@ -1938,7 +1937,7 @@
         if (['nuevo', 'programar'].includes(a)) return vistaSanidadForm(a, null, { ambito: b, ref: c });
         if (['editar', 'realizar'].includes(a)) return vistaSanidadForm(a, b);
         return vistaSanidad(a || 'calendario');
-      case 'medicamento': return vistaMedicamento(a);
+      case 'medicamento': location.replace(`../#/medicamento/${a}/porc`); return; // una sola ficha de producto (CIFEAFARM)
       case 'correcciones': return vistaCorrecciones(a || 'pendientes');
       case 'cuenta': return vistaCuenta();
       case 'admin':
