@@ -28,4 +28,5 @@ $$;
 
 drop policy if exists granjas_cambio on public.granjas;
 create policy granjas_cambio on public.granjas for update to authenticated
-  using (public.es_profesor()) with check (public.es_profesor());
+  using (exists (select 1 from public.perfiles where user_id = auth.uid() and rol = 'profesor' and activo))
+  with check (exists (select 1 from public.perfiles where user_id = auth.uid() and rol = 'profesor' and activo));

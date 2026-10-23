@@ -240,7 +240,8 @@ create policy rum_animales_alta on public.rum_animales for insert to authenticat
 create policy rum_animales_cambio on public.rum_animales for update to authenticated
   using (public.tiene_acceso()) with check (public.tiene_acceso());
 -- Borrar un animal (por ejemplo, un error al importar) borra su historial: solo el profesor.
-create policy rum_animales_borrado on public.rum_animales for delete to authenticated using (public.es_profesor());
+create policy rum_animales_borrado on public.rum_animales for delete to authenticated
+  using (exists (select 1 from public.perfiles where user_id = auth.uid() and rol = 'profesor' and activo));
 
 drop policy if exists rum_eventos_ver on public.rum_eventos;
 drop policy if exists rum_eventos_alta on public.rum_eventos;
@@ -268,7 +269,8 @@ create or replace function public.rum_importar(filas jsonb)
 returns integer language plpgsql security definer set search_path = public as $$
 declare f jsonb; n integer := 0; m uuid; p uuid; vuelta integer;
 begin
-  if not es_profesor() then raise exception 'Solo el profesor puede importar el censo'; end if;
+  if not exists (select 1 from perfiles where user_id = auth.uid() and rol = 'profesor' and activo) then
+    raise exception 'Solo el profesor puede importar el censo'; end if;
   for vuelta in 1..2 loop
     for f in select * from jsonb_array_elements(filas) loop
       continue when (f->>'categoria' in ('cabrito','cordero')) <> (vuelta = 2);

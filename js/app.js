@@ -22,7 +22,10 @@
   const dos = (x) => String(x).padStart(2, '0');
   const fechaHora = (d) => `${dos(d.getDate())}/${dos(d.getMonth() + 1)}/${d.getFullYear()} · ${dos(d.getHours())}:${dos(d.getMinutes())}`;
   const hoy = () => L.hoyISO();
-  const esProf = () => S.perfil && S.perfil.rol === 'profesor';
+  // esProf(): profesor o veterinaria (animales y registros); esAdmin(): solo el profesor (controla la app).
+  const esProf = () => S.perfil && ['profesor', 'veterinario'].includes(S.perfil.rol);
+  const esAdmin = () => S.perfil && S.perfil.rol === 'profesor';
+  const rolNombre = () => (S.perfil.rol === 'veterinario' ? 'Veterinaria' : S.perfil.rol === 'profesor' ? 'Profesor' : 'Alumno');
   const uid = () => S.sesion && S.sesion.user.id;
   const yo = () => (S.perfil.nombre ? `${S.perfil.nombre} (${S.perfil.alias})` : S.perfil.alias);
   const quienEs = (userId, alias) => { const p = S.nombres[userId]; return p && p.nombre ? `${p.nombre} (${p.alias})` : (alias || (p && p.alias) || '?'); };
@@ -115,7 +118,7 @@
       S.medicamentos = rm.error ? [] : rm.data.filter((m) => !m.especies || m.especies.includes('caprino') || m.especies.includes('ovino')); }
     S.porAnimal = {};
     for (const ev of S.eventos) (S.porAnimal[ev.animal_id] = S.porAnimal[ev.animal_id] || []).push(ev);
-    if (esProf()) { const g = await sb.from('granjas').select('*').order('id'); S.cursos = g.error ? [] : g.data; }
+    if (esAdmin()) { const g = await sb.from('granjas').select('*').order('id'); S.cursos = g.error ? [] : g.data; }
     const nv = await sb.rpc('nombres_visibles');
     S.nombres = {};
     if (!nv.error && Array.isArray(nv.data)) for (const p of nv.data) S.nombres[p.user_id] = p;
@@ -128,7 +131,7 @@
 
   // ---------------------------------------------------------------- maquetación
   function cabecera(o = {}) {
-    const quien = esProf() ? `Profesor · ${esc(yo())}` : `${curso(S.perfil.granja_id)} curso · ${esc(yo())}`;
+    const quien = esProf() ? `${rolNombre()} · ${esc(yo())}` : `${curso(S.perfil.granja_id)} curso · ${esc(yo())}`;
     const horas = `<div class="horas"><span>Consulta: <span id="hora-consulta">${fechaHora(new Date())}</span></span><span>Datos: ${S.cargado ? fechaHora(S.cargado) : '—'}</span></div>`;
     if (o.volver) {
       return `<header class="cab ${esProf() ? 'prof' : ''}">
@@ -171,7 +174,7 @@
       <p class="suave" style="text-align:center;margin:0">Granjas del centro · cabras, ovejas y cerdos</p>
       <div class="pestanas" role="tablist">
         <button type="button" role="tab" aria-selected="${modo === 'alumno'}" class="${modo === 'alumno' ? 'activo' : ''}" data-modo="alumno">Alumno</button>
-        <button type="button" role="tab" aria-selected="${modo === 'profesor'}" class="${modo === 'profesor' ? 'activo' : ''}" data-modo="profesor">Profesor</button>
+        <button type="button" role="tab" aria-selected="${modo === 'profesor'}" class="${modo === 'profesor' ? 'activo' : ''}" data-modo="profesor">Profesor / veterinaria</button>
       </div>
       ${mensaje ? `<div class="error-caja" role="alert">${esc(mensaje)}</div>` : ''}
       <form class="formu" id="f-acceso" novalidate>
@@ -220,7 +223,7 @@
   // ---------------------------------------------------------------- granjas
   function vistaGranjas() {
     pintar(`<header class="cab ${esProf() ? 'prof' : ''}"><div class="fila"><img class="logo" src="img/logo-mini.jpg" alt="">
-        <div><div class="marca">CIFEAFARM</div><div class="quien">${esProf() ? `Profesor · ${esc(yo())}` : `${curso(S.perfil.granja_id)} curso · ${esc(yo())}`}</div></div></div></header>
+        <div><div class="marca">CIFEAFARM</div><div class="quien">${esProf() ? `${rolNombre()} · ${esc(yo())}` : `${curso(S.perfil.granja_id)} curso · ${esc(yo())}`}</div></div></div></header>
       <main class="cuerpo">
         <h1 style="font-size:22px">Granjas del centro</h1>
         <a class="granja-card" href="#/inicio"><img src="img/rumi.jpg" alt=""><div><strong>CIFEARUMI</strong>
@@ -261,8 +264,8 @@
         ${(() => { const av = S.faltaSQL2 ? [] : L.avisosRepro(S.animales, S.lotes, ctxR, hoy()); return av.length ? `<section class="tarjeta"><h2>Avisos</h2>${av.map((x) => `<a class="evento enlace" href="${x.enlace}"><div class="entre"><strong>${esc(x.titulo)}</strong><span class="chip ${x.nivel === 'urgente' ? 'nar' : x.nivel === 'info' ? 'gris' : ''}">${x.nivel === 'urgente' ? 'Hoy' : x.nivel === 'info' ? 'En curso' : corta(x.fecha)}</span></div><div class="suave peq">${esc(x.detalle)}</div></a>`).join('')}</section>` : '<div class="vacio">No hay avisos de reproducción para hoy.</div>'; })()}
         ${porRevisar.length ? `<a class="tarjeta enlace" href="#/animales/revisar" style="border-color:var(--naranja-borde)"><div class="entre"><strong>Datos por completar</strong><span class="chip nar">${porRevisar.length}</span></div>
           <div class="suave">Crotales de 14 cifras, animales sin collar o cabras sin capa. Corrígelos desde la ficha de cada animal.</div></a>` : ''}
-        ${esProf() && (!S.ultimaCopia || Date.now() - S.ultimaCopia > 30 * 864e5) && act.length ? `<a class="tarjeta enlace" href="#/gestion" style="border-color:var(--naranja-borde)"><div class="entre"><strong>Haz una copia de seguridad</strong><span class="chip nar">Profesor</span></div><div class="suave">${S.ultimaCopia ? `La última es del ${fechaHora(S.ultimaCopia)}` : 'Aún no has descargado ninguna desde este dispositivo'} · Gestión</div></a>` : ''}
-        ${act.length === 0 && !S.faltaSQL ? `<div class="vacio">Aún no hay animales en el censo.${esProf() ? ' Impórtalos desde <a href="#/gestion">Gestión → Importar censo</a> o da de alta uno a uno.' : ''}</div>` : ''}
+        ${esAdmin() && (!S.ultimaCopia || Date.now() - S.ultimaCopia > 30 * 864e5) && act.length ? `<a class="tarjeta enlace" href="#/gestion" style="border-color:var(--naranja-borde)"><div class="entre"><strong>Haz una copia de seguridad</strong><span class="chip nar">Profesor</span></div><div class="suave">${S.ultimaCopia ? `La última es del ${fechaHora(S.ultimaCopia)}` : 'Aún no has descargado ninguna desde este dispositivo'} · Gestión</div></a>` : ''}
+        ${act.length === 0 && !S.faltaSQL ? `<div class="vacio">Aún no hay animales en el censo.${esAdmin() ? ' Impórtalos desde <a href="#/gestion">Gestión → Importar censo</a> o da de alta uno a uno.' : ''}</div>` : ''}
         <div class="botones"><a class="btn" href="#/animales">${ICONOS.animales}Buscar animal</a><a class="btn sec" href="#/mapa">${ICONOS.mapa}Mapa</a></div>
         <section class="tarjeta"><h2>Últimos registros</h2>
           ${recientes.map((e) => { const a = animal(e.animal_id); return `<a class="evento enlace" href="#/animal/${e.animal_id}"><div class="entre"><strong>${esc(nombreA(a))} · ${esc(nombreEvento(e))}</strong><span class="suave">${fmt(e.fecha)}</span></div><div class="suave peq">${resumenEvento(e)} · ${esc(quienEs(e.autor, e.autor_alias))}</div></a>`; }).join('') || '<div class="suave">Todavía no hay registros.</div>'}
@@ -453,7 +456,7 @@
           <div><span>Padre</span><span>${padre ? `<a href="#/animal/${padre.id}">${esc(nombreA(padre))}</a>` : esc(a.padre_txt || '—')}</span></div></div>
           ${crias.length ? `<div class="suave peq" style="font-weight:700;margin-top:4px">CRÍAS (${crias.length})</div><div class="lista">${crias.map((x) => `<a class="animal-fila mini" href="#/animal/${x.id}"><div><strong>${esc(nombreA(x))}</strong><div class="suave">${esc(catNombre(x.categoria))} · ${fmt(x.fecha_nacimiento)}</div></div>${x.fecha_baja ? '<span class="chip gris">Baja</span>' : chipCat(x)}</a>`).join('')}</div>` : ''}</section>
         <section class="tarjeta"><h2>Historial</h2>${historial || '<div class="suave">Sin registros.</div>'}</section>
-        ${esProf() ? '<details class="tarjeta"><summary class="suave">Borrar el animal (solo si es un error)</summary><p class="suave">Borra el animal y todo su historial. Para un animal vendido o muerto, usa «Dar de baja».</p><button class="btn peligro" type="button" id="b-borrar-animal">Borrar definitivamente</button></details>' : ''}
+        ${esAdmin() ? '<details class="tarjeta"><summary class="suave">Borrar el animal (solo si es un error)</summary><p class="suave">Borra el animal y todo su historial. Para un animal vendido o muerto, usa «Dar de baja».</p><button class="btn peligro" type="button" id="b-borrar-animal">Borrar definitivamente</button></details>' : ''}
       </main>${navegacion('animales')}`);
     $app.querySelectorAll('[data-borrar]').forEach((b) => b.addEventListener('click', async () => {
       if (b.dataset.confirmar !== '1') { b.dataset.confirmar = '1'; b.textContent = '¿Seguro? Pulsa otra vez'; return; }
@@ -1011,7 +1014,7 @@
         <div class="lista">${lista.map((a) => `<a class="animal-fila" href="#/animal/${a.id}"><div><strong>${esc(nombreA(a))}</strong><div class="suave">${esc(catNombre(a.categoria))} · ${esc(nombreCorrCorto(ubic(a)))}</div>
           <div class="peq rojo">${ret[a.id].leche ? `Leche hasta ${fmt(ret[a.id].leche.hasta)}` : ''}${ret[a.id].leche && ret[a.id].carne ? ' · ' : ''}${ret[a.id].carne ? `Carne hasta ${fmt(ret[a.id].carne.hasta)}` : ''}</div></div>${chipRetirada(ret[a.id])}</a>`).join('') || '<div class="vacio">Ningún animal en tiempo de espera.</div>'}</div>`;
     } else {
-      cuerpo = `${esProf() ? `<a class="btn" href="#/medicamento/nuevo">${ICONOS.mas}Añadir producto</a>` : '<div class="suave">El catálogo lo mantiene el profesor.</div>'}
+      cuerpo = `${esProf() ? `<a class="btn" href="#/medicamento/nuevo">${ICONOS.mas}Añadir producto</a>` : '<div class="suave">El catálogo lo mantienen el profesor y la veterinaria.</div>'}
         <div class="suave">Catálogo común con CIFEAPORC. Aquí aparecen los productos marcados para cabras u ovejas, con sus tiempos de espera en pequeños rumiantes.</div>
         <div class="lista">${S.medicamentos.filter((m) => m.activo !== false).map((m) => `<${esProf() ? `a href="#/medicamento/${m.id}"` : 'div'} class="animal-fila"><div><strong>${esc(m.nombre)}</strong><div class="suave">${esc(m.materia_activa || '')}${m.dosis ? ` · ${esc(m.dosis)}` : ''}${m.via ? ` · ${esc(m.via)}` : ''}</div>
           <div class="suave peq">Espera: carne ${m.espera_carne_rum ?? '—'} d · leche ${m.espera_leche_rum ?? '—'} d</div></div><span class="chip gris">${esc((L.TIPOS_MED.find((t) => t[0] === m.tipo) || [0, m.tipo])[1])}</span></${esProf() ? 'a' : 'div'}>`).join('') || '<div class="vacio">Todavía no hay productos para rumiantes en el catálogo.</div>'}</div>`;
@@ -1122,7 +1125,7 @@
   }
 
   function vistaMedicamento(id) {
-    if (!esProf()) return vistaNoEncontrado('El catálogo lo mantiene el profesor.');
+    if (!esProf()) return vistaNoEncontrado('El catálogo lo mantienen el profesor y la veterinaria.');
     const m = id === 'nuevo' ? { especies: ['caprino', 'ovino'], tipo: 'medicamento' } : S.medicamentos.find((x) => x.id === id);
     if (!m) return vistaNoEncontrado();
     const nuevo = !m.id;
@@ -1155,9 +1158,9 @@
     pintar(`${cabecera()}
       <main class="cuerpo"><h1 style="font-size:22px">Más</h1>
         <a class="granja-card" href="#/manejo">${ICONOS.mapa}<div><strong>Manejo diario</strong><div class="suave">Limpieza, alimentación, agua, cama y ordeño por corralina</div></div>${ICONOS.flecha}</a>
-        <a class="granja-card" href="#/actividad">${ICONOS.cuenta}<div><strong>${esProf() ? 'Actividad de los alumnos' : 'Mi actividad'}</strong><div class="suave">${esProf() ? 'Qué ha registrado cada alumno, por curso y fechas, para evaluar' : 'Todo lo que has registrado'}</div></div>${ICONOS.flecha}</a>
+        ${S.perfil.rol === 'veterinario' ? '' : `<a class="granja-card" href="#/actividad">${ICONOS.cuenta}<div><strong>${esProf() ? 'Actividad de los alumnos' : 'Mi actividad'}</strong><div class="suave">${esProf() ? 'Qué ha registrado cada alumno, por curso y fechas, para evaluar' : 'Todo lo que has registrado'}</div></div>${ICONOS.flecha}</a>`}
         <a class="granja-card" href="#/censo">${ICONOS.censo}<div><strong>Censo</strong><div class="suave">A cualquier fecha, por categoría y corralina; altas y bajas; Excel</div></div>${ICONOS.flecha}</a>
-        ${esProf() ? `<a class="granja-card" href="#/gestion">${ICONOS.gestion}<div><strong>Gestión</strong><div class="suave">Importar el censo, copia de seguridad y alumnos</div></div>${ICONOS.flecha}</a>` : ''}
+        ${esAdmin() ? `<a class="granja-card" href="#/gestion">${ICONOS.gestion}<div><strong>Gestión</strong><div class="suave">Importar el censo, copia de seguridad y alumnos</div></div>${ICONOS.flecha}</a>` : ''}
         <a class="granja-card" href="#/cuenta">${ICONOS.cuenta}<div><strong>Tu cuenta</strong><div class="suave">${esProf() ? 'Contraseña' : 'PIN'} e instalación en el móvil</div></div>${ICONOS.flecha}</a>
         <a class="granja-card" href="#/granjas"><img src="img/logo-mini.jpg" alt=""><div><strong>Granjas del centro</strong><div class="suave">Ir a CIFEAPORC</div></div>${ICONOS.flecha}</a>
         <button class="btn sec" type="button" data-accion="salir">Salir</button>
@@ -1313,6 +1316,7 @@
     return out;
   }
   async function vistaActividad(alias) {
+    if (S.perfil.rol === 'veterinario') return vistaNoEncontrado('La actividad de los alumnos la ve el profesor.');
     if (!S.porcAct || !S.porcActCargado || Date.now() - S.porcActCargado > 60000) {
       pintar(`${cabecera()}<main class="cuerpo"><div class="ok-caja">Reuniendo la actividad de las dos granjas…</div></main>${navegacion('mas')}`);
       try { S.porcAct = await cargarPorcino(); S.porcActCargado = Date.now(); } catch (e) { S.porcAct = []; toast(`No se pudo leer porcino: ${traducirError(e)}`); }
@@ -1413,7 +1417,7 @@
 
   // ---------------------------------------------------------------- gestión (profesor)
   function vistaGestion() {
-    if (!esProf()) return vistaCuenta();
+    if (!esAdmin()) return vistaCuenta();
     const imp = S.importacion;
     const buenas = imp ? imp.filas.filter((r) => !r.errores.length && !r.repetido) : [];
     pintar(`${cabecera()}
@@ -1524,7 +1528,7 @@
         <section class="tarjeta"><div class="filas">
           ${S.perfil.nombre ? `<div><span>Nombre</span><span>${esc(S.perfil.nombre)}</span></div>` : ''}
           <div><span>Alias</span><span>${esc(S.perfil.alias)}</span></div>
-          <div><span>Rol</span><span>${esProf() ? 'Profesor' : 'Alumno'}</span></div>
+          <div><span>Rol</span><span>${rolNombre()}</span></div>
           ${esProf() ? '' : `<div><span>Curso</span><span>${curso(S.perfil.granja_id)}</span></div>`}</div></section>
         ${mensaje || ''}
         <form class="formu tarjeta" id="f-clave" novalidate>
@@ -1540,7 +1544,7 @@
         <a class="btn sec" href="#/granjas">Granjas del centro</a>
         <button class="btn sec" type="button" data-accion="salir">Salir</button>
         <div class="suave peq" style="text-align:center">CIFEAFARM · versión ${esc(C.version)}</div>
-      </main>${navegacion(esProf() ? 'gestion' : 'cuenta')}`);
+      </main>${navegacion('mas')}`);
     document.getElementById('f-clave').addEventListener('submit', async (ev) => {
       ev.preventDefault();
       const f = new FormData(ev.target); const x = String(f.get('n1')); const y = String(f.get('n2'));

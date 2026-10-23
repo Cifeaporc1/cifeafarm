@@ -23,7 +23,9 @@
   const dos = (x) => String(x).padStart(2, '0');
   const fechaHora = (d) => `${dos(d.getDate())}/${dos(d.getMonth() + 1)}/${d.getFullYear()} · ${dos(d.getHours())}:${dos(d.getMinutes())}`;
   const hoy = () => L.hoyISO();
-  const esProf = () => S.perfil && S.perfil.rol === 'profesor';
+  const esProf = () => S.perfil && ['profesor', 'veterinario'].includes(S.perfil.rol); // profesor o veterinaria
+  const esAdmin = () => S.perfil && S.perfil.rol === 'profesor';                       // solo el profesor
+  const rolNombre = () => (S.perfil.rol === 'veterinario' ? 'Veterinaria' : S.perfil.rol === 'profesor' ? 'Profesor' : 'Alumno');
   const nombreGranja = (id) => (S.granjas.find((g) => g.id === id) || {}).nombre || `Granja ${id}`;
   const cerdaPorId = (id) => S.cerdas.find((c) => c.id === id);
   const verracoPorId = (id) => S.verracos.find((v) => v.id === id);
@@ -131,7 +133,7 @@
 
   // ---------------------------------------------------------------- maquetación
   function cabecera(o = {}) {
-    const quien = esProf() ? `Profesor · ${esc(yo())}` : `${S.perfil.granja_id}.º curso · ${esc(yo())}`;
+    const quien = esProf() ? `${rolNombre()} · ${esc(yo())}` : `${S.perfil.granja_id}.º curso · ${esc(yo())}`;
     const horas = `<div class="horas"><span>Consulta: <span id="hora-consulta">${fechaHora(new Date())}</span></span><span>Datos actualizados: ${S.cargado ? fechaHora(S.cargado) : '—'}</span></div>`;
     if (o.volver) {
       return `<header class="cab ${o.prof ? 'prof' : ''}">
@@ -193,7 +195,7 @@
         <div class="foto logo"><img src="img/logo.jpg" alt="Logotipo CIFEAPORC, chato murciano"></div>
         <div class="entre"><h1 style="font-size:22px">Hoy, ${DIAS_SEM[d.getDay()]} ${d.getDate()} ${MESES[d.getMonth()]}</h1>
           <span class="suave">${lista.length + avSan.length + avDosis.length} ${lista.length + avSan.length + avDosis.length === 1 ? 'aviso' : 'avisos'}</span></div>
-        ${esProf() && (!S.ultimaCopia || Date.now() - S.ultimaCopia > 30 * 864e5) ? `<a class="tarjeta enlace" href="#/admin/granja" style="border-color:var(--naranja-borde)"><div class="entre"><strong>Haz una copia de seguridad</strong><span class="chip nar">Profesor</span></div><div class="suave">${S.ultimaCopia ? `La última es del ${fechaHora(S.ultimaCopia)}` : 'Aún no has descargado ninguna desde este dispositivo'} · Gestión → Granja</div></a>` : ''}
+        ${esAdmin() && (!S.ultimaCopia || Date.now() - S.ultimaCopia > 30 * 864e5) ? `<a class="tarjeta enlace" href="#/admin/granja" style="border-color:var(--naranja-borde)"><div class="entre"><strong>Haz una copia de seguridad</strong><span class="chip nar">Profesor</span></div><div class="suave">${S.ultimaCopia ? `La última es del ${fechaHora(S.ultimaCopia)}` : 'Aún no has descargado ninguna desde este dispositivo'} · Gestión → Granja</div></a>` : ''}
         ${tarjetasExtra}${tarjetas || (tarjetasExtra ? '' : '<div class="vacio">No hay avisos para hoy.</div>')}
         <div class="tarjeta"><h2>Cerdas por fase</h2>
           <div class="opciones">${L.FASES.map((f) => `<span class="chip ${recuento[f.id] ? '' : 'gris'}">${f.nombre}: ${recuento[f.id] || 0}</span>`).join('')}</div>
@@ -1375,7 +1377,7 @@
         <section class="tarjeta"><div class="filas">
           ${S.perfil.nombre ? `<div><span>Nombre</span><span>${esc(S.perfil.nombre)}</span></div>` : ''}
           <div><span>Alias</span><span>${esc(S.perfil.alias)}</span></div>
-          <div><span>Rol</span><span>${esProf() ? 'Profesor' : 'Alumno'}</span></div>
+          <div><span>Rol</span><span>${rolNombre()}</span></div>
           ${esProf() ? '' : `<div><span>Curso</span><span>${S.perfil.granja_id}.º</span></div>`}</div></section>
         <a class="btn sec" href="../#/granjas">Granjas del centro</a>
         ${mensaje || ''}
@@ -1414,7 +1416,8 @@
 
   function vistaAdmin(seccion = 'censo', extra) {
     if (!esProf()) return vistaNoEncontrado();
-    const pest = `<div class="pestanas" role="tablist">${[['censo', 'Censo'], ['alumnos', 'Alumnos'], ['granja', 'Granja']].map(([id, t]) =>
+    if (!esAdmin() && seccion !== 'censo') seccion = 'censo';
+    const pest = `<div class="pestanas" role="tablist">${(esAdmin() ? [['censo', 'Censo'], ['alumnos', 'Alumnos'], ['granja', 'Granja']] : [['censo', 'Censo']]).map(([id, t]) =>
       `<a role="tab" href="#/admin/${id}" class="${seccion === id ? 'activo' : ''}" aria-selected="${seccion === id}">${t}</a>`).join('')}</div>`;
     let cuerpo = '';
     if (seccion === 'censo') cuerpo = adminCenso(extra);
@@ -1423,7 +1426,7 @@
       else cuerpo = adminAlumnos(extra);
     }
     if (seccion === 'granja') cuerpo = adminGranja(extra);
-    pintar(`${cabecera({ prof: true })}<main class="cuerpo"><h1 style="font-size:22px">Gestión del profesor</h1>${pest}${cuerpo}</main>${navegacion('admin')}`);
+    pintar(`${cabecera({ prof: true })}<main class="cuerpo"><h1 style="font-size:22px">${esAdmin() ? 'Gestión del profesor' : 'Censo'}</h1>${pest}${cuerpo}</main>${navegacion('admin')}`);
     enlazarAdmin(seccion);
   }
 

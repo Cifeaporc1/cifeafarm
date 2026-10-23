@@ -54,3 +54,16 @@ Cuando una versión nueva traiga cambios en la base de datos, vuelve a ejecutar 
 
 1. Ejecuta una vez en Supabase `sql/04_acceso_por_curso.sql`.
 2. En CIFEAFARM → **Más → Gestión → Acceso por curso**, pulsa el botón del curso para cerrarlo o abrirlo. Con el acceso cerrado, sus alumnos ven «El acceso de tu curso todavía está cerrado» y no pueden entrar en ninguna granja. Sus cuentas no se tocan.
+
+## 8. Perfil de la veterinaria
+
+1. Ejecuta una vez en Supabase `sql/05_veterinaria.sql`.
+2. **Authentication → Users → Add user → Create new user**: correo de la veterinaria y una contraseña (mínimo 8 caracteres); marca **Auto Confirm User**.
+3. En el **SQL Editor**, ejecuta (cambiando el correo):
+   ```sql
+   insert into public.perfiles (user_id, alias, rol, granja_id)
+   select id, 'Veterinaria', 'veterinario', null from auth.users where email = 'CORREO@ejemplo.com';
+   ```
+4. Entra en CIFEAFARM con la pestaña **Profesor / veterinaria**, su correo y su contraseña.
+
+Puede lo mismo que el profesor con animales y registros (y el catálogo de productos). Solo el profesor: alumnos, acceso por curso, importar el censo, copias de seguridad, borrar animales y la actividad de los alumnos. Ve a los alumnos por su alias, no por su nombre.
