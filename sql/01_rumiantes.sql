@@ -250,11 +250,12 @@ drop policy if exists rum_eventos_borrado on public.rum_eventos;
 create policy rum_eventos_ver on public.rum_eventos for select to authenticated using (public.tiene_acceso());
 create policy rum_eventos_alta on public.rum_eventos for insert to authenticated
   with check (public.tiene_acceso() and tipo not in ('alta','baja','baja_anulada','datos'));
--- Como en CIFEAPORC: el alumno corrige o borra lo suyo durante 24 h; después, solo el profesor.
+-- Como en CIFEAPORC: cualquier alumno corrige un registro (si es de otro, el profesor lo ve en
+-- Correcciones, ver 06_porcino_correcciones.sql); borrar, lo suyo durante 24 h; después, solo el profesor.
+-- Los automáticos (alta, baja, datos, parto, acrotalado) solo los cambia el profesor.
 create policy rum_eventos_cambio on public.rum_eventos for update to authenticated
   using (public.es_profesor()
-         or (autor = auth.uid() and creado > now() - interval '24 hours'
-             and tipo not in ('alta','baja','baja_anulada','datos','parto','acrotalado')))
+         or (public.tiene_acceso() and tipo not in ('alta','baja','baja_anulada','datos','parto','acrotalado')))
   with check (public.tiene_acceso());
 create policy rum_eventos_borrado on public.rum_eventos for delete to authenticated
   using (public.es_profesor()
@@ -517,9 +518,9 @@ drop policy if exists rum_sanidad_cambio on public.rum_sanidad;
 drop policy if exists rum_sanidad_borrado on public.rum_sanidad;
 create policy rum_sanidad_ver on public.rum_sanidad for select to authenticated using (public.tiene_acceso());
 create policy rum_sanidad_alta on public.rum_sanidad for insert to authenticated with check (public.tiene_acceso());
--- Un previsto lo valida cualquiera (profesor o alumno); lo realizado, como siempre: el autor 24 h o el profesor.
+-- Un previsto lo valida cualquiera; lo realizado lo corrige cualquiera (el profesor ve las correcciones).
 create policy rum_sanidad_cambio on public.rum_sanidad for update to authenticated
-  using (public.es_profesor() or estado = 'previsto' or (autor = auth.uid() and creado > now() - interval '24 hours'))
+  using (public.tiene_acceso())
   with check (public.tiene_acceso());
 create policy rum_sanidad_borrado on public.rum_sanidad for delete to authenticated
   using (public.es_profesor() or (autor = auth.uid() and creado > now() - interval '24 hours'));
@@ -556,6 +557,6 @@ drop policy if exists rum_manejo_borrado on public.rum_manejo;
 create policy rum_manejo_ver on public.rum_manejo for select to authenticated using (public.tiene_acceso());
 create policy rum_manejo_alta on public.rum_manejo for insert to authenticated with check (public.tiene_acceso());
 create policy rum_manejo_cambio on public.rum_manejo for update to authenticated
-  using (public.es_profesor() or (autor = auth.uid() and creado > now() - interval '24 hours')) with check (public.tiene_acceso());
+  using (public.tiene_acceso()) with check (public.tiene_acceso());
 create policy rum_manejo_borrado on public.rum_manejo for delete to authenticated
   using (public.es_profesor() or (autor = auth.uid() and creado > now() - interval '24 hours'));

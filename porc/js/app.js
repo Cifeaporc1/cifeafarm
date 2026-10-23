@@ -115,7 +115,7 @@
         sb.from('mov_grupos').select('*').eq('granja_id', S.granja).order('fecha').order('creado'),
         sb.from('censo_mov').select('*').order('creado', { ascending: false }).limit(60)]);
       S.faltaSQL07 = !!(m.error || h.error); S.movGrupos = m.error ? [] : m.data; S.censoMov = h.error ? [] : h.data; }
-    if (esAdmin()) { const r = await sb.from('correcciones').select('*').order('creado', { ascending: false }).limit(300); S.faltaCorr = !!r.error; S.correcciones = r.error ? [] : r.data; }
+    if (esAdmin()) { const r = await sb.from('correcciones').select('*').order('creado', { ascending: false }).limit(300); S.faltaCorr = !!r.error; S.correcciones = r.error ? [] : r.data.filter((c) => !c.tabla.startsWith('rum_')); } // las de rumiantes, en CIFEARUMI
     // Nombres visibles (los de la propia granja y los profesores). Si la función
     // aún no existe en Supabase, la app sigue funcionando solo con alias.
     const nv = await sb.rpc('nombres_visibles');
@@ -1395,7 +1395,7 @@
         <section class="tarjeta"><h2>Últimas cubriciones</h2>${s.ultimas.length ? s.ultimas.slice(0, 8).map(({ c, ci }) => `<a class="cerda-fila" href="#/cerda/${c.id}"><div><strong>${esc(c.crotal)}</strong><div class="suave">IA ${fmt(ci.ia.fecha)}</div></div><span class="chip ${ci.parto ? '' : ci.cierre ? 'gris' : 'nar'}">${ci.parto ? `${L.camada(ci).vivos} vivos` : ci.cierre === 'aborto' ? 'Aborto' : ci.cierre ? 'Repetición' : 'En curso'}</span></a>`).join('') : '<div class="suave">Sin inseminaciones registradas.</div>'}</section>
         ${seccionSanidad((r) => r.verraco_id === id, `#/sanidad/nuevo/verraco/${id}`)}
         <section class="tarjeta"><h2>Datos</h2><div class="filas">
-          <div><span>Crotal</span><span>${esc(x.crotal)}</span></div><div><span>Raza</span><span>${esc(x.raza)}</span></div>
+          <div><span>Crotal</span><span>${esc(x.crotal)}</span></div>${(x.otros_crotales || []).length ? `<div><span>Otros crotales</span><span>${esc(x.otros_crotales.join(' · '))}</span></div>` : ''}<div><span>Raza</span><span>${esc(x.raza)}</span></div>
           <div><span>Nacimiento</span><span>${fmt(x.fecha_nacimiento)}</span></div><div><span>Entrada</span><span>${fmt(x.fecha_entrada)}</span></div>
           <div><span>Verraquera</span><span>${x.verraquera || '—'}</span></div>
           ${x.fecha_baja ? `<div><span>Baja</span><span>${fmt(x.fecha_baja)} · ${esc(x.causa_baja || '')}</span></div>` : ''}</div>
@@ -1563,7 +1563,7 @@
         ${!editaDatos ? '<div class="suave">Los datos del animal solo los cambia el profesor. Tú puedes darlo de baja.</div>' : ''}
         <form class="formu" id="f-animal" novalidate><fieldset class="sin-borde" ${editaDatos ? '' : 'disabled'}>
         <div class="campo"><label for="a-crotal">Crotal principal</label><input id="a-crotal" name="crotal" type="text" value="${esc(x.crotal)}" required></div>
-        ${tipo === 'cerda' ? `<div class="campo"><label for="a-otros">Otros crotales <span class="suave">(opcional, separados por comas)</span></label><input id="a-otros" name="otros" type="text" value="${esc((x.otros_crotales || []).join(', '))}"></div>` : ''}
+        ${tipo === 'cerda' || tipo === 'verraco' ? `<div class="campo"><label for="a-otros">Otros crotales <span class="suave">(opcional, separados por comas)</span></label><input id="a-otros" name="otros" type="text" value="${esc((x.otros_crotales || []).join(', '))}"></div>` : ''}
         <div class="campo"><label for="a-raza">Raza</label><input id="a-raza" name="raza" type="text" value="${esc(x.raza || 'Chato murciano')}"></div>
         <div class="dos"><div class="campo"><label for="a-nac">Nacimiento</label><input id="a-nac" name="fecha_nacimiento" type="date" value="${esc(x.fecha_nacimiento || '')}"></div>
           <div class="campo"><label for="a-ent">Entrada en granja</label><input id="a-ent" name="fecha_entrada" type="date" value="${esc(x.fecha_entrada || '')}"></div></div>
@@ -1584,8 +1584,10 @@
       ev.preventDefault();
       const f = Object.fromEntries(new FormData(ev.target).entries());
       const reg = { crotal: String(f.crotal || '').trim(), raza: String(f.raza || '').trim() || 'Chato murciano', fecha_nacimiento: f.fecha_nacimiento || null, fecha_entrada: f.fecha_entrada || null };
-      if (tipo === 'cerda') { reg.otros_crotales = String(f.otros || '').split(',').map((s) => s.trim()).filter(Boolean); reg.origen = String(f.origen || '').trim() || null; }
+      reg.otros_crotales = String(f.otros || '').split(',').map((s) => s.trim()).filter(Boolean);
+      if (tipo === 'cerda') reg.origen = String(f.origen || '').trim() || null;
       else reg.verraquera = f.verraquera ? Number(f.verraquera) : null;
+      if (tipo === 'verraco' && S.verracos.length && !('otros_crotales' in S.verracos[0])) delete reg.otros_crotales; // aún sin el SQL 06
       if (!nuevo) { reg.fecha_baja = f.fecha_baja || null; reg.causa_baja = (f.causa_sel === 'Otros' ? String(f.causa_otra || '').trim() : f.causa_sel) || null; }
       const msj = document.getElementById('mensajes');
       if (!editaDatos) { // alumno dando de baja: solo se envían la fecha y la causa
@@ -1759,7 +1761,7 @@
         const X = window.XLSX; const libro = X.utils.book_new();
         const hoja = (nombre, filas) => { const h = X.utils.json_to_sheet(filas.length ? filas : [{ '': 'Sin datos' }]); X.utils.book_append_sheet(libro, h, nombre); };
         hoja('Cerdas', T.cerdas.map((c) => ({ Crotal: c.crotal, 'Otros crotales': (c.otros_crotales || []).join(', '), Raza: c.raza, Nacimiento: c.fecha_nacimiento || '', Entrada: c.fecha_entrada || '', Procedencia: c.origen || '', 'Fecha de baja': c.fecha_baja || '', 'Causa de baja': c.causa_baja || '' })));
-        hoja('Verracos', T.verracos.map((v) => ({ Crotal: v.crotal, Raza: v.raza, Nacimiento: v.fecha_nacimiento || '', Entrada: v.fecha_entrada || '', Verraquera: v.verraquera || '', 'Fecha de baja': v.fecha_baja || '', 'Causa de baja': v.causa_baja || '' })));
+        hoja('Verracos', T.verracos.map((v) => ({ Crotal: v.crotal, 'Otros crotales': (v.otros_crotales || []).join(', '), Raza: v.raza, Nacimiento: v.fecha_nacimiento || '', Entrada: v.fecha_entrada || '', Verraquera: v.verraquera || '', 'Fecha de baja': v.fecha_baja || '', 'Causa de baja': v.causa_baja || '' })));
         hoja('Eventos', T.eventos.filter((e) => e.granja_id === C.granjaPorcino).map(fila));
         const medDe = Object.fromEntries(T.medicamentos.map((m) => [m.id, m]));
         hoja('Sanidad', T.sanidad.map((r) => ({ Granja: r.granja_id === 1 ? '1.º' : '2.º', Estado: r.estado === 'previsto' ? 'Previsto' : 'Realizado', Fecha: r.fecha, Qué: nombreSan(r.tipo), Destino: r.ambito === 'zona' ? r.zona : r.ambito === 'granja' ? 'Toda la granja' : r.ambito === 'verraco' ? `Verraco ${verracoDe[r.verraco_id] || '?'}` : `${r.ambito === 'camada' ? 'Lechones de ' : 'Cerda '}${crotalDe[r.cerda_id] || '?'}`, 'Nº animales': r.n_animales ?? '', Producto: r.producto || '', 'Materia activa': (medDe[r.medicamento_id] || {}).materia_activa || '', Dosis: r.dosis || '', Vía: r.via || '', Lote: r.lote || '', Caducidad: r.caducidad || '', 'Supresión hasta': r.supresion_hasta || '', Motivo: r.motivo || '', Observaciones: r.obs || '', 'Registrado por': aliasDe[r.autor] || r.autor_alias || '', 'Realizado por': r.realizado_por || '' })));

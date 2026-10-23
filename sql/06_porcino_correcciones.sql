@@ -1,9 +1,9 @@
 -- =====================================================================
--- CIFEAFARM · Porcino: los alumnos corrigen lo de otros (y el profesor lo ve),
---             catálogo de productos abierto a los alumnos y lechones
---             destetados que se quedan en la paridera.
+-- CIFEAFARM · Las dos granjas: los alumnos corrigen lo de otros (y el profesor
+--             lo ve), catálogo de productos abierto a los alumnos, lechones
+--             destetados que se quedan en la paridera y otros crotales de los verracos.
 -- Pegar entero en Supabase → SQL Editor → New query → Run. Repetible.
--- Necesita haber ejecutado antes 02 y 05.
+-- Necesita haber ejecutado antes 01, 02 y 05.
 -- =====================================================================
 
 -- ---------- 1. Registro de correcciones (solo lo ve el profesor)
@@ -41,7 +41,7 @@ begin
   select alias, granja_id, rol into a, g, r from perfiles where user_id = auth.uid();
   if r is distinct from 'alumno' then return null; end if;
   if (to_jsonb(old) ->> 'autor') = auth.uid()::text then return null; end if;
-  if tg_table_name = 'sanidad' and (to_jsonb(old) ->> 'estado') = 'previsto' and (to_jsonb(new) ->> 'estado') = 'realizado' then return null; end if;
+  if (to_jsonb(old) ->> 'estado') = 'previsto' and (to_jsonb(new) ->> 'estado') = 'realizado' then return null; end if;
   if (to_jsonb(new) - array['modificado','modificado_por']) = (to_jsonb(old) - array['modificado','modificado_por']) then return null; end if;
   insert into correcciones (tabla, registro_id, antes, despues, autor, autor_alias, curso)
     values (tg_table_name, new.id, to_jsonb(old), to_jsonb(new), auth.uid(), a, g);
@@ -57,6 +57,27 @@ begin
     if to_regclass('public.' || t) is null then continue; end if;
     execute format('drop policy if exists %1$s_cambio on public.%1$s', t);
     execute format('create policy %1$s_cambio on public.%1$s for update to authenticated using (public.tiene_acceso()) with check (public.tiene_acceso())', t);
+    execute format('drop trigger if exists %1$s_correccion on public.%1$s', t);
+    execute format('create trigger %1$s_correccion after update on public.%1$s for each row execute function public.registrar_correccion()', t);
+  end loop;
+end $$;
+
+-- ---------- 2 bis. Rumiantes, igual: cualquier alumno corrige y queda apuntado
+--                    (las reglas de 01_rumiantes.sql ya lo permiten desde esta versión)
+drop policy if exists rum_eventos_cambio on public.rum_eventos;
+create policy rum_eventos_cambio on public.rum_eventos for update to authenticated
+  using (public.es_profesor()
+         or (public.tiene_acceso() and tipo not in ('alta','baja','baja_anulada','datos','parto','acrotalado')))
+  with check (public.tiene_acceso());
+drop policy if exists rum_sanidad_cambio on public.rum_sanidad;
+create policy rum_sanidad_cambio on public.rum_sanidad for update to authenticated using (public.tiene_acceso()) with check (public.tiene_acceso());
+drop policy if exists rum_manejo_cambio on public.rum_manejo;
+create policy rum_manejo_cambio on public.rum_manejo for update to authenticated using (public.tiene_acceso()) with check (public.tiene_acceso());
+do $$
+declare t text;
+begin
+  foreach t in array array['rum_eventos','rum_sanidad','rum_manejo'] loop
+    if to_regclass('public.' || t) is null then continue; end if;
     execute format('drop trigger if exists %1$s_correccion on public.%1$s', t);
     execute format('create trigger %1$s_correccion after update on public.%1$s for each row execute function public.registrar_correccion()', t);
   end loop;
@@ -106,3 +127,6 @@ alter table public.mov_grupos add constraint mov_grupos_origen_check
   check (origen ~ '^(Lechonera [1-4]|Cebadero ([1-9]|1[0-9]|2[0-4])|Paridera [1-3]-[1-6])$');
 alter table public.mov_grupos add constraint mov_grupos_destino_check
   check (destino ~ '^(Lechonera [1-4]|Cebadero ([1-9]|1[0-9]|2[0-4])|Paridera [1-3]-[1-6])$');
+
+-- ---------- 5. Verracos: crotal principal y otros crotales (como las cerdas)
+alter table public.verracos add column if not exists otros_crotales text[] not null default '{}';

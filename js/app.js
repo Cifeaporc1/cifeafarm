@@ -9,7 +9,7 @@
   // ---------------------------------------------------------------- estado
   const S = {
     sesion: null, perfil: null, nombres: {}, corralinas: [], animales: [], eventos: [], porAnimal: {},
-    cargado: null, faltaSQL: false, faltaSQL2: false, faltaSQL3: false, faltaSQL4: false, lotes: [], sanidad: [], medicamentos: [], manejo: [], borrador: {}, importacion: null,
+    cargado: null, faltaSQL: false, faltaSQL2: false, faltaSQL3: false, faltaSQL4: false, correcciones: [], faltaCorr: false, lotes: [], sanidad: [], medicamentos: [], manejo: [], borrador: {}, importacion: null,
     ultimaCopia: (() => { try { const x = localStorage.getItem('farm-ultima-copia'); return x ? new Date(x) : null; } catch (_) { return null; } })(),
   };
   const $app = document.getElementById('app');
@@ -121,6 +121,7 @@
       S.faltaSQL3 = !!rs.error; S.sanidad = rs.error ? [] : rs.data;
       const rmj = S.faltaSQL ? { error: true } : await sb.from('rum_manejo').select('*').order('fecha', { ascending: false }).order('creado', { ascending: false }).limit(400);
       S.faltaSQL4 = !!rmj.error; S.manejo = rmj.error ? [] : rmj.data;
+      if (esAdmin()) { const rc = await sb.from('correcciones').select('*').like('tabla', 'rum_%').order('creado', { ascending: false }).limit(300); S.faltaCorr = !!rc.error; S.correcciones = rc.error ? [] : rc.data; } else S.correcciones = [];
       S.medicamentos = rm.error ? [] : rm.data.filter((m) => !m.especies || m.especies.includes('caprino') || m.especies.includes('ovino')); }
     S.porAnimal = {};
     for (const ev of S.eventos) (S.porAnimal[ev.animal_id] = S.porAnimal[ev.animal_id] || []).push(ev);
@@ -271,6 +272,7 @@
         ${(() => { const av = S.faltaSQL2 ? [] : L.avisosRepro(S.animales, S.lotes, ctxR, hoy()); return av.length ? `<section class="tarjeta"><h2>Avisos</h2>${av.map((x) => `<a class="evento enlace" href="${x.enlace}"><div class="entre"><strong>${esc(x.titulo)}</strong><span class="chip ${x.nivel === 'urgente' ? 'nar' : x.nivel === 'info' ? 'gris' : ''}">${x.nivel === 'urgente' ? 'Hoy' : x.nivel === 'info' ? 'En curso' : corta(x.fecha)}</span></div><div class="suave peq">${esc(x.detalle)}</div></a>`).join('')}</section>` : '<div class="vacio">No hay avisos de reproducción para hoy.</div>'; })()}
         ${porRevisar.length ? `<a class="tarjeta enlace" href="#/animales/revisar" style="border-color:var(--naranja-borde)"><div class="entre"><strong>Datos por completar</strong><span class="chip nar">${porRevisar.length}</span></div>
           <div class="suave">Crotales de 14 cifras, animales sin collar o cabras sin capa. Corrígelos desde la ficha de cada animal.</div></a>` : ''}
+        ${esAdmin() && S.correcciones.some((c) => !c.revisada) ? `<a class="tarjeta enlace" href="#/correcciones" style="border-color:var(--naranja-borde)"><div class="entre"><strong>${S.correcciones.filter((c) => !c.revisada).length} correcciones de alumnos sin revisar</strong><span class="chip nar">Profesor</span></div><div class="suave">Un alumno ha cambiado registros de otros</div></a>` : ''}
         ${esProf() && (!S.ultimaCopia || Date.now() - S.ultimaCopia > 30 * 864e5) && act.length ? `<a class="tarjeta enlace" href="#/gestion" style="border-color:var(--naranja-borde)"><div class="entre"><strong>Haz una copia de seguridad</strong><span class="chip nar">Profesor</span></div><div class="suave">${S.ultimaCopia ? `La última es del ${fechaHora(S.ultimaCopia)}` : 'Aún no has descargado ninguna desde este dispositivo'} · Gestión</div></a>` : ''}
         ${act.length === 0 && !S.faltaSQL ? `<div class="vacio">Aún no hay animales en el censo.${esProf() ? ' Impórtalos desde <a href="#/gestion">Gestión → Importar censo</a> o da de alta uno a uno.' : ''}</div>` : ''}
         <div class="botones"><a class="btn" href="#/animales">${ICONOS.animales}Buscar animal</a><a class="btn sec" href="#/mapa">${ICONOS.mapa}Mapa</a></div>
@@ -415,6 +417,9 @@
   }
   const AUTO = ['alta', 'baja', 'baja_anulada', 'datos', 'parto', 'acrotalado'];
   const puedeEditarEv = (e) => esProf() || (!AUTO.includes(e.tipo) && e.autor === uid() && Date.now() - new Date(e.creado).getTime() < 864e5);
+  // Corregir lo de otro: cualquiera; el profesor lo ve en Correcciones
+  const esAjeno = (r) => !esProf() && r && r.autor !== uid();
+  const avisoAjeno = (r) => (esAjeno(r) ? `<div class="aviso-caja"><strong>Vas a corregir un registro de ${esc(quienEs(r.autor, r.autor_alias, r.curso))}.</strong> Quedará tu nombre y el profesor verá lo que cambias.</div>` : '');
   const puedeEditarAnimal = (a) => esProf() || (a.alta_autor === uid() && Date.now() - new Date(a.creado).getTime() < 864e5);
 
   function vistaFicha(id) {
@@ -429,7 +434,7 @@
       <div>${resumenEvento(e)}</div>${e.datos && e.datos.obs ? `<div class="suave">${esc(e.datos.obs)}</div>` : ''}
       <div class="suave peq">${e.datos && e.datos.importado ? 'Importado del Excel' : `Por ${esc(quienEs(e.autor, e.autor_alias, e.curso))}${esVet() ? '' : ` (${curso(e.curso)})`}`}${e.modificado ? ` · corregido por ${esc(verAlias(e.modificado_por) || '?')}` : ''}</div>
       ${e.tipo === 'parto' && esProf() ? `<div class="acciones"><button class="btn peligro peq" type="button" data-borrar-parto="${e.id}">Borrar parto</button></div>` : ''}
-      ${puedeEditarEv(e) && !AUTO.includes(e.tipo) ? `<div class="acciones">${e.tipo === 'nota' ? `<a class="btn sec peq" href="#/nota/${a.id}/${e.id}">Corregir</a>` : ''}<button class="btn peligro peq" type="button" data-borrar="${e.id}">Borrar</button></div>` : ''}</div>`;
+      ${!AUTO.includes(e.tipo) ? `<div class="acciones"><a class="btn sec peq" href="${e.tipo === 'nota' ? `#/nota/${a.id}/${e.id}` : `#/corregir/${a.id}/${e.id}`}">Corregir</a>${puedeEditarEv(e) ? `<button class="btn peligro peq" type="button" data-borrar="${e.id}">Borrar</button>` : ''}</div>` : ''}</div>`;
     const historial = evs.slice(0, 10).map(tarjetaEv).join('') + (evs.length > 10 ? `<details><summary class="suave" style="min-height:44px;display:flex;align-items:center">Ver ${evs.length - 10} registros anteriores</summary>${evs.slice(10).map(tarjetaEv).join('')}</details>` : '');
     const ident = [a.crotal ? `Crotal ${esc(a.crotal)}` : null, a.manejo && a.codigo_cria ? `antes ${esc(a.codigo_cria)}` : null].filter(Boolean).join(' · ');
     pintar(`${cabecera({ volver: '#/animales', textoVolver: 'Animales', titulo: nombreA(a), sub: `${esc(catNombre(a.categoria))} · ${esc(raza(a))}${ident ? ` · ${ident}` : ''}` })}
@@ -530,7 +535,7 @@
     const a = animal(id); if (!a) return vistaNoEncontrado();
     const e = evId ? S.eventos.find((x) => x.id === evId) : null;
     pintar(`${cabecera({ volver: `#/animal/${id}`, textoVolver: 'Ficha', titulo: e ? 'Corregir nota' : 'Nota', sub: esc(nombreA(a)) })}
-      <main class="cuerpo"><div id="msg"></div>
+      <main class="cuerpo">${avisoAjeno(e)}<div id="msg"></div>
         <form class="formu" id="f-nota" novalidate>
           <div class="campo"><label for="fecha">Fecha</label><input id="fecha" name="fecha" type="date" value="${e ? e.fecha : hoy()}" max="${hoy()}" required></div>
           <div class="campo"><label for="texto">Nota</label><textarea id="texto" name="texto" required>${esc(e ? e.datos.texto : '')}</textarea></div>
@@ -545,6 +550,93 @@
       if (error) { document.getElementById('msg').innerHTML = errorCaja(traducirError(error)); return; }
       toast('Nota guardada'); await refrescar(); location.hash = `#/animal/${a.id}`;
     });
+  }
+
+  // ---- Corregir un registro de la ficha (fecha, datos principales y observaciones)
+  const CAMPOS_EV = {
+    eco: [['resultado', 'Resultado', 'radio', [['gestante', 'Gestante'], ['vacia', 'Vacía']]], ['fetos', 'Fetos (si gestante)', 'number']],
+    encalostrado: [['resultado', '¿Cómo ha tomado el calostro?', 'radio', [['Correcto', 'Solo, sin problemas'], ['Con ayuda', 'Con ayuda'], ['Con biberón o sonda', 'Biberón o sonda']]]],
+    destete: [['peso', 'Peso (kg)', 'number'], ['destino', 'Destino', 'text']],
+    condicion: [['cc', 'Condición corporal (1–5)', 'number'], ['famacha', 'FAMACHA (1–5)', 'number']],
+    lechero: [['litros', 'Litros', 'number']],
+  };
+  function vistaCorregirEv(id, evId) {
+    const a = animal(id); const e = S.eventos.find((x) => x.id === evId);
+    if (!a || !e || AUTO.includes(e.tipo)) return vistaNoEncontrado('Este registro solo lo puede corregir el profesor.');
+    if (e.tipo === 'nota') return vistaNota(id, evId);
+    const d = e.datos || {}; const campos = CAMPOS_EV[e.tipo] || [];
+    const campo = ([k, l, t, op]) => t === 'radio'
+      ? `<div class="campo"><span class="et">${esc(l)}</span><div class="opciones">${op.map(([v, tx]) => `<label><input type="radio" name="${k}" value="${esc(v)}" ${String(d[k]) === v ? 'checked' : ''}> ${esc(tx)}</label>`).join('')}</div></div>`
+      : `<div class="campo"><label for="c-${k}">${esc(l)}</label><input id="c-${k}" name="${k}" type="${t}" ${t === 'number' ? 'step="0.1" min="0" inputmode="decimal"' : ''} value="${esc(d[k] ?? '')}"></div>`;
+    pintar(`${cabecera({ volver: `#/animal/${id}`, textoVolver: 'Ficha', titulo: `Corregir: ${nombreEvento(e).toLowerCase()}`, sub: esc(nombreA(a)) })}
+      <main class="cuerpo">${avisoAjeno(e)}<div id="msg"></div>
+        <form class="formu" id="f-corr" novalidate>
+          <div class="campo"><label for="c-fecha">Fecha</label><input id="c-fecha" name="fecha" type="date" value="${e.fecha}" max="${hoy()}" required></div>
+          ${campos.map(campo).join('')}
+          <div class="campo"><label for="c-obs">Observaciones</label><textarea id="c-obs" name="obs">${esc(d.obs || '')}</textarea></div>
+          ${e.tipo === 'traslado' ? '<div class="suave peq">Si el animal fue a otra corralina, borra este traslado (o pide al profesor que lo haga) y registra el correcto.</div>' : ''}
+          <button class="btn" type="submit">Guardar corrección</button></form>
+      </main>${navegacion('animales')}`);
+    document.getElementById('f-corr').addEventListener('submit', async (ev) => {
+      ev.preventDefault(); const x = new FormData(ev.target); const nd = { ...d };
+      for (const [k, , t] of campos) { const v = String(x.get(k) ?? '').trim(); if (v === '') delete nd[k]; else nd[k] = t === 'number' ? Number(v.replace(',', '.')) : v; }
+      if (e.tipo === 'eco' && nd.resultado === 'vacia') delete nd.fetos;
+      const obs = String(x.get('obs') || '').trim(); if (obs) nd.obs = obs; else delete nd.obs;
+      const fecha = String(x.get('fecha') || '');
+      if (!fecha || fecha > hoy()) { document.getElementById('msg').innerHTML = errorCaja('Revisa la fecha.'); return; }
+      const { error } = await sb.from('rum_eventos').update({ fecha, datos: nd }).eq('id', e.id);
+      if (error) { document.getElementById('msg').innerHTML = errorCaja(traducirError(error)); return; }
+      toast('Corrección guardada'); await refrescar(); location.hash = `#/animal/${id}`;
+    });
+  }
+
+  // ---- Correcciones de alumnos (solo el profesor)
+  const TABLAS_CORR = { rum_eventos: 'Registro de la ficha', rum_sanidad: 'Sanidad', rum_manejo: 'Manejo diario' };
+  const META_C = ['id', 'autor', 'autor_alias', 'creado', 'modificado', 'modificado_por', 'curso', 'realizado_por'];
+  function cambiosCorr(a, d) {
+    const out = []; const ver = (x) => (x == null || x === '' ? '—' : Array.isArray(x) ? x.join(', ') : typeof x === 'object' ? JSON.stringify(x) : /^\d{4}-\d{2}-\d{2}$/.test(String(x)) ? fmt(x) : String(x));
+    const nombre = (k) => ({ fecha: 'Fecha', resultado: 'Resultado', fetos: 'Fetos', peso: 'Peso', destino: 'Destino', cc: 'Condición corporal', famacha: 'FAMACHA', litros: 'Litros', obs: 'Observaciones', texto: 'Nota', producto: 'Producto', dosis: 'Dosis', via: 'Vía', lote: 'Lote', caducidad: 'Caducidad', motivo: 'Motivo', tareas: 'Tareas', corralinas: 'Corralinas', detalle: 'Detalle', participantes: 'Participantes', animales: 'Animales' }[k] || k.replace(/_/g, ' '));
+    for (const k of new Set([...Object.keys(a || {}), ...Object.keys(d || {})])) {
+      if (META_C.includes(k)) continue;
+      if (k === 'datos') { const da = a.datos || {}, dd = d.datos || {}; for (const j of new Set([...Object.keys(da), ...Object.keys(dd)])) if (JSON.stringify(da[j]) !== JSON.stringify(dd[j])) out.push([nombre(j), ver(da[j]), ver(dd[j])]); continue; }
+      if (JSON.stringify(a[k]) !== JSON.stringify(d[k])) out.push([nombre(k), k === 'animales' ? ver((a[k] || []).map((i) => nombreA(animal(i)))) : ver(a[k]), k === 'animales' ? ver((d[k] || []).map((i) => nombreA(animal(i)))) : ver(d[k])]);
+    }
+    return out;
+  }
+  function vistaCorrecciones(sec) {
+    if (!esAdmin()) return vistaNoEncontrado();
+    const lista = S.correcciones.filter((c) => (sec === 'todas' ? true : !c.revisada));
+    const que = (c) => { const d = c.despues || {};
+      if (c.tabla === 'rum_eventos') return [`${nombreEvento(d)} de ${nombreA(animal(d.animal_id))} · ${fmt(d.fecha)}`, `#/animal/${d.animal_id}`];
+      if (c.tabla === 'rum_sanidad') return [`${L.TIPOS_SAN[d.tipo] || d.tipo}${d.producto ? ` · ${d.producto}` : ''} · ${fmt(d.fecha)}`, `#/sanidad/editar/${d.id}`];
+      if (c.tabla === 'rum_manejo') return [`${(d.tareas || []).map((t) => L.TAREAS[t] || t).join(' · ')} · ${fmt(d.fecha)}`, `#/manejo/editar/${d.id}`];
+      return [c.tabla, '']; };
+    const tarjeta = (c) => { const cam = cambiosCorr(c.antes, c.despues); const [txt, enl] = que(c);
+      return `<div class="evento"><div class="entre"><strong>${esc(TABLAS_CORR[c.tabla] || c.tabla)}</strong><span class="chip ${c.deshecha ? 'gris' : c.revisada ? '' : 'nar'}">${c.deshecha ? 'Deshecha' : c.revisada ? 'Revisada' : 'Sin revisar'}</span></div>
+        <div>${enl ? `<a href="${enl}">${esc(txt)}</a>` : esc(txt)}</div>
+        <div class="suave peq">Corrige <strong>${esc(quienEs(c.autor, c.autor_alias, c.curso))}</strong>${c.curso ? ` (${c.curso}.º)` : ''} · ${fechaHora(new Date(c.creado))} · registro original de ${esc(quienEs(c.antes.autor, c.antes.autor_alias, c.antes.curso))}</div>
+        ${cam.length ? `<table class="tabla"><thead><tr><th>Dato</th><th>Antes</th><th>Ahora</th></tr></thead><tbody>${cam.map(([k, x, y]) => `<tr><td>${esc(k)}</td><td>${esc(x)}</td><td><strong>${esc(y)}</strong></td></tr>`).join('')}</tbody></table>` : '<div class="suave">Sin cambios visibles.</div>'}
+        ${c.deshecha ? '' : `<div class="acciones">${c.revisada ? '' : `<button class="btn peq" type="button" data-rev="${c.id}">Correcta</button>`}<button class="btn peligro peq" type="button" data-deshacer="${c.id}">Deshacer</button></div>`}</div>`; };
+    pintar(`${cabecera({ volver: '#/mas', textoVolver: 'Más', titulo: 'Correcciones de alumnos' })}
+      <main class="cuerpo">
+        <div class="suave">Cada vez que un alumno cambia un registro que hizo otra persona en CIFEARUMI. «Correcta» la da por revisada; «Deshacer» devuelve el registro a como estaba. Las de porcino están en CIFEAPORC.</div>
+        ${S.faltaCorr ? '<div class="aviso-caja">Falta ejecutar en Supabase el archivo 06_porcino_correcciones.sql.</div>' : ''}
+        <div class="pestanas" role="tablist"><a role="tab" href="#/correcciones/pendientes" class="${sec !== 'todas' ? 'activo' : ''}">Sin revisar (${S.correcciones.filter((c) => !c.revisada).length})</a><a role="tab" href="#/correcciones/todas" class="${sec === 'todas' ? 'activo' : ''}">Todas</a></div>
+        ${sec !== 'todas' && lista.length > 1 ? '<button class="btn sec" type="button" id="rev-todas">Marcar todas como correctas</button>' : ''}
+        ${lista.length ? lista.map(tarjeta).join('') : '<div class="vacio">No hay correcciones pendientes.</div>'}
+      </main>${navegacion('mas')}`);
+    const marcar = async (ids) => { const { error } = await sb.from('correcciones').update({ revisada: true, revisada_en: new Date().toISOString() }).in('id', ids); if (error) { toast(traducirError(error)); return false; } return true; };
+    $app.querySelectorAll('[data-rev]').forEach((b) => b.addEventListener('click', async () => { b.disabled = true; if (await marcar([b.dataset.rev])) await refrescar(); else b.disabled = false; }));
+    const rt = document.getElementById('rev-todas'); if (rt) rt.addEventListener('click', async () => { rt.disabled = true; if (await marcar(lista.map((c) => c.id))) { toast('Revisadas'); await refrescar(); } });
+    $app.querySelectorAll('[data-deshacer]').forEach((b) => b.addEventListener('click', async () => {
+      if (b.dataset.confirmar !== '1') { b.dataset.confirmar = '1'; b.textContent = '¿Volver a como estaba? Pulsa otra vez'; return; }
+      const c = S.correcciones.find((x) => x.id === b.dataset.deshacer); b.disabled = true;
+      const fila = {}; for (const [k, x] of Object.entries(c.antes)) if (!META_C.includes(k)) fila[k] = x;
+      const { error } = await sb.from(c.tabla).update(fila).eq('id', c.registro_id);
+      if (error) { toast(traducirError(error)); b.disabled = false; return; }
+      await sb.from('correcciones').update({ revisada: true, deshecha: true, revisada_en: new Date().toISOString() }).eq('id', c.id);
+      toast('Corrección deshecha'); await refrescar();
+    }));
   }
 
   function vistaBaja(id) {
@@ -1021,10 +1113,10 @@
         <div class="lista">${lista.map((a) => `<a class="animal-fila" href="#/animal/${a.id}"><div><strong>${esc(nombreA(a))}</strong><div class="suave">${esc(catNombre(a.categoria))} · ${esc(nombreCorrCorto(ubic(a)))}</div>
           <div class="peq rojo">${ret[a.id].leche ? `Leche hasta ${fmt(ret[a.id].leche.hasta)}` : ''}${ret[a.id].leche && ret[a.id].carne ? ' · ' : ''}${ret[a.id].carne ? `Carne hasta ${fmt(ret[a.id].carne.hasta)}` : ''}</div></div>${chipRetirada(ret[a.id])}</a>`).join('') || '<div class="vacio">Ningún animal en tiempo de espera.</div>'}</div>`;
     } else {
-      cuerpo = `${esProf() ? `<a class="btn" href="#/medicamento/nuevo">${ICONOS.mas}Añadir producto</a>` : '<div class="suave">El catálogo lo mantienen el profesor y la veterinaria.</div>'}
+      cuerpo = `<a class="btn" href="#/medicamento/nuevo">${ICONOS.mas}Añadir producto</a><div class="suave peq">Toca un producto para ver su ficha técnica o completar sus datos.</div>
         <div class="suave">Catálogo común con CIFEAPORC. Aquí aparecen los productos marcados para cabras u ovejas, con sus tiempos de espera en pequeños rumiantes.</div>
-        <div class="lista">${S.medicamentos.filter((m) => m.activo !== false).map((m) => `<${esProf() ? `a href="#/medicamento/${m.id}"` : 'div'} class="animal-fila"><div><strong>${esc(m.nombre)}</strong><div class="suave">${esc(m.materia_activa || '')}${m.dosis ? ` · ${esc(m.dosis)}` : ''}${m.via ? ` · ${esc(m.via)}` : ''}</div>
-          <div class="suave peq">Espera: carne ${m.espera_carne_rum ?? '—'} d · leche ${m.espera_leche_rum ?? '—'} d</div></div><span class="chip gris">${esc((L.TIPOS_MED.find((t) => t[0] === m.tipo) || [0, m.tipo])[1])}</span></${esProf() ? 'a' : 'div'}>`).join('') || '<div class="vacio">Todavía no hay productos para rumiantes en el catálogo.</div>'}</div>`;
+        <div class="lista">${S.medicamentos.filter((m) => m.activo !== false).map((m) => `<a href="#/medicamento/${m.id}" class="animal-fila"><div><strong>${esc(m.nombre)}</strong><div class="suave">${esc(m.materia_activa || '')}${m.dosis ? ` · ${esc(m.dosis)}` : ''}${m.via ? ` · ${esc(m.via)}` : ''}</div>
+          <div class="suave peq">Espera: carne ${m.espera_carne_rum ?? '—'} d · leche ${m.espera_leche_rum ?? '—'} d</div></div><span class="chip ${m.ficha_url ? '' : 'gris'}">${m.ficha_url ? 'Ficha técnica' : esc((L.TIPOS_MED.find((t) => t[0] === m.tipo) || [0, m.tipo])[1])}</span></a>`).join('') || '<div class="vacio">Todavía no hay productos para rumiantes en el catálogo.</div>'}</div>`;
     }
     pintar(`${cabecera()}
       <main class="cuerpo">${faltaSQLCaja()}${faltaSQL3Caja()}
@@ -1048,7 +1140,7 @@
     const optMed = `<option value="">Otro (escribir)</option>${S.medicamentos.filter((m) => m.activo !== false || m.id === v.medicamento_id).map((m) => `<option value="${m.id}" ${v.medicamento_id === m.id ? 'selected' : ''}>${esc(m.nombre)}</option>`).join('')}`;
     const anim = (v.animales || []).map(animal).filter(Boolean);
     pintar(`${cabecera({ volver, textoVolver: ambitoPre === 'animal' ? 'Ficha' : 'Volver', titulo })}
-      <main class="cuerpo"><div id="msg"></div>
+      <main class="cuerpo">${modo === 'editar' && fila && fila.estado === 'realizado' ? avisoAjeno(fila) : ''}<div id="msg"></div>
         ${modo === 'realizar' ? '<div class="ok-caja">Revisa los datos, completa el lote del producto y pulsa «Guardar como hecho». Quedará validado a tu nombre.</div>' : ''}
         <form class="formu" id="f-san" novalidate>
           <div class="campo"><label for="tipo">Qué</label><select id="tipo" name="tipo">${Object.entries(L.TIPOS_SAN).map(([k, x]) => `<option value="${k}" ${v.tipo === k ? 'selected' : ''}>${x}</option>`).join('')}</select></div>
@@ -1132,26 +1224,29 @@
   }
 
   function vistaMedicamento(id) {
-    if (!esProf()) return vistaNoEncontrado('El catálogo lo mantienen el profesor y la veterinaria.');
     const m = id === 'nuevo' ? { especies: ['caprino', 'ovino'], tipo: 'medicamento' } : S.medicamentos.find((x) => x.id === id);
     if (!m) return vistaNoEncontrado();
     const nuevo = !m.id;
     const c = (n, l, tipo = 'text', extra = '') => `<div class="campo"><label for="m-${n}">${l}</label><input id="m-${n}" name="${n}" type="${tipo}" value="${esc(m[n] ?? '')}" ${extra}></div>`;
     pintar(`${cabecera({ volver: '#/sanidad/medicamentos', textoVolver: 'Productos', titulo: nuevo ? 'Añadir producto' : m.nombre })}
-      <main class="cuerpo"><div id="msg"></div><form class="formu" id="f-med" novalidate>
+      <main class="cuerpo">${m.ficha_url ? `<a class="btn" href="${esc(m.ficha_url)}" target="_blank" rel="noopener">Abrir la ficha técnica</a>` : ''}
+        ${!nuevo && (m.autor_alias || m.modificado_por) ? `<div class="suave peq">${m.autor_alias ? `Añadido por ${esc(verAlias(m.autor_alias))}` : ''}${m.autor_alias && m.modificado_por ? ' · ' : ''}${m.modificado_por ? `última modificación de ${esc(verAlias(m.modificado_por))}` : ''}</div>` : ''}
+        ${!nuevo && !esProf() ? '<div class="suave">Puedes completar o corregir los datos del producto (por ejemplo, el enlace a la ficha técnica). El profesor verá los cambios.</div>' : ''}
+        <div id="msg"></div><form class="formu" id="f-med" novalidate>
+        ${c('ficha_url', 'Enlace a la ficha técnica', 'url', 'placeholder="https://…" inputmode="url"')}
         ${c('nombre', 'Nombre comercial')}${c('materia_activa', 'Materia activa')}
         <div class="campo"><label for="m-tipo">Tipo</label><select id="m-tipo" name="tipo">${L.TIPOS_MED.map(([k, t]) => `<option value="${k}" ${(m.tipo || 'medicamento') === k ? 'selected' : ''}>${t}</option>`).join('')}</select></div>
         <div class="dos">${c('dosis', 'Dosificación', 'text', 'placeholder="1 ml / 10 kg"')}${c('via', 'Vía', 'text', 'placeholder="SC, IM, oral…"')}</div>
         <div class="dos">${c('espera_leche_rum', 'Espera leche, cabra/oveja (días)', 'number', 'min="0" inputmode="numeric"')}${c('espera_carne_rum', 'Espera carne, cabra/oveja (días)', 'number', 'min="0" inputmode="numeric"')}</div>
         <div class="campo"><span class="et">Para</span><div class="opciones">${[['caprino', 'Cabras'], ['ovino', 'Ovejas'], ['porcino', 'Cerdos']].map(([k, t]) => `<label><input type="checkbox" name="especies" value="${k}" ${(m.especies || []).includes(k) ? 'checked' : ''}> ${t}</label>`).join('')}</div></div>
-        ${c('presentacion', 'Presentación', 'text', 'placeholder="Frasco 100 ml…"')}${c('ficha_url', 'Enlace a la ficha técnica', 'url', 'placeholder="https://…" inputmode="url"')}
+        ${c('presentacion', 'Presentación', 'text', 'placeholder="Frasco 100 ml…"')}
         <div class="campo"><label for="m-notas">Notas</label><textarea id="m-notas" name="notas">${esc(m.notas || '')}</textarea></div>
-        ${nuevo ? '' : `<label class="check-todos"><input type="checkbox" name="activo" ${m.activo !== false ? 'checked' : ''}> En uso (desmárcalo para retirarlo sin perder el historial)</label>`}
+        ${nuevo || !esProf() ? '' : `<label class="check-todos"><input type="checkbox" name="activo" ${m.activo !== false ? 'checked' : ''}> En uso (desmárcalo para retirarlo sin perder el historial)</label>`}
         <button class="btn" type="submit">${nuevo ? 'Añadir' : 'Guardar cambios'}</button></form></main>${navegacion('sanidad')}`);
     document.getElementById('f-med').addEventListener('submit', async (ev) => {
       ev.preventDefault(); const x = new FormData(ev.target); const t = (k) => String(x.get(k) || '').trim() || null; const n = (k) => (x.get(k) === '' ? null : Number(x.get(k)));
       const fila = { nombre: t('nombre'), materia_activa: t('materia_activa'), tipo: x.get('tipo'), dosis: t('dosis'), via: t('via'), espera_leche_rum: n('espera_leche_rum'), espera_carne_rum: n('espera_carne_rum'), especies: x.getAll('especies'), presentacion: t('presentacion'), ficha_url: t('ficha_url'), notas: t('notas') };
-      if (!nuevo) fila.activo = x.get('activo') === 'on';
+      if (!nuevo && esProf()) fila.activo = x.get('activo') === 'on';
       if (!fila.nombre) { document.getElementById('msg').innerHTML = errorCaja('Falta el nombre comercial.'); return; }
       if (!fila.especies.length) { document.getElementById('msg').innerHTML = errorCaja('Marca para qué especies es.'); return; }
       if (fila.ficha_url && !/^https?:\/\//i.test(fila.ficha_url)) { document.getElementById('msg').innerHTML = errorCaja('El enlace debe empezar por https://'); return; }
@@ -1167,6 +1262,7 @@
         <a class="granja-card" href="#/manejo">${ICONOS.mapa}<div><strong>Manejo diario</strong><div class="suave">Limpieza, alimentación, agua, cama y ordeño por corralina</div></div>${ICONOS.flecha}</a>
         ${S.perfil.rol === 'veterinario' ? '' : `<a class="granja-card" href="#/actividad">${ICONOS.cuenta}<div><strong>${esProf() ? 'Actividad de los alumnos' : 'Mi actividad'}</strong><div class="suave">${esProf() ? 'Qué ha registrado cada alumno, por curso y fechas, para evaluar' : 'Todo lo que has registrado'}</div></div>${ICONOS.flecha}</a>`}
         <a class="granja-card" href="#/censo">${ICONOS.censo}<div><strong>Censo</strong><div class="suave">A cualquier fecha, por categoría y corralina; altas y bajas; Excel</div></div>${ICONOS.flecha}</a>
+        ${esAdmin() ? `<a class="granja-card" href="#/correcciones">${ICONOS.cuenta}<div><strong>Correcciones de alumnos</strong><div class="suave">${S.correcciones.filter((c) => !c.revisada).length} sin revisar · cambios de un alumno en registros de otros</div></div>${ICONOS.flecha}</a>` : ''}
         ${esProf() ? `<a class="granja-card" href="#/gestion">${ICONOS.gestion}<div><strong>Gestión</strong><div class="suave">Importar el censo y copia de seguridad${esAdmin() ? ', acceso por curso, veterinaria y alumnos' : ''}</div></div>${ICONOS.flecha}</a>` : ''}
         <a class="granja-card" href="#/cuenta">${ICONOS.cuenta}<div><strong>Tu cuenta</strong><div class="suave">${esProf() ? 'Contraseña' : 'PIN'} e instalación en el móvil</div></div>${ICONOS.flecha}</a>
         <a class="granja-card" href="#/granjas"><img src="img/logo-mini.jpg" alt=""><div><strong>Granjas del centro</strong><div class="suave">Ir a CIFEAPORC</div></div>${ICONOS.flecha}</a>
@@ -1229,7 +1325,7 @@
 
   function vistaManejo() {
     const dias = [...new Set(S.manejo.map((m) => m.fecha))].slice(0, 14);
-    const tarj = (m) => { const puede = esProf() || (m.autor === uid() && Date.now() - new Date(m.creado).getTime() < 864e5);
+    const tarj = (m) => { const puede = true; // cualquiera corrige; borrar, lo suyo (en el formulario)
       return `<${puede ? `a href="#/manejo/editar/${m.id}"` : 'div'} class="evento ${puede ? 'enlace' : ''}"><div class="entre"><strong>${m.tareas.map((t) => esc(L.TAREAS[t] || t)).join(' · ')}</strong><span class="suave peq">${esc(m.corralinas.map((c) => nombreCorrCorto(c)).join(', ') || 'Toda la granja')}</span></div>
         ${m.detalle ? `<div>${esc(m.detalle)}</div>` : ''}<div class="suave peq">${m.participantes && !esVet() ? `${esc(m.participantes)} · ` : ''}anotado por ${esc(quienEs(m.autor, m.autor_alias, m.curso))}${esVet() ? '' : ` (${curso(m.curso)})`}</div></${puede ? 'a' : 'div'}>`; };
     pintar(`${cabecera()}
@@ -1246,7 +1342,7 @@
     const v = m || { fecha: hoy(), corralinas: [], tareas: [], participantes: yo() };
     const naves = [...new Set(S.corralinas.map((c) => c.nave))];
     pintar(`${cabecera({ volver: '#/manejo', textoVolver: 'Manejo', titulo: m ? 'Corregir manejo' : 'Anotar manejo' })}
-      <main class="cuerpo"><div id="msg"></div>
+      <main class="cuerpo">${avisoAjeno(m)}<div id="msg"></div>
         <form class="formu" id="f-man" novalidate>
           <div class="campo"><label for="fecha">Fecha</label><input id="fecha" name="fecha" type="date" value="${v.fecha}" max="${hoy()}"></div>
           <fieldset><legend>Qué se ha hecho</legend><div class="opciones">${Object.entries(L.TAREAS).map(([k, t]) => `<label><input type="checkbox" name="tarea" value="${k}" ${v.tareas.includes(k) ? 'checked' : ''}> ${t}</label>`).join('')}</div></fieldset>
@@ -1255,7 +1351,7 @@
           <div class="campo"><label for="detalle">Detalle (ración, incidencias…)</label><textarea id="detalle" name="detalle" placeholder="Ej.: 1,5 kg de pienso por cabra + paja a voluntad">${esc(v.detalle || '')}</textarea></div>
           ${esVet() && m ? '' : '<div class="campo">'}<label for="participantes" ${esVet() && m ? 'hidden' : ''}>Quiénes lo han hecho</label><input id="participantes" name="participantes" type="${esVet() && m ? 'hidden' : 'text'}" value="${esc(v.participantes || '')}">${esVet() && m ? '' : '</div>'}
           <button class="btn" type="submit">Guardar</button></form>
-        ${m ? '<button class="btn peligro" type="button" id="b-borrar-man">Borrar</button>' : ''}
+        ${m && (esProf() || (m.autor === uid() && Date.now() - new Date(m.creado).getTime() < 864e5)) ? '<button class="btn peligro" type="button" id="b-borrar-man">Borrar</button>' : ''}
       </main>${navegacion('mas')}`);
     document.getElementById('f-man').addEventListener('submit', async (ev) => {
       ev.preventDefault(); const x = new FormData(ev.target);
@@ -1628,6 +1724,8 @@
       case 'animal': return vistaFicha(a);
       case 'trasladar': return vistaTrasladar(a);
       case 'nota': return vistaNota(a, b);
+      case 'corregir': return vistaCorregirEv(a, b);
+      case 'correcciones': return vistaCorrecciones(a || 'pendientes');
       case 'baja': return vistaBaja(a);
       case 'alta': return vistaFormAnimal(null);
       case 'editar': return vistaFormAnimal(a);
