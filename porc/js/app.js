@@ -31,7 +31,13 @@
   const verracoPorId = (id) => S.verracos.find((v) => v.id === id);
   const nombreVerraco = (d) => { const v = verracoPorId(d && d.verraco); return v ? v.crotal : (d && d.verraco_crotal) || 'no anotado'; };
   // "Juan G. (A07)" si hay nombre; si no, el alias.
-  const quienEs = (userId, alias) => { const p = S.nombres[userId]; return p && p.nombre ? `${p.nombre} (${p.alias})` : (alias || (p && p.alias) || '?'); };
+  // La veterinaria no ve a los alumnos: «un alumno de 2.º» en lugar de su alias.
+  const esVet = () => S.perfil && S.perfil.rol === 'veterinario';
+  const aliasPersonal = () => new Set(Object.values(S.nombres).filter((p) => p.rol !== 'alumno' && p.alias).map((p) => p.alias).concat(S.perfil ? [S.perfil.alias] : []));
+  const verAlias = (alias, cursoN) => (!esVet() || !alias || aliasPersonal().has(alias) ? alias : `un alumno${cursoN ? ` de ${cursoN}.º` : ''}`);
+  const quienEs = (userId, alias) => { const p = S.nombres[userId];
+    if (esVet() && (!p || p.rol === 'alumno')) return verAlias(alias, p && p.granja_id) || '?';
+    return p && p.nombre ? `${p.nombre} (${p.alias})` : (alias || (p && p.alias) || '?'); };
   const yo = () => (S.perfil.nombre ? `${S.perfil.nombre} (${S.perfil.alias})` : S.perfil.alias);
   const faseNombre = (id) => (L.FASES.find((f) => f.id === id) || {}).nombre || id;
 
@@ -195,7 +201,7 @@
         <div class="foto logo"><img src="img/logo.jpg" alt="Logotipo CIFEAPORC, chato murciano"></div>
         <div class="entre"><h1 style="font-size:22px">Hoy, ${DIAS_SEM[d.getDay()]} ${d.getDate()} ${MESES[d.getMonth()]}</h1>
           <span class="suave">${lista.length + avSan.length + avDosis.length} ${lista.length + avSan.length + avDosis.length === 1 ? 'aviso' : 'avisos'}</span></div>
-        ${esAdmin() && (!S.ultimaCopia || Date.now() - S.ultimaCopia > 30 * 864e5) ? `<a class="tarjeta enlace" href="#/admin/granja" style="border-color:var(--naranja-borde)"><div class="entre"><strong>Haz una copia de seguridad</strong><span class="chip nar">Profesor</span></div><div class="suave">${S.ultimaCopia ? `La última es del ${fechaHora(S.ultimaCopia)}` : 'Aún no has descargado ninguna desde este dispositivo'} · Gestión → Granja</div></a>` : ''}
+        ${esProf() && (!S.ultimaCopia || Date.now() - S.ultimaCopia > 30 * 864e5) ? `<a class="tarjeta enlace" href="#/admin/granja" style="border-color:var(--naranja-borde)"><div class="entre"><strong>Haz una copia de seguridad</strong><span class="chip nar">Profesor</span></div><div class="suave">${S.ultimaCopia ? `La última es del ${fechaHora(S.ultimaCopia)}` : 'Aún no has descargado ninguna desde este dispositivo'} · Gestión → Granja</div></a>` : ''}
         ${tarjetasExtra}${tarjetas || (tarjetasExtra ? '' : '<div class="vacio">No hay avisos para hoy.</div>')}
         <div class="tarjeta"><h2>Cerdas por fase</h2>
           <div class="opciones">${L.FASES.map((f) => `<span class="chip ${recuento[f.id] ? '' : 'gris'}">${f.nombre}: ${recuento[f.id] || 0}</span>`).join('')}</div>
@@ -948,7 +954,7 @@
         ${S.faltaSQL07 ? `<div class="aviso-caja">${esProf() ? 'Ejecuta en Supabase el archivo 07_censo_alumnos.sql para ver quién da cada alta y baja.' : 'Avisa al profesor: falta preparar la base de datos.'}</div>` : ''}
         <div class="botones"><a class="btn sec peq" href="#/censo/cerda/nueva">${ICONOS.mas}Alta de cerda</a><a class="btn sec peq" href="#/censo/verraco/nuevo">${ICONOS.mas}Alta de verraco</a></div>
         <section class="tarjeta"><h2>Últimos movimientos</h2>${S.censoMov.length ? S.censoMov.map((m) => `<a class="cerda-fila" href="#/${m.animal}/${m.animal_id}"><div><strong>${esc(m.crotal)}</strong> <span class="suave">${m.animal === 'verraco' ? '(verraco)' : ''}</span>
-            <div class="suave">${fmt(m.fecha)}${m.causa ? ` · ${esc(m.causa)}` : ''} · ${esc(m.autor_alias || 'Profesor')}${m.granja_id ? ` (${m.granja_id}.º)` : ''}</div></div><span class="chip ${nombreMov[m.mov][1]}">${nombreMov[m.mov][0]}</span></a>`).join('') : '<div class="suave">Aún no hay movimientos registrados.</div>'}</section>
+            <div class="suave">${fmt(m.fecha)}${m.causa ? ` · ${esc(m.causa)}` : ''} · ${esc(verAlias(m.autor_alias, m.granja_id) || 'Profesor')}${m.granja_id && !esVet() ? ` (${m.granja_id}.º)` : ''}</div></div><span class="chip ${nombreMov[m.mov][1]}">${nombreMov[m.mov][0]}</span></a>`).join('') : '<div class="suave">Aún no hay movimientos registrados.</div>'}</section>
         <section class="tarjeta"><h2>Animales dados de baja (${bajasC.length + bajasV.length})</h2>${[...bajasC.map((c) => ['cerda', c]), ...bajasV.map((c) => ['verraco', c])].sort((a, b) => (a[1].fecha_baja < b[1].fecha_baja ? 1 : -1)).map(([t, c]) =>
           `<a class="cerda-fila" href="#/censo/${t}/${c.id}"><div><strong>${esc(c.crotal)}</strong> <span class="suave">${t === 'verraco' ? '(verraco)' : ''}</span><div class="suave">${fmt(c.fecha_baja)} · ${esc(c.causa_baja || '')}${c.baja_por ? ` · ${esc(c.baja_por)}` : ''}</div></div>${esProf() ? '<span class="chip gris">Anular</span>' : ''}</a>`).join('') || '<div class="suave">Ninguno.</div>'}</section>
       </main>${navegacion('cerdas')}`);
@@ -1012,7 +1018,7 @@
       <div>${esc(destinoSan(r))}${r.producto ? ` · ${esc(r.producto)}` : ''}${r.dosis ? ` · ${esc(r.dosis)}` : ''}${r.via ? ` · ${esc(r.via)}` : ''}</div>
       ${r.motivo ? `<div class="suave">Motivo: ${esc(r.motivo)}</div>` : ''}${r.obs ? `<div class="suave">${esc(r.obs)}</div>` : ''}
       ${r.supresion_hasta && r.estado === 'realizado' ? `<div class="suave">Supresión hasta el ${fmt(r.supresion_hasta)}</div>` : ''}
-      <div class="suave peq">${r.estado === 'realizado' ? `Realizado por ${esc(r.realizado_por || quienEs(r.autor, r.autor_alias))}` : `Programado por ${esc(quienEs(r.autor, r.autor_alias))}`}${r.repetir_dias ? ` · se repite cada ${r.repetir_dias} días` : ''}${med && med.ficha_url ? ` · <a href="${esc(med.ficha_url)}" target="_blank" rel="noopener">Ficha técnica</a>` : ''}</div>
+      <div class="suave peq">${r.estado === 'realizado' ? `Realizado por ${esc(verAlias(r.realizado_por) || quienEs(r.autor, r.autor_alias))}` : `Programado por ${esc(quienEs(r.autor, r.autor_alias))}`}${r.repetir_dias ? ` · se repite cada ${r.repetir_dias} días` : ''}${med && med.ficha_url ? ` · <a href="${esc(med.ficha_url)}" target="_blank" rel="noopener">Ficha técnica</a>` : ''}</div>
       <div class="acciones">${r.estado === 'previsto' ? `<a class="btn peq" href="#/sanidad/realizar/${r.id}">Marcar como hecho</a>` : ''}
         ${puedeEditarSan(r) ? `<a class="btn sec peq" href="#/sanidad/editar/${r.id}">Corregir</a><button class="btn peligro peq" type="button" data-borrar-san="${r.id}">Borrar</button>` : ''}</div></div>`;
   }
@@ -1416,8 +1422,8 @@
 
   function vistaAdmin(seccion = 'censo', extra) {
     if (!esProf()) return vistaNoEncontrado();
-    if (!esAdmin() && seccion !== 'censo') seccion = 'censo';
-    const pest = `<div class="pestanas" role="tablist">${(esAdmin() ? [['censo', 'Censo'], ['alumnos', 'Alumnos'], ['granja', 'Granja']] : [['censo', 'Censo']]).map(([id, t]) =>
+    if (!esAdmin() && seccion === 'alumnos') seccion = 'censo';
+    const pest = `<div class="pestanas" role="tablist">${(esAdmin() ? [['censo', 'Censo'], ['alumnos', 'Alumnos'], ['granja', 'Granja']] : [['censo', 'Censo'], ['granja', 'Granja']]).map(([id, t]) =>
       `<a role="tab" href="#/admin/${id}" class="${seccion === id ? 'activo' : ''}" aria-selected="${seccion === id}">${t}</a>`).join('')}</div>`;
     let cuerpo = '';
     if (seccion === 'censo') cuerpo = adminCenso(extra);
@@ -1426,7 +1432,7 @@
       else cuerpo = adminAlumnos(extra);
     }
     if (seccion === 'granja') cuerpo = adminGranja(extra);
-    pintar(`${cabecera({ prof: true })}<main class="cuerpo"><h1 style="font-size:22px">${esAdmin() ? 'Gestión del profesor' : 'Censo'}</h1>${pest}${cuerpo}</main>${navegacion('admin')}`);
+    pintar(`${cabecera({ prof: true })}<main class="cuerpo"><h1 style="font-size:22px">Gestión${esAdmin() ? ' del profesor' : ' de la granja'}</h1>${pest}${cuerpo}</main>${navegacion('admin')}`);
     enlazarAdmin(seccion);
   }
 
@@ -1634,6 +1640,10 @@
     boton.disabled = true; estado.innerHTML = '<div class="ok-caja">Preparando la copia…</div>';
     try {
       const T = await leerTodo();
+      if (esVet()) {
+        T.perfiles = T.perfiles.filter((p) => p.rol !== 'alumno');
+        for (const filas of Object.values(T)) if (Array.isArray(filas)) for (const r of filas) for (const k of ['autor_alias', 'realizado_por', 'alta_por', 'baja_por', 'modificado_por']) if (r && r[k]) r[k] = verAlias(r[k], k === 'autor_alias' ? r.granja_id : null);
+      }
       const sello = new Date(); const fichero = `CIFEAPORC_copia_${sello.getFullYear()}-${dos(sello.getMonth() + 1)}-${dos(sello.getDate())}_${dos(sello.getHours())}${dos(sello.getMinutes())}`;
       // Nunca se exportan contraseñas ni PIN (no están en estas tablas).
       const perfiles = T.perfiles.map(({ user_id, alias, nombre, rol, granja_id, activo, creado }) => ({ user_id, alias, nombre: nombre ?? null, rol, granja_id, activo, creado }));
@@ -1681,9 +1691,9 @@
 
   function adminGranja() {
     return `<section class="tarjeta"><h2>Copia de seguridad</h2>
-        <div class="suave">Descarga todos los datos de la granja de porcino: censo, historial completo y alumnos (sin PIN). Guárdala en tu ordenador o en OneDrive. Recomendado: al final de cada mes y de cada trimestre.</div>
+        <div class="suave">${esVet() ? 'Descarga los datos de la granja de porcino: censo e historial completo (los alumnos aparecen sin alias).' : 'Descarga todos los datos de la granja de porcino: censo, historial completo y alumnos (sin PIN).'} Guárdala en tu ordenador o en OneDrive. Recomendado: al final de cada mes y de cada trimestre.</div>
         ${S.ultimaCopia ? `<div class="ok-caja">Última copia descargada: ${fechaHora(S.ultimaCopia)}</div>` : ''}
-        <div class="botones"><button class="btn" type="button" data-accion="copia-excel">Descargar Excel</button><button class="btn sec" type="button" data-accion="copia-json">Archivo para restaurar</button></div>
+        <div class="botones"><button class="btn" type="button" data-accion="copia-excel">Descargar Excel</button>${esVet() ? '' : '<button class="btn sec" type="button" data-accion="copia-json">Archivo para restaurar</button>'}</div>
         <div class="suave peq">El Excel sirve para consultar y trabajar con los datos. El «archivo para restaurar» (.json) contiene lo mismo en un formato que permite volver a cargarlo si algún día se pierde la base de datos.</div>
         <div id="estado-copia" aria-live="polite"></div></section>
       <div class="foto"><img src="img/granja.jpg" alt="Vista aérea de la granja porcina"></div>

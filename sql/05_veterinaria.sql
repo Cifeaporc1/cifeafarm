@@ -2,11 +2,11 @@
 -- CIFEAFARM · Perfil VETERINARIA (las dos granjas)
 -- Pegar entero en Supabase → SQL Editor → New query → Run. Repetible.
 --
--- La veterinaria puede lo mismo que el profesor con animales y registros
--- (corregir y borrar cualquier registro, datos de los animales, bajas,
--- partos, catálogo de productos). Solo el profesor: alumnos (cuentas, PIN,
--- nombres), acceso por curso, importar el censo, borrar animales y la
--- actividad de los alumnos. La veterinaria ve a los alumnos solo por su alias.
+-- La veterinaria puede lo mismo que el profesor con animales, registros,
+-- catálogo de productos y gestión de la granja (importar el censo, copias,
+-- corralinas, acceso por curso, borrar animales). Solo el profesor: los
+-- alumnos (cuentas, PIN, nombres) y su actividad. La veterinaria no ve a
+-- los alumnos: ni sus nombres ni sus alias.
 --
 -- Para dar de alta a la veterinaria, ver el final de este archivo.
 -- =====================================================================
@@ -42,11 +42,12 @@ create policy perfiles_ver on public.perfiles for select to authenticated using 
 create policy perfiles_alta on public.perfiles for insert to authenticated with check (public.es_admin());
 create policy perfiles_cambio on public.perfiles for update to authenticated using (public.es_admin()) with check (public.es_admin());
 
+-- Gestión de la granja: profesor y veterinaria.
 drop policy if exists granjas_cambio on public.granjas;
-create policy granjas_cambio on public.granjas for update to authenticated using (public.es_admin()) with check (public.es_admin());
+create policy granjas_cambio on public.granjas for update to authenticated using (public.es_profesor()) with check (public.es_profesor());
 
 drop policy if exists rum_animales_borrado on public.rum_animales;
-create policy rum_animales_borrado on public.rum_animales for delete to authenticated using (public.es_admin());
+create policy rum_animales_borrado on public.rum_animales for delete to authenticated using (public.es_profesor());
 
 create or replace function public.restablecer_pin(p_user uuid, p_pin text)
 returns void language plpgsql security definer
@@ -75,11 +76,13 @@ end $$;
 revoke all on function public.cerrar_curso() from public, anon;
 grant execute on function public.cerrar_curso() to authenticated;
 
--- Nombres: el profesor ve todos; cada alumno, los de su curso; la veterinaria, solo alias.
+-- Nombres y alias: el profesor ve todos; cada alumno, los de su curso;
+-- la veterinaria, a los profesores (de los alumnos solo su curso, sin alias ni nombre).
 create or replace function public.nombres_visibles()
 returns table (user_id uuid, alias text, nombre text, rol text, granja_id smallint)
 language sql stable security definer set search_path = public as $$
-  select p.user_id, p.alias,
+  select p.user_id,
+         case when public.es_admin() or p.rol <> 'alumno' or p.granja_id = public.mi_granja() then p.alias end,
          case when public.es_admin() or p.rol <> 'alumno' or p.granja_id = public.mi_granja() then p.nombre end,
          p.rol, p.granja_id
   from perfiles p

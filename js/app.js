@@ -28,7 +28,13 @@
   const rolNombre = () => (S.perfil.rol === 'veterinario' ? 'Veterinaria' : S.perfil.rol === 'profesor' ? 'Profesor' : 'Alumno');
   const uid = () => S.sesion && S.sesion.user.id;
   const yo = () => (S.perfil.nombre ? `${S.perfil.nombre} (${S.perfil.alias})` : S.perfil.alias);
-  const quienEs = (userId, alias) => { const p = S.nombres[userId]; return p && p.nombre ? `${p.nombre} (${p.alias})` : (alias || (p && p.alias) || '?'); };
+  // La veterinaria no ve a los alumnos: «un alumno de 2.º» en lugar de su alias.
+  const esVet = () => S.perfil && S.perfil.rol === 'veterinario';
+  const aliasPersonal = () => new Set(Object.values(S.nombres).filter((p) => p.rol !== 'alumno' && p.alias).map((p) => p.alias).concat(S.perfil ? [S.perfil.alias] : []));
+  const verAlias = (alias, cursoN) => (!esVet() || !alias || aliasPersonal().has(alias) ? alias : `un alumno${cursoN ? ` de ${cursoN}.º` : ''}`);
+  const quienEs = (userId, alias, cursoN) => { const p = S.nombres[userId];
+    if (esVet() && (!p || p.rol === 'alumno')) return verAlias(alias, cursoN || (p && p.granja_id)) || '?';
+    return p && p.nombre ? `${p.nombre} (${p.alias})` : (alias || (p && p.alias) || '?'); };
   const curso = (g) => (g ? `${g}.º` : 'profesor');
   const animal = (id) => S.animales.find((a) => a.id === id);
   const activos = () => S.animales.filter((a) => !a.fecha_baja);
@@ -118,7 +124,7 @@
       S.medicamentos = rm.error ? [] : rm.data.filter((m) => !m.especies || m.especies.includes('caprino') || m.especies.includes('ovino')); }
     S.porAnimal = {};
     for (const ev of S.eventos) (S.porAnimal[ev.animal_id] = S.porAnimal[ev.animal_id] || []).push(ev);
-    if (esAdmin()) { const g = await sb.from('granjas').select('*').order('id'); S.cursos = g.error ? [] : g.data; }
+    if (esProf()) { const g = await sb.from('granjas').select('*').order('id'); S.cursos = g.error ? [] : g.data; }
     const nv = await sb.rpc('nombres_visibles');
     S.nombres = {};
     if (!nv.error && Array.isArray(nv.data)) for (const p of nv.data) S.nombres[p.user_id] = p;
@@ -264,8 +270,8 @@
         ${(() => { const av = S.faltaSQL2 ? [] : L.avisosRepro(S.animales, S.lotes, ctxR, hoy()); return av.length ? `<section class="tarjeta"><h2>Avisos</h2>${av.map((x) => `<a class="evento enlace" href="${x.enlace}"><div class="entre"><strong>${esc(x.titulo)}</strong><span class="chip ${x.nivel === 'urgente' ? 'nar' : x.nivel === 'info' ? 'gris' : ''}">${x.nivel === 'urgente' ? 'Hoy' : x.nivel === 'info' ? 'En curso' : corta(x.fecha)}</span></div><div class="suave peq">${esc(x.detalle)}</div></a>`).join('')}</section>` : '<div class="vacio">No hay avisos de reproducción para hoy.</div>'; })()}
         ${porRevisar.length ? `<a class="tarjeta enlace" href="#/animales/revisar" style="border-color:var(--naranja-borde)"><div class="entre"><strong>Datos por completar</strong><span class="chip nar">${porRevisar.length}</span></div>
           <div class="suave">Crotales de 14 cifras, animales sin collar o cabras sin capa. Corrígelos desde la ficha de cada animal.</div></a>` : ''}
-        ${esAdmin() && (!S.ultimaCopia || Date.now() - S.ultimaCopia > 30 * 864e5) && act.length ? `<a class="tarjeta enlace" href="#/gestion" style="border-color:var(--naranja-borde)"><div class="entre"><strong>Haz una copia de seguridad</strong><span class="chip nar">Profesor</span></div><div class="suave">${S.ultimaCopia ? `La última es del ${fechaHora(S.ultimaCopia)}` : 'Aún no has descargado ninguna desde este dispositivo'} · Gestión</div></a>` : ''}
-        ${act.length === 0 && !S.faltaSQL ? `<div class="vacio">Aún no hay animales en el censo.${esAdmin() ? ' Impórtalos desde <a href="#/gestion">Gestión → Importar censo</a> o da de alta uno a uno.' : ''}</div>` : ''}
+        ${esProf() && (!S.ultimaCopia || Date.now() - S.ultimaCopia > 30 * 864e5) && act.length ? `<a class="tarjeta enlace" href="#/gestion" style="border-color:var(--naranja-borde)"><div class="entre"><strong>Haz una copia de seguridad</strong><span class="chip nar">Profesor</span></div><div class="suave">${S.ultimaCopia ? `La última es del ${fechaHora(S.ultimaCopia)}` : 'Aún no has descargado ninguna desde este dispositivo'} · Gestión</div></a>` : ''}
+        ${act.length === 0 && !S.faltaSQL ? `<div class="vacio">Aún no hay animales en el censo.${esProf() ? ' Impórtalos desde <a href="#/gestion">Gestión → Importar censo</a> o da de alta uno a uno.' : ''}</div>` : ''}
         <div class="botones"><a class="btn" href="#/animales">${ICONOS.animales}Buscar animal</a><a class="btn sec" href="#/mapa">${ICONOS.mapa}Mapa</a></div>
         <section class="tarjeta"><h2>Últimos registros</h2>
           ${recientes.map((e) => { const a = animal(e.animal_id); return `<a class="evento enlace" href="#/animal/${e.animal_id}"><div class="entre"><strong>${esc(nombreA(a))} · ${esc(nombreEvento(e))}</strong><span class="suave">${fmt(e.fecha)}</span></div><div class="suave peq">${resumenEvento(e)} · ${esc(quienEs(e.autor, e.autor_alias))}</div></a>`; }).join('') || '<div class="suave">Todavía no hay registros.</div>'}
@@ -394,7 +400,7 @@
       case 'datos': return Object.entries(d.cambios || {}).map(([k, [a, b]]) => `${esc(CAMPOS[k] || k)}: ${esc(valorCampo(k, a))} → ${esc(valorCampo(k, b))}`).join(' · ');
       case 'traslado': return `${esc(nombreCorrCorto(d.de))} → <strong>${esc(nombreCorrCorto(d.a))}</strong>${d.lote && loteDe(d.lote) ? ` · ${esc(loteDe(d.lote).nombre)}` : ''}`;
       case 'eco': return `${d.resultado === 'vacia' ? 'Vacía' : `<strong>Gestante</strong>${d.fetos ? ` · ${esc(d.fetos)} ${+d.fetos === 1 ? 'feto' : 'fetos'}` : ''}`}${d.lote && loteDe(d.lote) ? ` · ${esc(loteDe(d.lote).nombre)}` : ''}`;
-      case 'parto': return `${esc(TIPO_PARTO[d.tipo] || 'Normal')} · <strong>${+d.vivas || 0} ${+d.vivas === 1 ? 'viva' : 'vivas'}</strong>${+d.muertas ? ` · ${d.muertas} ${+d.muertas === 1 ? 'muerta' : 'muertas'}` : ''}${(d.crias || []).length ? ` · ${(d.crias || []).map((x) => esc(nombreA(animal(x)))).join(', ')}` : ''}${d.asistentes ? ` · asistieron ${esc(d.asistentes)}` : ''}`;
+      case 'parto': return `${esc(TIPO_PARTO[d.tipo] || 'Normal')} · <strong>${+d.vivas || 0} ${+d.vivas === 1 ? 'viva' : 'vivas'}</strong>${+d.muertas ? ` · ${d.muertas} ${+d.muertas === 1 ? 'muerta' : 'muertas'}` : ''}${(d.crias || []).length ? ` · ${(d.crias || []).map((x) => esc(nombreA(animal(x)))).join(', ')}` : ''}${d.asistentes && !esVet() ? ` · asistieron ${esc(d.asistentes)}` : ''}`;
       case 'encalostrado': return esc(d.resultado || 'Correcto');
       case 'inicio_ordeno': return 'Empieza a ordeñarse';
       case 'destete': return `${d.peso ? `${esc(d.peso)} kg · ` : ''}${esc(d.destino || '')}`;
@@ -420,14 +426,14 @@
     const evs = (S.porAnimal[a.id] || []).slice().sort(L.porFecha).reverse();
     const tarjetaEv = (e) => `<div class="evento"><div class="entre"><strong>${esc(nombreEvento(e))}</strong><span class="suave">${fmt(e.fecha)}</span></div>
       <div>${resumenEvento(e)}</div>${e.datos && e.datos.obs ? `<div class="suave">${esc(e.datos.obs)}</div>` : ''}
-      <div class="suave peq">${e.datos && e.datos.importado ? 'Importado del Excel' : `Por ${esc(quienEs(e.autor, e.autor_alias))} (${curso(e.curso)})`}${e.modificado ? ` · corregido por ${esc(e.modificado_por || '?')}` : ''}</div>
+      <div class="suave peq">${e.datos && e.datos.importado ? 'Importado del Excel' : `Por ${esc(quienEs(e.autor, e.autor_alias, e.curso))}${esVet() ? '' : ` (${curso(e.curso)})`}`}${e.modificado ? ` · corregido por ${esc(verAlias(e.modificado_por) || '?')}` : ''}</div>
       ${e.tipo === 'parto' && esProf() ? `<div class="acciones"><button class="btn peligro peq" type="button" data-borrar-parto="${e.id}">Borrar parto</button></div>` : ''}
       ${puedeEditarEv(e) && !AUTO.includes(e.tipo) ? `<div class="acciones">${e.tipo === 'nota' ? `<a class="btn sec peq" href="#/nota/${a.id}/${e.id}">Corregir</a>` : ''}<button class="btn peligro peq" type="button" data-borrar="${e.id}">Borrar</button></div>` : ''}</div>`;
     const historial = evs.slice(0, 10).map(tarjetaEv).join('') + (evs.length > 10 ? `<details><summary class="suave" style="min-height:44px;display:flex;align-items:center">Ver ${evs.length - 10} registros anteriores</summary>${evs.slice(10).map(tarjetaEv).join('')}</details>` : '');
     const ident = [a.crotal ? `Crotal ${esc(a.crotal)}` : null, a.manejo && a.codigo_cria ? `antes ${esc(a.codigo_cria)}` : null].filter(Boolean).join(' · ');
     pintar(`${cabecera({ volver: '#/animales', textoVolver: 'Animales', titulo: nombreA(a), sub: `${esc(catNombre(a.categoria))} · ${esc(raza(a))}${ident ? ` · ${ident}` : ''}` })}
       <main class="cuerpo">
-        ${a.fecha_baja ? `<div class="error-caja"><strong>Dado de baja el ${fmt(a.fecha_baja)}</strong> · ${esc(a.causa_baja)}${a.destino_baja ? ` · ${esc(a.destino_baja)}` : ''}${a.baja_por ? ` · por ${esc(a.baja_por)}` : ''}</div>` : ''}
+        ${a.fecha_baja ? `<div class="error-caja"><strong>Dado de baja el ${fmt(a.fecha_baja)}</strong> · ${esc(a.causa_baja)}${a.destino_baja ? ` · ${esc(a.destino_baja)}` : ''}${a.baja_por ? ` · por ${esc(verAlias(a.baja_por))}` : ''}</div>` : ''}
         ${rev.length ? `<div class="aviso-caja"><strong>Por completar:</strong> ${esc(rev.join(' · '))}. <a href="#/editar/${a.id}">Corregir datos</a></div>` : ''}
         <div class="dos"><div class="dato ${a.especie === 'ovino' ? 'ovi' : ''}"><span class="et">Ubicación</span><span class="val peq-val">${esc(a.fecha_baja ? '—' : nombreCorrCorto(u))}</span><span class="nota">${a.fecha_baja ? '' : esc((corralina(u) || {}).uso || '')}</span></div>
           <div class="dato gris"><span class="et">Edad</span><span class="val peq-val">${esc(L.edad(a, h))}</span><span class="nota">${a.fecha_nacimiento ? `Nació el ${fmt(a.fecha_nacimiento)}` : a.anio_nacimiento ? `Año ${a.anio_nacimiento}` : 'Fecha sin anotar'}</span></div></div>
@@ -449,14 +455,14 @@
           ${a.especie === 'caprino' ? `<div><span>Capa</span><span>${esc(a.capa ? L.CAPAS[a.capa] : '—')}</span></div>` : ''}
           <div><span>Origen</span><span>${esc(a.origen ? L.ORIGENES[a.origen] : '—')}</span></div>
           ${a.peso_nacimiento ? `<div><span>Peso al nacer</span><span>${esc(a.peso_nacimiento)} kg</span></div>` : ''}
-          <div><span>Alta en el censo</span><span>${fmt(a.fecha_alta)}${a.alta_por ? ` · ${esc(a.alta_por)}` : ''}</span></div>
+          <div><span>Alta en el censo</span><span>${fmt(a.fecha_alta)}${a.alta_por ? ` · ${esc(verAlias(a.alta_por))}` : ''}</span></div>
           ${a.obs ? `<div><span>Observaciones</span><span>${esc(a.obs)}</span></div>` : ''}</div></section>
         <section class="tarjeta"><h2>Familia</h2><div class="filas">
           <div><span>Madre</span><span>${madre ? `<a href="#/animal/${madre.id}">${esc(nombreA(madre))}</a>` : esc(a.madre_txt || '—')}</span></div>
           <div><span>Padre</span><span>${padre ? `<a href="#/animal/${padre.id}">${esc(nombreA(padre))}</a>` : esc(a.padre_txt || '—')}</span></div></div>
           ${crias.length ? `<div class="suave peq" style="font-weight:700;margin-top:4px">CRÍAS (${crias.length})</div><div class="lista">${crias.map((x) => `<a class="animal-fila mini" href="#/animal/${x.id}"><div><strong>${esc(nombreA(x))}</strong><div class="suave">${esc(catNombre(x.categoria))} · ${fmt(x.fecha_nacimiento)}</div></div>${x.fecha_baja ? '<span class="chip gris">Baja</span>' : chipCat(x)}</a>`).join('')}</div>` : ''}</section>
         <section class="tarjeta"><h2>Historial</h2>${historial || '<div class="suave">Sin registros.</div>'}</section>
-        ${esAdmin() ? '<details class="tarjeta"><summary class="suave">Borrar el animal (solo si es un error)</summary><p class="suave">Borra el animal y todo su historial. Para un animal vendido o muerto, usa «Dar de baja».</p><button class="btn peligro" type="button" id="b-borrar-animal">Borrar definitivamente</button></details>' : ''}
+        ${esProf() ? '<details class="tarjeta"><summary class="suave">Borrar el animal (solo si es un error)</summary><p class="suave">Borra el animal y todo su historial. Para un animal vendido o muerto, usa «Dar de baja».</p><button class="btn peligro" type="button" id="b-borrar-animal">Borrar definitivamente</button></details>' : ''}
       </main>${navegacion('animales')}`);
     $app.querySelectorAll('[data-borrar]').forEach((b) => b.addEventListener('click', async () => {
       if (b.dataset.confirmar !== '1') { b.dataset.confirmar = '1'; b.textContent = '¿Seguro? Pulsa otra vez'; return; }
@@ -747,7 +753,7 @@
         <section class="tarjeta"><h2>Machos</h2><div class="lista">${l.machos.map(animal).filter(Boolean).map((m) => `<a class="animal-fila mini" href="#/animal/${m.id}"><div><strong>${esc(nombreA(m))}</strong><div class="suave">${esc(catNombre(m.categoria))} · ahora en ${esc(nombreCorrCorto(ubic(m)))}</div></div></a>`).join('') || '<div class="suave">—</div>'}</div></section>
         <section class="tarjeta"><h2>Hembras (${hs.length})</h2><div class="lista">${hs.map((h) => { const r = estR(h); const deEste = r.lote && r.lote.id === l.id; return `<a class="animal-fila mini" href="#/animal/${h.id}"><div><strong>${esc(nombreA(h))}</strong><div class="suave">${esc(catNombre(h.categoria))}${h.fecha_baja ? ' · baja' : ''}</div></div>${deEste ? chipEstado(r) : '<span class="chip gris">Otro lote</span>'}</a>`; }).join('')}</div></section>
         ${l.obs ? `<div class="tarjeta"><div class="suave">${esc(l.obs)}</div></div>` : ''}
-        <div class="suave peq">Creado por ${esc(quienEs(l.autor, l.autor_alias))} (${curso(l.curso)})${l.modificado ? ` · modificado por ${esc(l.modificado_por || '?')}` : ''}</div>
+        <div class="suave peq">Creado por ${esc(quienEs(l.autor, l.autor_alias, l.curso))}${esVet() ? '' : ` (${curso(l.curso)})`}${l.modificado ? ` · modificado por ${esc(verAlias(l.modificado_por) || '?')}` : ''}</div>
         ${puedeBorrar ? '<details class="tarjeta"><summary class="suave">Borrar el lote (solo si es un error)</summary><p class="suave">No deshace los traslados del macho ni borra ecografías: corrígelos aparte si hace falta.</p><button class="btn peligro" type="button" id="b-borrar-lote">Borrar el lote</button></details>' : ''}
       </main>${navegacion('repro')}`);
     const bb = document.getElementById('b-borrar-lote');
@@ -981,7 +987,7 @@
     const dentro = `<div class="entre"><strong>${esc(L.TIPOS_SAN[r.tipo])}${r.producto ? ` · ${esc(r.producto)}` : ''}</strong><span class="chip ${prev ? (r.fecha < hoy() ? 'rojo' : 'nar') : 'gris'}">${prev ? (r.fecha < hoy() ? 'Atrasado' : `Previsto ${corta(r.fecha)}`) : fmt(r.fecha)}</span></div>
       <div class="suave peq">${esc(destinoSan(r))}${r.dosis ? ` · ${esc(r.dosis)}` : ''}${r.via ? ` · ${esc(r.via)}` : ''}${r.duracion_dias > 1 ? ` · ${r.duracion_dias} días` : ''}${r.motivo ? ` · ${esc(r.motivo)}` : ''}</div>
       ${r.leche_hasta || r.carne_hasta ? `<div class="peq ${(r.leche_hasta && r.leche_hasta >= hoy()) || (r.carne_hasta && r.carne_hasta >= hoy()) ? 'rojo' : 'suave'}">${r.leche_hasta ? `Leche no apta hasta ${fmt(r.leche_hasta)}` : ''}${r.leche_hasta && r.carne_hasta ? ' · ' : ''}${r.carne_hasta ? `Carne no apta hasta ${fmt(r.carne_hasta)}` : ''}</div>` : ''}
-      <div class="suave peq">${prev ? `Programado por ${esc(r.autor_alias || '?')}` : `Por ${esc(r.realizado_por || r.autor_alias || '?')}`}${r.veterinario ? ` · prescribe ${esc(r.veterinario)}` : ''}</div>`;
+      <div class="suave peq">${prev ? `Programado por ${esc(verAlias(r.autor_alias, r.curso) || '?')}` : `Por ${esc(verAlias(r.realizado_por || r.autor_alias) || '?')}`}${r.veterinario ? ` · prescribe ${esc(r.veterinario)}` : ''}</div>`;
     return conEnlace ? `<a class="evento enlace" href="${href}">${dentro}</a>` : `<div class="evento">${dentro}</div>`;
   }
   function seccionSanidad(a) {
@@ -1160,7 +1166,7 @@
         <a class="granja-card" href="#/manejo">${ICONOS.mapa}<div><strong>Manejo diario</strong><div class="suave">Limpieza, alimentación, agua, cama y ordeño por corralina</div></div>${ICONOS.flecha}</a>
         ${S.perfil.rol === 'veterinario' ? '' : `<a class="granja-card" href="#/actividad">${ICONOS.cuenta}<div><strong>${esProf() ? 'Actividad de los alumnos' : 'Mi actividad'}</strong><div class="suave">${esProf() ? 'Qué ha registrado cada alumno, por curso y fechas, para evaluar' : 'Todo lo que has registrado'}</div></div>${ICONOS.flecha}</a>`}
         <a class="granja-card" href="#/censo">${ICONOS.censo}<div><strong>Censo</strong><div class="suave">A cualquier fecha, por categoría y corralina; altas y bajas; Excel</div></div>${ICONOS.flecha}</a>
-        ${esAdmin() ? `<a class="granja-card" href="#/gestion">${ICONOS.gestion}<div><strong>Gestión</strong><div class="suave">Importar el censo, copia de seguridad y alumnos</div></div>${ICONOS.flecha}</a>` : ''}
+        ${esProf() ? `<a class="granja-card" href="#/gestion">${ICONOS.gestion}<div><strong>Gestión</strong><div class="suave">Importar el censo, copia de seguridad, acceso por curso${esAdmin() ? ' y alumnos' : ''}</div></div>${ICONOS.flecha}</a>` : ''}
         <a class="granja-card" href="#/cuenta">${ICONOS.cuenta}<div><strong>Tu cuenta</strong><div class="suave">${esProf() ? 'Contraseña' : 'PIN'} e instalación en el móvil</div></div>${ICONOS.flecha}</a>
         <a class="granja-card" href="#/granjas"><img src="img/logo-mini.jpg" alt=""><div><strong>Granjas del centro</strong><div class="suave">Ir a CIFEAPORC</div></div>${ICONOS.flecha}</a>
         <button class="btn sec" type="button" data-accion="salir">Salir</button>
@@ -1224,7 +1230,7 @@
     const dias = [...new Set(S.manejo.map((m) => m.fecha))].slice(0, 14);
     const tarj = (m) => { const puede = esProf() || (m.autor === uid() && Date.now() - new Date(m.creado).getTime() < 864e5);
       return `<${puede ? `a href="#/manejo/editar/${m.id}"` : 'div'} class="evento ${puede ? 'enlace' : ''}"><div class="entre"><strong>${m.tareas.map((t) => esc(L.TAREAS[t] || t)).join(' · ')}</strong><span class="suave peq">${esc(m.corralinas.map((c) => nombreCorrCorto(c)).join(', ') || 'Toda la granja')}</span></div>
-        ${m.detalle ? `<div>${esc(m.detalle)}</div>` : ''}<div class="suave peq">${m.participantes ? `${esc(m.participantes)} · ` : ''}anotado por ${esc(quienEs(m.autor, m.autor_alias))} (${curso(m.curso)})</div></${puede ? 'a' : 'div'}>`; };
+        ${m.detalle ? `<div>${esc(m.detalle)}</div>` : ''}<div class="suave peq">${m.participantes && !esVet() ? `${esc(m.participantes)} · ` : ''}anotado por ${esc(quienEs(m.autor, m.autor_alias, m.curso))}${esVet() ? '' : ` (${curso(m.curso)})`}</div></${puede ? 'a' : 'div'}>`; };
     pintar(`${cabecera()}
       <main class="cuerpo">${S.faltaSQL4 && esProf() ? '<div class="aviso-caja"><strong>Para usar el manejo diario</strong>, vuelve a ejecutar en Supabase <code>sql/01_rumiantes.sql</code>.</div>' : ''}
         <h1 style="font-size:22px">Manejo diario</h1>
@@ -1246,7 +1252,7 @@
           <fieldset><legend>Dónde</legend>${naves.map((nv) => `<div class="suave peq" style="font-weight:700">${esc(nv.toUpperCase())}</div><div class="opciones">${S.corralinas.filter((c) => c.nave === nv && c.activa).sort((x, y) => x.numero - y.numero).map((c) => `<label><input type="checkbox" name="corr" value="${c.id}" ${v.corralinas.includes(c.id) ? 'checked' : ''}> ${c.numero}${c.uso ? ` · ${esc(c.uso)}` : ''}</label>`).join('')}</div>`).join('')}
             <span class="ayuda">Sin marcar ninguna = toda la granja.</span></fieldset>
           <div class="campo"><label for="detalle">Detalle (ración, incidencias…)</label><textarea id="detalle" name="detalle" placeholder="Ej.: 1,5 kg de pienso por cabra + paja a voluntad">${esc(v.detalle || '')}</textarea></div>
-          <div class="campo"><label for="participantes">Quiénes lo han hecho</label><input id="participantes" name="participantes" type="text" value="${esc(v.participantes || '')}"></div>
+          ${esVet() && m ? '' : '<div class="campo">'}<label for="participantes" ${esVet() && m ? 'hidden' : ''}>Quiénes lo han hecho</label><input id="participantes" name="participantes" type="${esVet() && m ? 'hidden' : 'text'}" value="${esc(v.participantes || '')}">${esVet() && m ? '' : '</div>'}
           <button class="btn" type="submit">Guardar</button></form>
         ${m ? '<button class="btn peligro" type="button" id="b-borrar-man">Borrar</button>' : ''}
       </main>${navegacion('mas')}`);
@@ -1417,7 +1423,7 @@
 
   // ---------------------------------------------------------------- gestión (profesor)
   function vistaGestion() {
-    if (!esAdmin()) return vistaCuenta();
+    if (!esProf()) return vistaCuenta();
     const imp = S.importacion;
     const buenas = imp ? imp.filas.filter((r) => !r.errores.length && !r.repetido) : [];
     pintar(`${cabecera()}
@@ -1436,14 +1442,14 @@
         </section>
         <section class="tarjeta"><h2>Copia de seguridad</h2>
           <div class="suave">El plan gratuito de Supabase no hace copias automáticas. Descarga una cada mes: el Excel sirve para consultar y el archivo .json para restaurar.</div>
-          <div class="botones"><button class="btn sec" type="button" data-copia="xlsx">Excel</button><button class="btn sec" type="button" data-copia="json">Archivo .json</button></div><div id="estado-copia"></div></section>
+          <div class="botones"><button class="btn sec" type="button" data-copia="xlsx">Excel</button>${esAdmin() ? '<button class="btn sec" type="button" data-copia="json">Archivo .json</button>' : ''}</div>${esAdmin() ? '' : '<div class="suave peq">En tu copia, los alumnos aparecen sin alias. El archivo para restaurar lo descarga el profesor.</div>'}<div id="estado-copia"></div></section>
         <section class="tarjeta"><h2>Corralinas</h2><div class="suave">El uso de cada corralina se cambia desde el <a href="#/mapa">Mapa</a>, tocando la corralina.</div></section>
         <section class="tarjeta"><h2>Acceso por curso</h2>
           ${(S.cursos || []).length && S.cursos[0].acceso === undefined ? '<div class="aviso-caja">Para usar este interruptor, ejecuta en Supabase el archivo <code>sql/04_acceso_por_curso.sql</code>.</div>' : `
           <div class="suave">Con el acceso cerrado, los alumnos de ese curso no pueden entrar en ninguna granja. Sus cuentas no se tocan: al abrirlo, siguen como estaban.</div>
           ${(S.cursos || []).map((g) => `<div class="entre curso-acceso"><div><strong>${g.id}.º curso</strong><div class="suave peq">${(() => { const n = Object.values(S.nombres).filter((p) => p.rol === 'alumno' && p.granja_id === g.id).length; return `${n} ${n === 1 ? 'alumno' : 'alumnos'}`; })()}</div></div>
             <button class="btn ${g.acceso ? 'sec' : ''} peq" type="button" data-acceso="${g.id}" data-abrir="${g.acceso ? '0' : '1'}">${g.acceso ? 'Abierto · cerrar' : 'Cerrado · abrir'}</button></div>`).join('')}`}</section>
-        <section class="tarjeta"><h2>Alumnos</h2><div class="suave">Las cuentas (alias, PIN y nombres) sirven para las dos granjas. Se crean y gestionan en una sola pantalla.</div><a class="btn sec" href="porc/#/admin/alumnos">Gestionar alumnos</a></section>
+        ${esAdmin() ? `<section class="tarjeta"><h2>Alumnos</h2><div class="suave">Las cuentas (alias, PIN y nombres) sirven para las dos granjas. Se crean y gestionan en una sola pantalla.</div><a class="btn sec" href="porc/#/admin/alumnos">Gestionar alumnos</a></section>` : ''}
         <a class="btn sec" href="#/cuenta">${ICONOS.cuenta}Tu cuenta</a>
       </main>${navegacion('gestion')}`);
     document.getElementById('archivo').addEventListener('change', (ev) => leerExcel(ev.target.files[0]));
@@ -1508,9 +1514,9 @@
       } else {
         await cargarXLSX(); const X = window.XLSX; const libro = X.utils.book_new();
         X.utils.book_append_sheet(libro, X.utils.json_to_sheet(S.animales.slice().sort((x, y) => x.especie.localeCompare(y.especie) || L.ordenNatural(x, y)).map((a) => filaExcel(a, a.fecha_baja ? null : ubic(a)))), 'Animales');
-        X.utils.book_append_sheet(libro, X.utils.json_to_sheet(S.eventos.map((e) => { const a = animal(e.animal_id); return { Fecha: e.fecha, Animal: nombreA(a), Crotal: a ? a.crotal || '' : '', Registro: nombreEvento(e), Detalle: resumenEvento(e).replace(/<[^>]+>/g, ''), Observaciones: (e.datos && e.datos.obs) || '', Curso: curso(e.curso), 'Registrado por': quienEs(e.autor, e.autor_alias), 'Registrado el': String(e.creado || '').slice(0, 16).replace('T', ' '), 'Datos completos': JSON.stringify(e.datos || {}) }; }).concat([]) || [{}]), 'Historial');
-        X.utils.book_append_sheet(libro, X.utils.json_to_sheet(S.sanidad.length ? S.sanidad.map((r) => ({ Estado: r.estado === 'previsto' ? 'Previsto' : 'Realizado', Fecha: r.fecha, Qué: L.TIPOS_SAN[r.tipo], Destino: destinoSan(r), Animales: (r.animales || []).map((x) => nombreA(animal(x))).join(', '), Producto: r.producto || '', Dosis: r.dosis || '', Vía: r.via || '', 'Días de tratamiento': r.duracion_dias, Lote: r.lote || '', Caducidad: r.caducidad || '', 'Espera carne (días)': r.espera_carne ?? '', 'Espera leche (días)': r.espera_leche ?? '', 'Carne no apta hasta': r.carne_hasta || '', 'Leche no apta hasta': r.leche_hasta || '', Motivo: r.motivo || '', Veterinario: r.veterinario || '', Observaciones: r.obs || '', 'Registrado por': r.autor_alias || '', 'Realizado por': r.realizado_por || '' })) : [{ '': 'Sin registros' }]), 'Sanidad');
-        X.utils.book_append_sheet(libro, X.utils.json_to_sheet(S.lotes.length ? S.lotes.map((l) => ({ Lote: l.nombre, Especie: L.ESPECIES[l.especie].nombre, Corralina: nombreCorr(l.corralina_id), Machos: l.machos.map((x) => nombreA(animal(x))).join(', '), Hembras: l.hembras.map((x) => nombreA(animal(x))).join(', '), 'Entrada del macho': l.fecha_entrada, 'Salida del macho': l.fecha_salida || '', 'Registrado por': l.autor_alias || '' })) : [{ '': 'Sin lotes' }]), 'Lotes');
+        X.utils.book_append_sheet(libro, X.utils.json_to_sheet(S.eventos.map((e) => { const a = animal(e.animal_id); return { Fecha: e.fecha, Animal: nombreA(a), Crotal: a ? a.crotal || '' : '', Registro: nombreEvento(e), Detalle: resumenEvento(e).replace(/<[^>]+>/g, ''), Observaciones: (e.datos && e.datos.obs) || '', Curso: curso(e.curso), 'Registrado por': quienEs(e.autor, e.autor_alias), 'Registrado el': String(e.creado || '').slice(0, 16).replace('T', ' '), 'Datos completos': JSON.stringify(esVet() ? { ...(e.datos || {}), asistentes: undefined } : (e.datos || {})) }; }).concat([]) || [{}]), 'Historial');
+        X.utils.book_append_sheet(libro, X.utils.json_to_sheet(S.sanidad.length ? S.sanidad.map((r) => ({ Estado: r.estado === 'previsto' ? 'Previsto' : 'Realizado', Fecha: r.fecha, Qué: L.TIPOS_SAN[r.tipo], Destino: destinoSan(r), Animales: (r.animales || []).map((x) => nombreA(animal(x))).join(', '), Producto: r.producto || '', Dosis: r.dosis || '', Vía: r.via || '', 'Días de tratamiento': r.duracion_dias, Lote: r.lote || '', Caducidad: r.caducidad || '', 'Espera carne (días)': r.espera_carne ?? '', 'Espera leche (días)': r.espera_leche ?? '', 'Carne no apta hasta': r.carne_hasta || '', 'Leche no apta hasta': r.leche_hasta || '', Motivo: r.motivo || '', Veterinario: r.veterinario || '', Observaciones: r.obs || '', 'Registrado por': verAlias(r.autor_alias, r.curso) || '', 'Realizado por': verAlias(r.realizado_por) || '' })) : [{ '': 'Sin registros' }]), 'Sanidad');
+        X.utils.book_append_sheet(libro, X.utils.json_to_sheet(S.lotes.length ? S.lotes.map((l) => ({ Lote: l.nombre, Especie: L.ESPECIES[l.especie].nombre, Corralina: nombreCorr(l.corralina_id), Machos: l.machos.map((x) => nombreA(animal(x))).join(', '), Hembras: l.hembras.map((x) => nombreA(animal(x))).join(', '), 'Entrada del macho': l.fecha_entrada, 'Salida del macho': l.fecha_salida || '', 'Registrado por': verAlias(l.autor_alias, l.curso) || '' })) : [{ '': 'Sin lotes' }]), 'Lotes');
         X.utils.book_append_sheet(libro, X.utils.json_to_sheet(S.corralinas.map((c) => ({ Nave: c.nave, Corralina: c.numero, Uso: c.uso || '', Activa: c.activa ? 'Sí' : 'No' }))), 'Corralinas');
         X.writeFile(libro, `${fichero}.xlsx`);
       }

@@ -66,4 +66,4 @@ Cuando una versión nueva traiga cambios en la base de datos, vuelve a ejecutar 
    ```
 4. Entra en CIFEAFARM con la pestaña **Profesor / veterinaria**, su correo y su contraseña.
 
-Puede lo mismo que el profesor con animales y registros (y el catálogo de productos). Solo el profesor: alumnos, acceso por curso, importar el censo, copias de seguridad, borrar animales y la actividad de los alumnos. Ve a los alumnos por su alias, no por su nombre.
+Puede lo mismo que el profesor con animales, registros, catálogo de productos y gestión de la granja (importar el censo, copias en Excel, corralinas, acceso por curso, borrar animales). Solo el profesor: los alumnos (cuentas, PIN, nombres), su actividad y el archivo para restaurar. La veterinaria no ve a los alumnos: donde pondría su alias ve «un alumno de 2.º».
