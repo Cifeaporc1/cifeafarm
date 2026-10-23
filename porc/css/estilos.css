@@ -212,3 +212,5 @@ fieldset[disabled] input, fieldset[disabled] select { background: #EEF1EF; color
 .totales .val { font-size: 22px; }
 @media (min-width: 760px) { .totales { grid-template-columns: repeat(6, minmax(0, 1fr)); } }
 [hidden] { display: none !important; }
+.destetados { display: flex; flex-direction: column; gap: 2px; background: #F1E9F6; border-radius: 10px; padding: 8px 10px; color: #5B2C78; text-decoration: none; }
+.destetados strong { color: #5B2C78; }

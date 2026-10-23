@@ -8,5 +8,5 @@ window.CONFIG = {
   dominioAlumnos: 'alumnos.cifeaporc.app',
   urlPorcino: 'porc/',              // granja de porcino integrada (antes, la app CIFEAPORC aparte)
   granjaPorcino: 2,                 // la granja real de porcino (la que usaba 2.º)
-  version: '0.6.3',
+  version: '0.7.0',
 };

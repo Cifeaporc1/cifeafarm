@@ -25,12 +25,14 @@ Es una herramienta docente para las clases de Luis. No sustituye a los libros of
 | `sql/01_rumiantes.sql` | Tablas, reglas de acceso, importación y reproducción de CIFEARUMI (repetible: se vuelve a ejecutar en cada versión) |
 | `sql/02_porcino_unido.sql` | Porcino: de dos granjas por curso a una granja real (repetible, no borra nada) |
 | `sql/03_borrar_granja_1.sql` | Opcional: borra los registros de la antigua granja de 1.º de porcino |
+| `sql/06_porcino_correcciones.sql` | Porcino: los alumnos corrigen registros de otros (el profesor lo ve en Correcciones y puede deshacerlo), catálogo de productos abierto a los alumnos y lechones destetados que se quedan en la paridera (repetible) |
 | `GUIA.md` | Puesta en marcha paso a paso |
 
 ## Reglas
 
 - Una sola granja real para los dos cursos. Cada registro guarda quién lo hizo y de qué curso es.
 - Cualquiera da altas, bajas, traslados y notas. El alumno corrige o borra lo suyo durante 24 horas; después, solo el profesor.
+- En porcino (desde la 0.7.0), cualquier alumno puede corregir un registro de otro; queda en **Correcciones** (solo el profesor), con el antes y el después y la opción de deshacer. Borrar sigue siendo lo suyo durante 24 horas.
 - Los datos de un animal (crotal, collar, capa, categoría…) solo los cambia el profesor, y cada cambio queda en el historial.
 - El nº de manejo es el del collar y se reutiliza tras una baja: el animal se identifica por su crotal.
 - Las crías se registran sin crotal ni collar, con un código provisional: nº de la madre + orden (A12-1).

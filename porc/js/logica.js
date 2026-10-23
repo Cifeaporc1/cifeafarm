@@ -178,6 +178,11 @@
         const faltan = dias(hoy, f.parto);
         if (faltan <= 7) add('Parto previsto', faltan < 0 ? `Previsto hace ${-faltan} ${-faltan === 1 ? 'día' : 'días'}` : faltan === 0 ? 'Previsto hoy' : faltan === 1 ? 'Previsto mañana' : `En ${faltan} días`, f.parto, faltan <= 1 ? 'urgente' : 'proximo');
       }
+      // Gestante que se ha dejado en implantación tras la ecografía positiva
+      if (est.fase === 'gestante' && /^Implantación/.test(est.ubicacion || '')) {
+        const pos = cur && cur.ecos.filter((e) => e.datos.resultado === 'positiva').pop();
+        if (pos) add('Gestante en implantación', `Positiva el ${pos.fecha.split('-').reverse().join('/')} (hace ${dias(pos.fecha, hoy)} días) · pasar a gestación cuando toque`, pos.fecha, 'proximo');
+      }
       if (est.fase === 'lactante' && cur && cur.parto) {
         const d = dias(cur.parto.fecha, hoy);
         if (d >= REF.lactacion - 3) {
@@ -206,7 +211,8 @@
     return zonas;
   }
   // ---- Lechoneras y cebadero: último recuento + movimientos posteriores ----
-  const ESTANCIAS = [...[1, 2, 3, 4].map((k) => `Lechonera ${k}`), ...Array.from({ length: 24 }, (_, i) => `Cebadero ${i + 1}`)];
+  const ESTANCIAS = [...[1, 2, 3, 4].map((k) => `Lechonera ${k}`), ...Array.from({ length: 24 }, (_, i) => `Cebadero ${i + 1}`),
+    ...[1, 2, 3].flatMap((s) => [1, 2, 3, 4, 5, 6].map((k) => `Paridera ${s}-${k}`))]; // destetados que se quedan en la paridera
   const despues = (m, r) => !r || m.fecha > r.fecha || (m.fecha === r.fecha && String(m.creado) > String(r.creado));
   function cuentaGrupos(recuentos, movs) {
     const res = {};
