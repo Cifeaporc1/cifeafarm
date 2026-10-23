@@ -6,7 +6,7 @@
 --   cerrado, sus alumnos no ven ni registran nada en ninguna granja.
 -- · No toca las cuentas: al abrirlo, todo vuelve a estar como estaba
 --   (y un alumno desactivado a mano sigue desactivado).
--- · Lo cambian el profesor o la veterinaria en CIFEAFARM → Más → Gestión → Acceso por curso.
+-- · Lo cambia solo el profesor en CIFEAFARM → Más → Gestión → Acceso por curso.
 -- =====================================================================
 
 alter table public.granjas add column if not exists acceso boolean not null default true;
@@ -28,5 +28,5 @@ $$;
 
 drop policy if exists granjas_cambio on public.granjas;
 create policy granjas_cambio on public.granjas for update to authenticated
-  using (exists (select 1 from public.perfiles where user_id = auth.uid() and rol in ('profesor', 'veterinario') and activo))
-  with check (exists (select 1 from public.perfiles where user_id = auth.uid() and rol in ('profesor', 'veterinario') and activo));
+  using (exists (select 1 from public.perfiles where user_id = auth.uid() and rol = 'profesor' and activo))
+  with check (exists (select 1 from public.perfiles where user_id = auth.uid() and rol = 'profesor' and activo));

@@ -124,7 +124,7 @@
       S.medicamentos = rm.error ? [] : rm.data.filter((m) => !m.especies || m.especies.includes('caprino') || m.especies.includes('ovino')); }
     S.porAnimal = {};
     for (const ev of S.eventos) (S.porAnimal[ev.animal_id] = S.porAnimal[ev.animal_id] || []).push(ev);
-    if (esProf()) { const g = await sb.from('granjas').select('*').order('id'); S.cursos = g.error ? [] : g.data; }
+    if (esAdmin()) { const g = await sb.from('granjas').select('*').order('id'); S.cursos = g.error ? [] : g.data; }
     const nv = await sb.rpc('nombres_visibles');
     S.nombres = {};
     if (!nv.error && Array.isArray(nv.data)) for (const p of nv.data) S.nombres[p.user_id] = p;
@@ -1167,7 +1167,7 @@
         <a class="granja-card" href="#/manejo">${ICONOS.mapa}<div><strong>Manejo diario</strong><div class="suave">Limpieza, alimentación, agua, cama y ordeño por corralina</div></div>${ICONOS.flecha}</a>
         ${S.perfil.rol === 'veterinario' ? '' : `<a class="granja-card" href="#/actividad">${ICONOS.cuenta}<div><strong>${esProf() ? 'Actividad de los alumnos' : 'Mi actividad'}</strong><div class="suave">${esProf() ? 'Qué ha registrado cada alumno, por curso y fechas, para evaluar' : 'Todo lo que has registrado'}</div></div>${ICONOS.flecha}</a>`}
         <a class="granja-card" href="#/censo">${ICONOS.censo}<div><strong>Censo</strong><div class="suave">A cualquier fecha, por categoría y corralina; altas y bajas; Excel</div></div>${ICONOS.flecha}</a>
-        ${esProf() ? `<a class="granja-card" href="#/gestion">${ICONOS.gestion}<div><strong>Gestión</strong><div class="suave">Importar el censo, copia de seguridad, acceso por curso${esAdmin() ? ' y alumnos' : ''}</div></div>${ICONOS.flecha}</a>` : ''}
+        ${esProf() ? `<a class="granja-card" href="#/gestion">${ICONOS.gestion}<div><strong>Gestión</strong><div class="suave">Importar el censo y copia de seguridad${esAdmin() ? ', acceso por curso, veterinaria y alumnos' : ''}</div></div>${ICONOS.flecha}</a>` : ''}
         <a class="granja-card" href="#/cuenta">${ICONOS.cuenta}<div><strong>Tu cuenta</strong><div class="suave">${esProf() ? 'Contraseña' : 'PIN'} e instalación en el móvil</div></div>${ICONOS.flecha}</a>
         <a class="granja-card" href="#/granjas"><img src="img/logo-mini.jpg" alt=""><div><strong>Granjas del centro</strong><div class="suave">Ir a CIFEAPORC</div></div>${ICONOS.flecha}</a>
         <button class="btn sec" type="button" data-accion="salir">Salir</button>
@@ -1445,11 +1445,11 @@
           <div class="suave">El plan gratuito de Supabase no hace copias automáticas. Descarga una cada mes: el Excel sirve para consultar y el archivo .json para restaurar.</div>
           <div class="botones"><button class="btn sec" type="button" data-copia="xlsx">Excel</button>${esAdmin() ? '<button class="btn sec" type="button" data-copia="json">Archivo .json</button>' : ''}</div>${esAdmin() ? '' : '<div class="suave peq">En tu copia, los alumnos aparecen sin alias. El archivo para restaurar lo descarga el profesor.</div>'}<div id="estado-copia"></div></section>
         <section class="tarjeta"><h2>Corralinas</h2><div class="suave">El uso de cada corralina se cambia desde el <a href="#/mapa">Mapa</a>, tocando la corralina.</div></section>
-        <section class="tarjeta"><h2>Acceso por curso</h2>
+        ${esAdmin() ? `<section class="tarjeta"><h2>Acceso por curso</h2>
           ${(S.cursos || []).length && S.cursos[0].acceso === undefined ? '<div class="aviso-caja">Para usar este interruptor, ejecuta en Supabase el archivo <code>sql/04_acceso_por_curso.sql</code>.</div>' : `
           <div class="suave">Con el acceso cerrado, los alumnos de ese curso no pueden entrar en ninguna granja. Sus cuentas no se tocan: al abrirlo, siguen como estaban.</div>
           ${(S.cursos || []).map((g) => `<div class="entre curso-acceso"><div><strong>${g.id}.º curso</strong><div class="suave peq">${(() => { const n = Object.values(S.nombres).filter((p) => p.rol === 'alumno' && p.granja_id === g.id).length; return `${n} ${n === 1 ? 'alumno' : 'alumnos'}`; })()}</div></div>
-            <button class="btn ${g.acceso ? 'sec' : ''} peq" type="button" data-acceso="${g.id}" data-abrir="${g.acceso ? '0' : '1'}">${g.acceso ? 'Abierto · cerrar' : 'Cerrado · abrir'}</button></div>`).join('')}`}</section>
+            <button class="btn ${g.acceso ? 'sec' : ''} peq" type="button" data-acceso="${g.id}" data-abrir="${g.acceso ? '0' : '1'}">${g.acceso ? 'Abierto · cerrar' : 'Cerrado · abrir'}</button></div>`).join('')}`}</section>` : ''}
         ${esAdmin() ? seccionVeterinaria() : ''}
         ${esAdmin() ? `<section class="tarjeta"><h2>Alumnos</h2><div class="suave">Las cuentas (alias, PIN y nombres) sirven para las dos granjas. Se crean y gestionan en una sola pantalla.</div><a class="btn sec" href="porc/#/admin/alumnos">Gestionar alumnos</a></section>` : ''}
         <a class="btn sec" href="#/cuenta">${ICONOS.cuenta}Tu cuenta</a>
@@ -1473,7 +1473,7 @@
     if (!S.vets) { sb.from('perfiles').select('*').eq('rol', 'veterinario').order('creado').then((r) => { S.vets = r.error ? [] : r.data; if (location.hash.startsWith('#/gestion')) vistaGestion(); }); return '<section class="tarjeta"><h2>Veterinaria</h2><div class="suave">Cargando…</div></section>'; }
     const res = S.borrador.vetCreada;
     return `<section class="tarjeta"><h2>Veterinaria</h2>
-      <div class="suave">Entra con la pestaña <strong>Veterinaria</strong>, su alias y su PIN. Tiene los mismos permisos que tú sobre animales, registros y gestión de la granja, pero no ve a los alumnos.</div>
+      <div class="suave">Entra con la pestaña <strong>Veterinaria</strong>, su alias y su PIN. Trabaja con los animales y la granja (registros, datos de los animales, productos, censo y copias). No tiene nada que ver con los alumnos: no los ve, no los gestiona ni abre o cierra el acceso de un curso.</div>
       ${res ? `<div class="ok-caja" role="status"><strong>Anota y entrégale estos datos:</strong> alias <strong>${esc(res.alias)}</strong> · PIN <strong>${esc(res.pin)}</strong>. El PIN no se vuelve a mostrar.</div>` : ''}
       ${S.vets.map((v) => `<div class="entre curso-acceso"><div><strong>${esc(v.alias)}</strong><div class="suave peq">${v.activo ? 'Activa' : 'Desactivada'}</div></div>
         <div class="botones" style="flex:none"><button class="btn sec peq" type="button" data-vet-pin="${v.user_id}" data-alias="${esc(v.alias)}">Nuevo PIN</button><button class="btn sec peq" type="button" data-vet-activo="${v.user_id}" data-valor="${v.activo ? '0' : '1'}">${v.activo ? 'Desactivar' : 'Activar'}</button></div></div>`).join('')}

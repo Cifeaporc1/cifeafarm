@@ -2,11 +2,11 @@
 -- CIFEAFARM · Perfil VETERINARIA (las dos granjas)
 -- Pegar entero en Supabase → SQL Editor → New query → Run. Repetible.
 --
--- La veterinaria puede lo mismo que el profesor con animales, registros,
--- catálogo de productos y gestión de la granja (importar el censo, copias,
--- corralinas, acceso por curso, borrar animales). Solo el profesor: los
--- alumnos (cuentas, PIN, nombres) y su actividad. La veterinaria no ve a
--- los alumnos: ni sus nombres ni sus alias.
+-- La veterinaria trabaja con los animales y la granja: registra, corrige y
+-- borra registros, corrige datos de los animales, catálogo de productos,
+-- importar el censo, copias, corralinas y borrar animales.
+-- No tiene nada que ver con los alumnos: no los ve (ni nombres ni alias),
+-- no los gestiona, no ve su actividad y no abre ni cierra el acceso de un curso.
 --
 -- Para dar de alta a la veterinaria, ver el final de este archivo.
 -- =====================================================================
@@ -42,9 +42,11 @@ create policy perfiles_ver on public.perfiles for select to authenticated using 
 create policy perfiles_alta on public.perfiles for insert to authenticated with check (public.es_admin());
 create policy perfiles_cambio on public.perfiles for update to authenticated using (public.es_admin()) with check (public.es_admin());
 
--- Gestión de la granja: profesor y veterinaria.
+-- Acceso por curso: solo el profesor.
 drop policy if exists granjas_cambio on public.granjas;
-create policy granjas_cambio on public.granjas for update to authenticated using (public.es_profesor()) with check (public.es_profesor());
+create policy granjas_cambio on public.granjas for update to authenticated using (public.es_admin()) with check (public.es_admin());
+
+-- Borrar animales: profesor y veterinaria.
 
 drop policy if exists rum_animales_borrado on public.rum_animales;
 create policy rum_animales_borrado on public.rum_animales for delete to authenticated using (public.es_profesor());
