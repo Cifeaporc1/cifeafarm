@@ -57,13 +57,8 @@ Cuando una versión nueva traiga cambios en la base de datos, vuelve a ejecutar 
 
 ## 8. Perfil de la veterinaria
 
-1. Ejecuta una vez en Supabase `sql/05_veterinaria.sql`.
-2. **Authentication → Users → Add user → Create new user**: correo de la veterinaria y una contraseña (mínimo 8 caracteres); marca **Auto Confirm User**.
-3. En el **SQL Editor**, ejecuta (cambiando el correo):
-   ```sql
-   insert into public.perfiles (user_id, alias, rol, granja_id)
-   select id, 'Veterinaria', 'veterinario', null from auth.users where email = 'CORREO@ejemplo.com';
-   ```
-4. Entra en CIFEAFARM con la pestaña **Profesor / veterinaria**, su correo y su contraseña.
+1. Ejecuta una vez en Supabase `sql/05_veterinaria.sql` (repetible).
+2. En CIFEAFARM → **Más → Gestión → Veterinaria**: escribe su alias (por ejemplo `VET1`), deja el PIN que propone la app o pon otro de 6 cifras y pulsa **Dar de alta**. Anota el alias y el PIN: no se vuelven a mostrar (si los olvida, **Nuevo PIN**).
+3. Ella entra con la pestaña **Veterinaria**, su alias y su PIN. No hace falta su correo.
 
 Puede lo mismo que el profesor con animales, registros, catálogo de productos y gestión de la granja (importar el censo, copias en Excel, corralinas, acceso por curso, borrar animales). Solo el profesor: los alumnos (cuentas, PIN, nombres), su actividad y el archivo para restaurar. La veterinaria no ve a los alumnos: donde pondría su alias ve «un alumno de 2.º».

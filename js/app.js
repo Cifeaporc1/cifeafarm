@@ -180,15 +180,16 @@
       <p class="suave" style="text-align:center;margin:0">Granjas del centro · cabras, ovejas y cerdos</p>
       <div class="pestanas" role="tablist">
         <button type="button" role="tab" aria-selected="${modo === 'alumno'}" class="${modo === 'alumno' ? 'activo' : ''}" data-modo="alumno">Alumno</button>
-        <button type="button" role="tab" aria-selected="${modo === 'profesor'}" class="${modo === 'profesor' ? 'activo' : ''}" data-modo="profesor">Profesor / veterinaria</button>
+        <button type="button" role="tab" aria-selected="${modo === 'veterinaria'}" class="${modo === 'veterinaria' ? 'activo' : ''}" data-modo="veterinaria">Veterinaria</button>
+        <button type="button" role="tab" aria-selected="${modo === 'profesor'}" class="${modo === 'profesor' ? 'activo' : ''}" data-modo="profesor">Profesor</button>
       </div>
       ${mensaje ? `<div class="error-caja" role="alert">${esc(mensaje)}</div>` : ''}
       <form class="formu" id="f-acceso" novalidate>
-        ${modo === 'alumno' ? `
+        ${modo === 'alumno' || modo === 'veterinaria' ? `${modo === 'alumno' ? `
           <div class="campo"><span class="et" id="et-curso">Curso</span>
             <div class="opciones" role="radiogroup" aria-labelledby="et-curso">
               <label><input type="radio" name="curso" value="1" checked> 1.º curso</label>
-              <label><input type="radio" name="curso" value="2"> 2.º curso</label></div></div>
+              <label><input type="radio" name="curso" value="2"> 2.º curso</label></div></div>` : ''}
           <div class="campo"><label for="alias">Alias</label>
             <input id="alias" name="alias" type="text" autocomplete="username" autocapitalize="characters" placeholder="Ej.: A07" required></div>
           <div class="campo"><label for="pin">PIN</label>
@@ -206,9 +207,9 @@
       const f = new FormData(ev.target);
       const boton = ev.target.querySelector('button[type=submit]');
       let email, password;
-      if (modo === 'alumno') {
+      if (modo === 'alumno' || modo === 'veterinaria') {
         const alias = String(f.get('alias') || '').trim().toUpperCase();
-        email = `${alias.toLowerCase()}.g${f.get('curso')}@${C.dominioAlumnos}`;
+        email = modo === 'alumno' ? `${alias.toLowerCase()}.g${f.get('curso')}@${C.dominioAlumnos}` : `${alias.toLowerCase()}.vet@${C.dominioAlumnos}`;
         password = String(f.get('pin') || '').trim();
         if (!alias || !/^\d{6}$/.test(password)) { vistaAcceso(modo, 'Escribe tu alias y un PIN de 6 cifras.'); return; }
       } else { email = String(f.get('correo') || '').trim(); password = String(f.get('clave') || ''); }
@@ -1449,6 +1450,7 @@
           <div class="suave">Con el acceso cerrado, los alumnos de ese curso no pueden entrar en ninguna granja. Sus cuentas no se tocan: al abrirlo, siguen como estaban.</div>
           ${(S.cursos || []).map((g) => `<div class="entre curso-acceso"><div><strong>${g.id}.º curso</strong><div class="suave peq">${(() => { const n = Object.values(S.nombres).filter((p) => p.rol === 'alumno' && p.granja_id === g.id).length; return `${n} ${n === 1 ? 'alumno' : 'alumnos'}`; })()}</div></div>
             <button class="btn ${g.acceso ? 'sec' : ''} peq" type="button" data-acceso="${g.id}" data-abrir="${g.acceso ? '0' : '1'}">${g.acceso ? 'Abierto · cerrar' : 'Cerrado · abrir'}</button></div>`).join('')}`}</section>
+        ${esAdmin() ? seccionVeterinaria() : ''}
         ${esAdmin() ? `<section class="tarjeta"><h2>Alumnos</h2><div class="suave">Las cuentas (alias, PIN y nombres) sirven para las dos granjas. Se crean y gestionan en una sola pantalla.</div><a class="btn sec" href="porc/#/admin/alumnos">Gestionar alumnos</a></section>` : ''}
         <a class="btn sec" href="#/cuenta">${ICONOS.cuenta}Tu cuenta</a>
       </main>${navegacion('gestion')}`);
@@ -1456,12 +1458,55 @@
     const bi = document.getElementById('b-importar'); if (bi) bi.addEventListener('click', () => importar(buenas));
     const bc = document.getElementById('b-cancelar-imp'); if (bc) bc.addEventListener('click', () => { S.importacion = null; vistaGestion(); });
     $app.querySelectorAll('[data-copia]').forEach((b) => b.addEventListener('click', () => descargarCopia(b.dataset.copia, b)));
+    enlazarVeterinaria();
     $app.querySelectorAll('[data-acceso]').forEach((b) => b.addEventListener('click', async () => {
       const abrir = b.dataset.abrir === '1';
       if (!abrir && b.dataset.confirmar !== '1') { b.dataset.confirmar = '1'; b.textContent = `¿Cerrar ${b.dataset.acceso}.º? Pulsa otra vez`; return; }
       const { error } = await sb.from('granjas').update({ acceso: abrir }).eq('id', Number(b.dataset.acceso));
       if (error) return toast(traducirError(error));
       toast(`${b.dataset.acceso}.º curso: acceso ${abrir ? 'abierto' : 'cerrado'}`); await refrescar(); vistaGestion();
+    }));
+  }
+  // ---- Veterinaria: alta con alias y PIN (sin correo), nuevo PIN y desactivar. Solo el profesor.
+  const pinAzar = () => String(Math.floor(100000 + Math.random() * 900000));
+  function seccionVeterinaria() {
+    if (!S.vets) { sb.from('perfiles').select('*').eq('rol', 'veterinario').order('creado').then((r) => { S.vets = r.error ? [] : r.data; if (location.hash.startsWith('#/gestion')) vistaGestion(); }); return '<section class="tarjeta"><h2>Veterinaria</h2><div class="suave">Cargando…</div></section>'; }
+    const res = S.borrador.vetCreada;
+    return `<section class="tarjeta"><h2>Veterinaria</h2>
+      <div class="suave">Entra con la pestaña <strong>Veterinaria</strong>, su alias y su PIN. Tiene los mismos permisos que tú sobre animales, registros y gestión de la granja, pero no ve a los alumnos.</div>
+      ${res ? `<div class="ok-caja" role="status"><strong>Anota y entrégale estos datos:</strong> alias <strong>${esc(res.alias)}</strong> · PIN <strong>${esc(res.pin)}</strong>. El PIN no se vuelve a mostrar.</div>` : ''}
+      ${S.vets.map((v) => `<div class="entre curso-acceso"><div><strong>${esc(v.alias)}</strong><div class="suave peq">${v.activo ? 'Activa' : 'Desactivada'}</div></div>
+        <div class="botones" style="flex:none"><button class="btn sec peq" type="button" data-vet-pin="${v.user_id}" data-alias="${esc(v.alias)}">Nuevo PIN</button><button class="btn sec peq" type="button" data-vet-activo="${v.user_id}" data-valor="${v.activo ? '0' : '1'}">${v.activo ? 'Desactivar' : 'Activar'}</button></div></div>`).join('')}
+      <form class="formu" id="f-vet" novalidate><div class="dos"><div class="campo"><label for="vet-alias">Alias</label><input id="vet-alias" name="alias" type="text" maxlength="10" autocapitalize="characters" placeholder="VET1"></div>
+        <div class="campo"><label for="vet-pin">PIN</label><input id="vet-pin" name="pin" type="text" inputmode="numeric" maxlength="6" value="${pinAzar()}"></div></div>
+        <button class="btn sec" type="submit">Dar de alta</button></form><div id="msg-vet"></div></section>`;
+  }
+  function enlazarVeterinaria() {
+    const f = document.getElementById('f-vet'); if (!f) return;
+    const msg = (t) => { document.getElementById('msg-vet').innerHTML = errorCaja(t); };
+    f.addEventListener('submit', async (ev) => {
+      ev.preventDefault(); const x = new FormData(f); const alias = String(x.get('alias') || '').trim().toUpperCase(); const pin = String(x.get('pin') || '').trim();
+      if (!/^[A-Z0-9]{1,10}$/.test(alias)) return msg('El alias solo puede tener letras y números (máximo 10), sin espacios.');
+      if (!/^\d{6}$/.test(pin)) return msg('El PIN debe tener 6 cifras.');
+      f.querySelector('button').disabled = true;
+      // Cliente aparte para no cerrar la sesión del profesor.
+      const sb2 = window.supabase.createClient(C.supabaseUrl, C.supabaseKey, { auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false, storageKey: 'farm-alta' } });
+      const { data, error } = await sb2.auth.signUp({ email: `${alias.toLowerCase()}.vet@${C.dominioAlumnos}`, password: pin });
+      if (error || !data.user || (data.user.identities && !data.user.identities.length)) { f.querySelector('button').disabled = false; return msg(error ? traducirError(error) : 'Ese alias ya existe.'); }
+      const r = await sb.from('perfiles').insert({ user_id: data.user.id, alias, rol: 'veterinario', granja_id: null });
+      if (r.error) { f.querySelector('button').disabled = false; return msg(/check/i.test(r.error.message) ? 'Falta ejecutar en Supabase sql/05_veterinaria.sql.' : traducirError(r.error)); }
+      S.borrador.vetCreada = { alias, pin }; S.vets = null; await refrescar(); vistaGestion();
+    });
+    $app.querySelectorAll('[data-vet-pin]').forEach((b) => b.addEventListener('click', async () => {
+      if (b.dataset.confirmar !== '1') { b.dataset.confirmar = '1'; b.textContent = '¿Seguro?'; return; }
+      const pin = pinAzar(); const { error } = await sb.rpc('restablecer_pin', { p_user: b.dataset.vetPin, p_pin: pin });
+      if (error) return toast(traducirError(error));
+      S.borrador.vetCreada = { alias: b.dataset.alias, pin }; vistaGestion();
+    }));
+    $app.querySelectorAll('[data-vet-activo]').forEach((b) => b.addEventListener('click', async () => {
+      const { error } = await sb.from('perfiles').update({ activo: b.dataset.valor === '1' }).eq('user_id', b.dataset.vetActivo);
+      if (error) return toast(traducirError(error));
+      S.vets = null; toast(b.dataset.valor === '1' ? 'Activada' : 'Desactivada'); vistaGestion();
     }));
   }
   async function leerExcel(file) {
@@ -1623,6 +1668,7 @@
     const r = location.hash.replace(/^#\/?/, '').split('/')[0];
     if (!['alta', 'editar'].includes(r)) S.borrador.formAnimal = null;
     if (r !== 'lote') S.borrador.loteNuevo = null;
+    if (r !== 'gestion') S.borrador.vetCreada = null;
     render();
   });
   setInterval(() => { const h = document.getElementById('hora-consulta'); if (h) h.textContent = fechaHora(new Date()); }, 20000);

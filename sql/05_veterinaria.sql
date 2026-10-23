@@ -55,8 +55,8 @@ set search_path = public, extensions, auth as $$
 begin
   if not public.es_admin() then raise exception 'Solo el profesor puede restablecer PIN'; end if;
   if p_pin !~ '^[0-9]{6}$' then raise exception 'El PIN debe tener 6 cifras'; end if;
-  if not exists (select 1 from public.perfiles where user_id = p_user and rol = 'alumno') then
-    raise exception 'Solo se puede restablecer el PIN de un alumno';
+  if not exists (select 1 from public.perfiles where user_id = p_user and rol in ('alumno', 'veterinario')) then
+    raise exception 'Solo se puede restablecer el PIN de un alumno o de la veterinaria';
   end if;
   update auth.users set encrypted_password = extensions.crypt(p_pin, extensions.gen_salt('bf')), updated_at = now()
    where id = p_user;
@@ -93,11 +93,7 @@ revoke all on function public.nombres_visibles() from public, anon;
 grant execute on function public.nombres_visibles() to authenticated;
 
 -- =====================================================================
--- DAR DE ALTA A LA VETERINARIA (una vez):
--- 1) Supabase → Authentication → Users → Add user → Create new user:
---    su correo y una contraseña de al menos 8 caracteres, marca "Auto Confirm User".
--- 2) Cambia el correo y el nombre de abajo, quita los dos guiones del principio
---    de las líneas y pulsa Run (puedes ejecutar solo esas líneas).
+-- DAR DE ALTA A LA VETERINARIA: desde la app, sin correo.
+-- CIFEAFARM → Más → Gestión → Veterinaria → alias y PIN (como a un alumno).
+-- Ella entra con la pestaña «Veterinaria», su alias y su PIN.
 -- =====================================================================
--- insert into public.perfiles (user_id, alias, rol, granja_id)
--- select id, 'Veterinaria', 'veterinario', null from auth.users where email = 'CORREO-DE-LA-VETERINARIA@ejemplo.com';
