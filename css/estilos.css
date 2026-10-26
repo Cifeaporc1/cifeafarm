@@ -91,7 +91,7 @@ form.formu { display: flex; flex-direction: column; gap: 14px; }
 .campo { display: flex; flex-direction: column; gap: 6px; }
 .campo > label, .campo > .et { font-weight: 700; font-size: 15px; }
 .campo .ayuda { font-size: 13px; color: var(--suave); }
-input[type=text], input[type=date], input[type=number], input[type=password], input[type=email], select, textarea {
+input[type=text], input[type=date], input[type=number], input[type=password], input[type=email], input[type=url], select, textarea {
   font-size: 17px; padding: 11px 12px; border: 1px solid #B9C3BC; border-radius: 10px; background: #fff; min-height: 48px; width: 100%;
 }
 textarea { min-height: 72px; resize: vertical; }

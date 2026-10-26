@@ -26,6 +26,7 @@ Es una herramienta docente para las clases de Luis. No sustituye a los libros of
 | `sql/02_porcino_unido.sql` | Porcino: de dos granjas por curso a una granja real (repetible, no borra nada) |
 | `sql/03_borrar_granja_1.sql` | Opcional: borra los registros de la antigua granja de 1.º de porcino |
 | `sql/06_porcino_correcciones.sql` | Las dos granjas: los alumnos corrigen registros de otros (el profesor lo ve en Correcciones y puede deshacerlo), catálogo de productos abierto a los alumnos y lechones destetados que se quedan en la paridera y otros crotales de los verracos (repetible) |
+| `sql/07_posologia.sql` | Catálogo: posología por especie de destino (cabras, ovejas, cerdos); copia la antigua dosificación sin borrarla (repetible) |
 | `GUIA.md` | Puesta en marcha paso a paso |
 
 ## Reglas
