@@ -1043,7 +1043,12 @@
     const h = hoy();
     const estado = r.estado === 'realizado' ? ['Realizado', ''] : r.fecha < h ? ['Retrasado', 'rojo'] : ['Previsto', 'nar'];
     const med = medPorId(r.medicamento_id);
-    return `<div class="evento"><div class="entre"><strong>${esc(nombreSan(r.tipo))}</strong><span class="chip ${estado[1]}">${estado[0]} · ${fmt(r.fecha)}</span></div>
+    const CAR = { obligatorio: 'rojo', recomendado: 'nar', voluntario: 'gris' }, RES = { pendiente: 'nar', negativo: '', positivo: 'rojo' };
+    const chips = `${r.caracter ? `<span class="chip ${CAR[r.caracter]}">${esc(L.CARACTER[r.caracter])}</span>` : ''}${r.tipo === 'analitica' && r.estado === 'realizado' && r.resultado ? `<span class="chip ${RES[r.resultado]}">Resultado: ${esc(L.RESULTADOS[r.resultado])}</span>` : ''}`;
+    return `<div class="evento"><div class="entre"><strong>${esc(nombreSan(r.tipo))}${r.tipo === 'analitica' && r.analisis ? ` · ${esc(r.analisis)}` : ''}</strong><span class="chip ${estado[1]}">${estado[0]} · ${fmt(r.fecha)}</span></div>
+      ${chips ? `<div class="chips-fila">${chips}</div>` : ''}
+      ${r.tipo === 'analitica' && (r.muestra || r.laboratorio) ? `<div class="suave">${esc([r.muestra && `Muestra: ${r.muestra}`, r.laboratorio && `Laboratorio: ${r.laboratorio}`].filter(Boolean).join(' · '))}</div>` : ''}
+      ${r.tipo === 'analitica' && r.resultado_nota ? `<div>${esc(r.resultado_nota)}</div>` : ''}
       <div>${esc(destinoSan(r))}${r.producto ? ` · ${esc(r.producto)}` : ''}${r.dosis ? ` · ${esc(r.dosis)}` : ''}${r.via ? ` · ${esc(r.via)}` : ''}</div>
       ${r.motivo ? `<div class="suave">Motivo: ${esc(r.motivo)}</div>` : ''}${r.obs ? `<div class="suave">${esc(r.obs)}</div>` : ''}
       ${r.supresion_hasta && r.estado === 'realizado' ? `<div class="suave">Supresión hasta el ${fmt(r.supresion_hasta)}</div>` : ''}
@@ -1165,7 +1170,7 @@
     const opt = (k, t, sel) => `<option value="${esc(k)}" ${String(sel) === String(k) ? 'selected' : ''}>${esc(t)}</option>`;
     const campo = (n, l, html, extra = '') => `<div class="campo"><label for="s-${n}">${l}${extra}</label>${html}</div>`;
     const inp = (n, tipo = 'text', attrs = '') => `<input id="s-${n}" name="${n}" type="${tipo}" value="${esc(v[n] ?? '')}" ${attrs}>`;
-    const grupos = [['lechones', 'Lechones (camada)'], ['medicamento', 'Medicamentos y vacunas'], ['higiene', 'Higiene de instalaciones']];
+    const grupos = [['lechones', 'Lechones (camada)'], ['medicamento', 'Medicamentos y vacunas'], ['analitica', 'Controles analíticos'], ['higiene', 'Higiene de instalaciones']];
     const titulo = modo === 'realizar' ? 'Marcar como hecho' : modo === 'editar' ? 'Corregir registro de sanidad' : modo === 'programar' ? 'Programar tratamiento' : 'Registrar sanidad o manejo';
     const volver = pre.ambito === 'cerda' && pre.ref ? `#/cerda/${pre.ref}` : pre.ambito === 'verraco' && pre.ref ? `#/verraco/${pre.ref}` : '#/sanidad';
     const meds = S.medicamentos.filter((m) => m.activo || m.id === v.medicamento_id);
@@ -1191,6 +1196,13 @@
               <div class="dos">${campo('dosis', 'Dosis', inp('dosis', 'text', 'placeholder="p. ej. 2 ml"'))}${campo('via', 'Vía / modo de aplicación', inp('via', 'text', 'placeholder="IM, oral, pulverizado…"'))}</div>
               ${v.estado === 'realizado' ? `<div class="dos">${campo('lote', 'Lote', inp('lote'))}${campo('caducidad', 'Caducidad', inp('caducidad', 'date'))}</div>` : ''}
             </fieldset>` : ''}
+            ${grupo === 'analitica' ? `<fieldset><legend>Control analítico</legend>
+              ${campo('analisis', 'Qué se analiza', inp('analisis', 'text', 'placeholder="Aujeszky, PRRS, salmonela, agua…"'))}
+              <div class="dos">${campo('muestra', 'Tipo de muestra', inp('muestra', 'text', 'list="l-muestras"') + `<datalist id="l-muestras">${L.MUESTRAS.map((x) => `<option value="${esc(x)}">`).join('')}</datalist>`)}${campo('laboratorio', 'Laboratorio', inp('laboratorio'))}</div>
+              ${v.estado === 'realizado' ? `<div class="campo"><span class="et" id="et-res">Resultado</span><div class="opciones" role="radiogroup" aria-labelledby="et-res">${Object.entries(L.RESULTADOS).map(([k, t]) => `<label><input type="radio" name="resultado" value="${k}" ${(v.resultado || 'pendiente') === k ? 'checked' : ''}> ${t}</label>`).join('')}</div></div>
+              ${campo('resultado_nota', 'Detalle del resultado', inp('resultado_nota', 'text', 'placeholder="Valores, animales positivos, nº de informe…"'), ' <span class="suave">(opcional)</span>')}` : ''}
+            </fieldset>` : ''}
+            ${v.estado === 'previsto' || v.caracter ? `<div class="campo"><span class="et" id="et-car">Carácter${v.estado === 'previsto' ? '' : ' <span class="suave">(opcional)</span>'}</span><div class="opciones" role="radiogroup" aria-labelledby="et-car">${Object.entries(L.CARACTER).map(([k, t]) => `<label><input type="radio" name="caracter" value="${k}" ${v.caracter === k ? 'checked' : ''}> ${t}</label>`).join('')}</div></div>` : ''}
             ${T.motivo || v.tipo === 'otro' ? campo('motivo', v.tipo === 'raboteo' ? 'Motivo (caudofagia detectada)' : 'Motivo', inp('motivo'), v.estado === 'previsto' ? ' <span class="suave">(opcional)</span>' : '') : ''}
             ${campo('repetir_dias', 'Repetir cada (días)', inp('repetir_dias', 'number', 'inputmode="numeric" min="1" placeholder="Vacío si no se repite"'), ' <span class="suave">(opcional)</span>')}
             ${campo('obs', 'Observaciones', `<textarea id="s-obs" name="obs">${esc(v.obs || '')}</textarea>`, ' <span class="suave">(opcional)</span>')}
@@ -1236,6 +1248,12 @@
       supresion_hasta: v.estado === 'realizado' && m && m.supresion_dias != null && m.supresion_dias > 0 ? L.sumarDias(v.fecha, m.supresion_dias) : null,
       motivo: [v.motivo, T.edad && v.edad ? `${v.edad} días de edad` : ''].filter(Boolean).join(' · ') || null,
       obs: v.obs || null, repetir_dias: num(v.repetir_dias) || null,
+      caracter: L.CARACTER[v.caracter] ? v.caracter : null,
+      analisis: v.tipo === 'analitica' ? v.analisis || null : null,
+      muestra: v.tipo === 'analitica' ? v.muestra || null : null,
+      laboratorio: v.tipo === 'analitica' ? v.laboratorio || null : null,
+      resultado: v.tipo === 'analitica' && v.estado === 'realizado' ? (L.RESULTADOS[v.resultado] ? v.resultado : 'pendiente') : null,
+      resultado_nota: v.tipo === 'analitica' && v.estado === 'realizado' ? v.resultado_nota || null : null,
     };
     const boton = document.querySelector('#f-san button[type=submit]'); boton.disabled = true; boton.textContent = 'Guardando…';
     let error;
@@ -1245,7 +1263,7 @@
     let siguiente = null;
     if (!error && fila.estado === 'realizado' && fila.repetir_dias && (!reg || reg.estado === 'previsto' || modo !== 'editar')) {
       siguiente = L.sumarDias(fila.fecha, fila.repetir_dias);
-      const prox = { ...fila, estado: 'previsto', fecha: siguiente, lote: null, caducidad: null, supresion_hasta: null, granja_id: S.granja };
+      const prox = { ...fila, estado: 'previsto', fecha: siguiente, lote: null, caducidad: null, supresion_hasta: null, resultado: null, resultado_nota: null, granja_id: S.granja };
       ({ error } = await sb.from('sanidad').insert(prox));
     }
     if (error) { boton.disabled = false; boton.textContent = 'Guardar'; msj.innerHTML = `<div class="error-caja" role="alert">${esc(traducirError(error))}</div>`; return; }
@@ -1763,7 +1781,7 @@
         hoja('Verracos', T.verracos.map((v) => ({ Crotal: v.crotal, 'Otros crotales': (v.otros_crotales || []).join(', '), Raza: v.raza, Nacimiento: v.fecha_nacimiento || '', Entrada: v.fecha_entrada || '', Verraquera: v.verraquera || '', 'Fecha de baja': v.fecha_baja || '', 'Causa de baja': v.causa_baja || '' })));
         hoja('Eventos', T.eventos.filter((e) => e.granja_id === C.granjaPorcino).map(fila));
         const medDe = Object.fromEntries(T.medicamentos.map((m) => [m.id, m]));
-        hoja('Sanidad', T.sanidad.map((r) => ({ Granja: r.granja_id === 1 ? '1.º' : '2.º', Estado: r.estado === 'previsto' ? 'Previsto' : 'Realizado', Fecha: r.fecha, Qué: nombreSan(r.tipo), Destino: r.ambito === 'zona' ? r.zona : r.ambito === 'granja' ? 'Toda la granja' : r.ambito === 'verraco' ? `Verraco ${verracoDe[r.verraco_id] || '?'}` : `${r.ambito === 'camada' ? 'Lechones de ' : 'Cerda '}${crotalDe[r.cerda_id] || '?'}`, 'Nº animales': r.n_animales ?? '', Producto: r.producto || '', 'Materia activa': (medDe[r.medicamento_id] || {}).materia_activa || '', Dosis: r.dosis || '', Vía: r.via || '', Lote: r.lote || '', Caducidad: r.caducidad || '', 'Supresión hasta': r.supresion_hasta || '', Motivo: r.motivo || '', Observaciones: r.obs || '', 'Registrado por': aliasDe[r.autor] || r.autor_alias || '', 'Realizado por': r.realizado_por || '' })));
+        hoja('Sanidad', T.sanidad.map((r) => ({ Granja: r.granja_id === 1 ? '1.º' : '2.º', Estado: r.estado === 'previsto' ? 'Previsto' : 'Realizado', Fecha: r.fecha, Qué: nombreSan(r.tipo), Carácter: L.CARACTER[r.caracter] || '', Análisis: r.analisis || '', Muestra: r.muestra || '', Laboratorio: r.laboratorio || '', Resultado: L.RESULTADOS[r.resultado] || '', 'Detalle del resultado': r.resultado_nota || '', Destino: r.ambito === 'zona' ? r.zona : r.ambito === 'granja' ? 'Toda la granja' : r.ambito === 'verraco' ? `Verraco ${verracoDe[r.verraco_id] || '?'}` : `${r.ambito === 'camada' ? 'Lechones de ' : 'Cerda '}${crotalDe[r.cerda_id] || '?'}`, 'Nº animales': r.n_animales ?? '', Producto: r.producto || '', 'Materia activa': (medDe[r.medicamento_id] || {}).materia_activa || '', Dosis: r.dosis || '', Vía: r.via || '', Lote: r.lote || '', Caducidad: r.caducidad || '', 'Supresión hasta': r.supresion_hasta || '', Motivo: r.motivo || '', Observaciones: r.obs || '', 'Registrado por': aliasDe[r.autor] || r.autor_alias || '', 'Realizado por': r.realizado_por || '' })));
         hoja('Medicamentos', T.medicamentos.map((m) => ({ 'Nombre comercial': m.nombre, 'Materia activa': m.materia_activa || '', Tipo: m.tipo, Presentación: m.presentacion || '', 'Posología (cerdo)': (m.posologia || {}).porcino || m.dosis || '', Vía: m.via || '', 'Supresión (días)': m.supresion_dias ?? '', Lote: m.lote || '', Caducidad: m.caducidad || '', 'Ficha técnica': m.ficha_url || '', Activo: m.activo ? 'Sí' : 'No' })));
         hoja('Extracciones', T.extracciones.map((x) => ({ Granja: x.granja_id === 1 ? '1.º' : '2.º', Verraco: verracoDe[x.verraco_id] || '?', Extracción: x.fecha, Verificación: x.fecha_verificacion || '', 'Nº dosis': x.n_dosis, 'Motilidad %': x.motilidad ?? '', 'Volumen c.c.': x.volumen ?? '', Observaciones: x.obs || '', 'Registrado por': aliasDe[x.autor] || x.autor_alias || '' })));
         hoja('Recuentos', T.recuentos.map((x) => ({ Granja: x.granja_id === 1 ? '1.º' : '2.º', Estancia: x.estancia, Fecha: x.fecha, Animales: x.n, Observaciones: x.obs || '', 'Registrado por': aliasDe[x.autor] || x.autor_alias || '' })));

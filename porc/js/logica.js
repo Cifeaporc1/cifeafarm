@@ -377,8 +377,12 @@
     desinfeccion:   { nombre: 'Desinfección', grupo: 'higiene', producto: true },
     desinsectacion: { nombre: 'Desinsectación', grupo: 'higiene', producto: true },
     desratizacion:  { nombre: 'Desratización', grupo: 'higiene', producto: true },
+    analitica:      { nombre: 'Control analítico', grupo: 'analitica' },
     otro:           { nombre: 'Otro', grupo: 'medicamento' },
   };
+  const CARACTER = { obligatorio: 'Obligatorio', recomendado: 'Recomendado', voluntario: 'Voluntario' };
+  const RESULTADOS = { pendiente: 'Pendiente', negativo: 'Negativo', positivo: 'Positivo' };
+  const MUESTRAS = ['Sangre', 'Suero', 'Heces', 'Orina', 'Hisopo', 'Semen', 'Pienso', 'Agua'];
   const ZONAS = ['Parques de vacías', 'Sala de implantación', 'Parques de gestación', 'Sala de partos 1', 'Sala de partos 2', 'Sala de partos 3', 'Verraqueras', 'Lechoneras', 'Cebadero', 'Toda la nave', 'Exterior / almacén'];
 
   function usaProducto(tipo) { const t = SANIDAD[tipo]; return t && (t.grupo === 'medicamento' || t.producto); }
@@ -390,6 +394,8 @@
     if (!v.fecha) errores.push('Falta la fecha.');
     else if (v.estado === 'realizado' && v.fecha > sumarDias(ctx.hoy, 1)) errores.push('Un tratamiento realizado no puede tener fecha futura. Si es para más adelante, márcalo como previsto.');
     else if (v.estado === 'previsto' && v.fecha < ctx.hoy) avisosF.push('La fecha prevista ya ha pasado.');
+    if (v.estado === 'previsto' && !CARACTER[v.caracter]) errores.push('Indica si es obligatorio, recomendado o voluntario.');
+    if (v.tipo === 'analitica' && !String(v.analisis || '').trim()) errores.push('Indica qué se analiza.');
     if ((v.ambito === 'cerda' || v.ambito === 'camada') && !v.cerda_id) errores.push('Elige la cerda.');
     if (v.ambito === 'verraco' && !v.verraco_id) errores.push('Elige el verraco.');
     if (v.ambito === 'zona' && !v.zona) errores.push('Elige la zona.');
@@ -431,7 +437,7 @@
   const CLASES_MED = { antibiotico: 'Antibiótico', antiinflamatorio: 'Antiinflamatorio', analgesico: 'Analgésico', tranquilizante: 'Tranquilizante / sedante', anestesico: 'Anestésico',
     antiparasitario_int: 'Antiparasitario interno', antiparasitario_ext: 'Antiparasitario externo', vacuna: 'Vacuna', hormonal: 'Hormonal', vitaminas: 'Vitaminas y minerales',
     desinfectante: 'Desinfectante', insecticida: 'Insecticida', raticida: 'Raticida' };
-  const api = { CLASES_MED, REF, CAUSAS_BAJA, CAUSAS_ADULTO, CAUSAS_CEBO, CAPACIDAD, SANIDAD, ZONAS, usaProducto, comprobarSanidad, avisosSanidad, estadoDosis, FASES, sumarDias, dias, hoyISO, ordenar, estadoCerda, camada, fechasCiclo, indicesCiclo, avisos, ocupacion, capacidadDe, sitioPlano, ESTANCIAS, cuentaGrupos, comprobarMovGrupo, comprobar };
+  const api = { CLASES_MED, REF, CAUSAS_BAJA, CAUSAS_ADULTO, CAUSAS_CEBO, CAPACIDAD, SANIDAD, CARACTER, RESULTADOS, MUESTRAS, ZONAS, usaProducto, comprobarSanidad, avisosSanidad, estadoDosis, FASES, sumarDias, dias, hoyISO, ordenar, estadoCerda, camada, fechasCiclo, indicesCiclo, avisos, ocupacion, capacidadDe, sitioPlano, ESTANCIAS, cuentaGrupos, comprobarMovGrupo, comprobar };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else raiz.Logica = api;
 })(typeof window !== 'undefined' ? window : globalThis);

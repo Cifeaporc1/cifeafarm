@@ -62,3 +62,9 @@ Cuando una versión nueva traiga cambios en la base de datos, vuelve a ejecutar 
 3. Ella entra con la pestaña **Veterinaria**, su alias y su PIN. No hace falta su correo.
 
 Trabaja con los animales y la granja: registra, corrige y borra cualquier registro, corrige datos de los animales, mantiene el catálogo de productos, importa el censo, descarga copias en Excel, cambia el uso de las corralinas y borra animales. No tiene nada que ver con los alumnos: no los ve (donde iría su alias pone «un alumno de 2.º»), no los gestiona, no ve su actividad y no abre ni cierra el acceso de un curso.
+
+## 9. Controles analíticos y carácter de lo programado (0.8.0)
+
+1. Ejecuta una vez en Supabase `sql/08_controles_analiticos.sql` (SQL Editor → New query → Run). Es repetible y no borra datos.
+2. En **Sanidad → Programar** aparece «Control analítico» en «Qué» y hay que elegir si es **obligatorio, recomendado o voluntario** (también para vacunas, tratamientos y el resto).
+3. Al marcar un control como hecho se apunta el resultado: pendiente, negativo o positivo, con el detalle.

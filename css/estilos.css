@@ -283,3 +283,4 @@ h2 { margin-top: 4px; }
 .animal-fila.seg > div { flex: 1; min-width: 0; }
 .animal-fila.seg select, .animal-fila.seg input { width: 84px; min-height: 44px; padding: 6px 8px; font-size: 16px; flex: none; }
 .curso-acceso { border-top: 1px solid var(--linea); padding-top: 8px; }
+.chips-fila { display: flex; flex-wrap: wrap; gap: 6px; margin: 4px 0; }
