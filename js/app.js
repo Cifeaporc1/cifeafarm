@@ -38,6 +38,10 @@
   const curso = (g) => (g ? `${g}.º` : 'profesor');
   const animal = (id) => S.animales.find((a) => a.id === id);
   const activos = () => S.animales.filter((a) => !a.fecha_baja);
+  // Animales que estaban en la granja en una fecha. Los del censo importado cuentan
+  // desde su nacimiento (si se sabe), porque su fecha de alta es la de la importación.
+  const presentesEn = (f) => (f >= hoy() ? activos() : S.animales.filter((a) => (!a.fecha_baja || a.fecha_baja > f)
+    && (!a.fecha_nacimiento || a.fecha_nacimiento <= f) && (a.importado || a.fecha_alta <= f)));
   const corralina = (id) => S.corralinas.find((c) => c.id === Number(id));
   const nombreCorr = (id) => { const c = corralina(id); return c ? `${c.nave} · ${c.numero}` : 'Sin ubicar'; };
   const nombreCorrCorto = (id) => { const c = corralina(id); return c ? `${c.nave} ${c.numero}` : 'Sin ubicar'; };
@@ -1156,6 +1160,7 @@
         ${modo === 'realizar' ? '<div class="ok-caja">Revisa los datos, completa el lote del producto y pulsa «Guardar como hecho». Quedará validado a tu nombre.</div>' : ''}
         <form class="formu" id="f-san" novalidate>
           <div class="campo"><label for="tipo">Qué</label><select id="tipo" name="tipo">${Object.entries(L.TIPOS_SAN).map(([k, x]) => `<option value="${k}" ${v.tipo === k ? 'selected' : ''}>${x}</option>`).join('')}</select></div>
+          <div class="campo"><label for="fecha">${realizado ? 'Fecha en que se hizo (primer día)' : 'Fecha prevista'}</label><input id="fecha" name="fecha" type="date" value="${v.fecha}" ${realizado ? `max="${hoy()}"` : ''}>${realizado ? '<span class="ayuda">Puedes poner una fecha pasada para apuntar tratamientos antiguos.</span>' : ''}</div>
           <div class="campo"><span class="et">A quién</span><div class="opciones">
             ${anim.length || v.ambito === 'animales' ? `<label><input type="radio" name="ambito" value="animales" ${v.ambito === 'animales' ? 'checked' : ''}> ${anim.length === 1 ? esc(nombreA(anim[0])) : `${anim.length} animales`}</label>` : ''}
             <label><input type="radio" name="ambito" value="corralina" ${v.ambito === 'corralina' ? 'checked' : ''}> Una corralina</label>
@@ -1177,8 +1182,7 @@
           <div class="campo"><label for="producto">Nombre del producto</label><input id="producto" name="producto" type="text" value="${esc(v.producto || '')}"></div>
           <div class="dos"><div class="campo"><label for="dosis">Dosis</label><input id="dosis" name="dosis" type="text" value="${esc(v.dosis || '')}" placeholder="2 ml / animal"></div>
             <div class="campo"><label for="via">Vía</label><input id="via" name="via" type="text" value="${esc(v.via || '')}" placeholder="SC, IM, oral…"></div></div>
-          <div class="dos"><div class="campo"><label for="fecha">${realizado ? 'Fecha (primer día)' : 'Fecha prevista'}</label><input id="fecha" name="fecha" type="date" value="${v.fecha}" ${realizado ? `max="${hoy()}"` : ''}></div>
-            <div class="campo"><label for="duracion_dias">Días de tratamiento</label><input id="duracion_dias" name="duracion_dias" type="number" min="1" max="60" value="${v.duracion_dias || 1}"></div></div>
+          <div class="campo"><label for="duracion_dias">Días de tratamiento</label><input id="duracion_dias" name="duracion_dias" type="number" min="1" max="60" value="${v.duracion_dias || 1}"></div>
           <div class="dos"><div class="campo"><label for="espera_leche">Espera leche (días)</label><input id="espera_leche" name="espera_leche" type="number" min="0" value="${esc(v.espera_leche ?? '')}"></div>
             <div class="campo"><label for="espera_carne">Espera carne (días)</label><input id="espera_carne" name="espera_carne" type="number" min="0" value="${esc(v.espera_carne ?? '')}"></div></div>
           <div class="ayuda suave">La leche y la carne quedan retiradas hasta el último día de tratamiento más el tiempo de espera. Compruébalo en el prospecto o con el veterinario.</div>
@@ -1231,11 +1235,13 @@
       if (!r.fecha) return msg('Falta la fecha.');
       if (realizado && r.fecha > hoy()) return msg('Lo hecho no puede tener fecha futura: prográmalo.');
       // Animales afectados: al hacerlo, los presentes en ese momento.
-      const presentes = r.ambito === 'animales' ? (v.animales || []) : r.ambito === 'corralina' ? activos().filter((a) => ubic(a) === r.corralina_id).map((a) => a.id)
-        : r.ambito === 'especie' ? activos().filter((a) => a.especie === r.especie).map((a) => a.id) : activos().map((a) => a.id);
+      // En una fecha pasada, los que estaban entonces (y en la corralina de entonces).
+      const enFecha = presentesEn(r.fecha);
+      const presentes = r.ambito === 'animales' ? (v.animales || []) : r.ambito === 'corralina' ? enFecha.filter((a) => (L.ubicacion(a, S.porAnimal[a.id], r.fecha) || null) === r.corralina_id).map((a) => a.id)
+        : r.ambito === 'especie' ? enFecha.filter((a) => a.especie === r.especie).map((a) => a.id) : enFecha.map((a) => a.id);
       if (realizado && (modo !== 'editar' || r.ambito !== fila.ambito || r.corralina_id !== fila.corralina_id || r.especie !== fila.especie)) r.animales = presentes;
       if (!realizado) r.animales = r.ambito === 'animales' ? (v.animales || []) : [];
-      if (realizado && !(r.animales || fila.animales || []).length) return msg('No hay animales en ese destino.');
+      if (realizado && !(r.animales || fila.animales || []).length) return msg(r.fecha < hoy() ? 'No había animales en ese destino en esa fecha (según los datos de la app).' : 'No hay animales en ese destino.');
       const b = f.querySelector('button[type=submit]'); b.disabled = true;
       let res;
       if (modo === 'nuevo') res = await sb.from('rum_sanidad').insert({ ...r, estado: 'realizado', repetir_dias: repetir });
@@ -1243,13 +1249,15 @@
       else if (modo === 'realizar') res = await sb.from('rum_sanidad').update({ ...r, estado: 'realizado', repetir_dias: repetir }).eq('id', id);
       else res = await sb.from('rum_sanidad').update(r).eq('id', id);
       if (res.error) { b.disabled = false; return msg(traducirError(res.error)); }
-      if (realizado && repetir && modo !== 'editar') {
+      let pasado = false;
+      if (realizado && repetir && modo !== 'editar' && L.sumarDias(r.fecha, repetir) < hoy()) pasado = true;
+      else if (realizado && repetir && modo !== 'editar') {
         const sig = { ...r, estado: 'previsto', fecha: L.sumarDias(r.fecha, repetir), repetir_dias: repetir, lote: null, caducidad: null, resultado: null, resultado_nota: null, caracter: r.caracter || (fila && fila.caracter) || null, animales: r.ambito === 'animales' ? r.animales : [] };
         const r2 = await sb.from('rum_sanidad').insert(sig); if (r2.error) toast(`Guardado, pero no se pudo programar el siguiente: ${traducirError(r2.error)}`);
       }
       S.borrador.grupo = null;
-      const ret = r.espera_leche && realizado ? (r.animales || []).map(animal).filter((a) => a && a.especie === 'caprino' && esHembraRepro(a) && estR(a).estado === 'lactacion').length : 0;
-      toast(ret ? `Guardado · ${ret} ${ret === 1 ? 'cabra' : 'cabras'} en ordeño con leche retirada` : modo === 'programar' ? 'Programado' : 'Guardado');
+      const ret = r.espera_leche && realizado && L.sumarDias(r.fecha, (r.duracion_dias || 1) - 1 + r.espera_leche) >= hoy() ? (r.animales || []).map(animal).filter((a) => a && a.especie === 'caprino' && esHembraRepro(a) && estR(a).estado === 'lactacion').length : 0;
+      if (pasado) toast('Guardado. No se programa la repetición porque su fecha ya ha pasado.'); else toast(ret ? `Guardado · ${ret} ${ret === 1 ? 'cabra' : 'cabras'} en ordeño con leche retirada` : modo === 'programar' ? 'Programado' : 'Guardado');
       await refrescar(); location.hash = volver === '#/sanidad' ? (modo === 'programar' ? '#/sanidad/calendario' : '#/sanidad/registro') : volver;
     });
   }

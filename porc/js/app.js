@@ -1182,7 +1182,7 @@
             <label><input type="radio" name="estado" value="realizado" ${v.estado === 'realizado' ? 'checked' : ''}> Realizado</label>
             <label><input type="radio" name="estado" value="previsto" ${v.estado === 'previsto' ? 'checked' : ''}> Previsto</label></div></div>`}
           ${campo('tipo', '¿Qué se hace?', `<select id="s-tipo" name="tipo"><option value="">Elige…</option>${grupos.map(([g, gt]) => `<optgroup label="${gt}">${Object.entries(L.SANIDAD).filter(([k, t]) => t.grupo === g && (!t.oculto || k === v.tipo)).map(([k, t]) => opt(k, t.nombre, v.tipo)).join('')}</optgroup>`).join('')}</select>`)}
-          ${campo('fecha', v.estado === 'previsto' ? 'Fecha prevista' : 'Fecha en que se realiza', inp('fecha', 'date', v.estado === 'realizado' ? `max="${L.sumarDias(hoy(), 1)}"` : ''))}
+          ${campo('fecha', v.estado === 'previsto' ? 'Fecha prevista' : 'Fecha en que se realizó', inp('fecha', 'date', v.estado === 'realizado' ? `max="${L.sumarDias(hoy(), 1)}"` : '') + (v.estado === 'realizado' ? '<span class="ayuda">Puedes poner una fecha pasada para apuntar tratamientos antiguos.</span>' : ''))}
           ${T ? `
             ${grupo === 'lechones' ? '' : campo('ambito', '¿A quién o dónde?', `<select id="s-ambito" name="ambito">${(grupo === 'higiene' ? [['zona', 'Una zona'], ['granja', 'Toda la granja']] : [['granja', 'Toda la granja'], ['zona', 'Una zona'], ['cerda', 'Una cerda'], ['camada', 'Los lechones de una cerda'], ['verraco', 'Un verraco']]).map(([k, t]) => opt(k, t, v.ambito)).join('')}</select>`)}
             ${['cerda', 'camada'].includes(v.ambito) ? campo('cerda_id', v.ambito === 'camada' ? 'Camada de la cerda' : 'Cerda', `<select id="s-cerda_id" name="cerda_id"><option value="">Elige…</option>${listaCerdas.filter(Boolean).map((c) => { const cm = L.camada(estadoDe(c.id).actual); return opt(c.id, `${c.crotal} · ${faseNombre(estadoDe(c.id).fase)}${v.ambito === 'camada' && cm ? ` · ${cm.actuales} lechones` : ''}`, v.cerda_id); }).join('')}</select>${v.ambito === 'camada' && !lact.length ? '<span class="ayuda">No hay cerdas lactantes ahora mismo.</span>' : ''}`) : ''}
@@ -1261,7 +1261,8 @@
     else ({ error } = await sb.from('sanidad').insert({ ...fila, granja_id: S.granja }));
     // Si se ha hecho y se repite, se programa el siguiente
     let siguiente = null;
-    if (!error && fila.estado === 'realizado' && fila.repetir_dias && (!reg || reg.estado === 'previsto' || modo !== 'editar')) {
+    const pasado = fila.estado === 'realizado' && fila.repetir_dias && L.sumarDias(fila.fecha, fila.repetir_dias) < hoy();
+    if (!error && !pasado && fila.estado === 'realizado' && fila.repetir_dias && (!reg || reg.estado === 'previsto' || modo !== 'editar')) {
       siguiente = L.sumarDias(fila.fecha, fila.repetir_dias);
       const prox = { ...fila, estado: 'previsto', fecha: siguiente, lote: null, caducidad: null, supresion_hasta: null, resultado: null, resultado_nota: null, granja_id: S.granja };
       ({ error } = await sb.from('sanidad').insert(prox));
@@ -1269,7 +1270,7 @@
     if (error) { boton.disabled = false; boton.textContent = 'Guardar'; msj.innerHTML = `<div class="error-caja" role="alert">${esc(traducirError(error))}</div>`; return; }
     const pre = S.borrador.pre || {};
     S.borrador = { filtro: S.borrador.filtro, mes: S.borrador.mes };
-    toast(siguiente ? `Guardado. Siguiente programado para el ${fmt(siguiente)}` : 'Guardado');
+    toast(siguiente ? `Guardado. Siguiente programado para el ${fmt(siguiente)}` : pasado && modo !== 'editar' ? 'Guardado. No se programa la repetición porque su fecha ya ha pasado.' : 'Guardado');
     await refrescar();
     location.hash = pre.ambito === 'cerda' && pre.ref ? `#/cerda/${pre.ref}` : pre.ambito === 'verraco' && pre.ref ? `#/verraco/${pre.ref}` : '#/sanidad';
   }
