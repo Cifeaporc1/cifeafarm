@@ -1039,29 +1039,43 @@
   const puedeEditarSan = (r) => esProf() || (r.autor === S.sesion.user.id && Date.now() - new Date(r.creado).getTime() < 864e5);
   const avisoSQL05 = () => (S.faltaSQL05 ? `<div class="aviso-caja"><strong>Falta preparar la base de datos.</strong> ${esProf() ? 'Ejecuta en Supabase el archivo 05_sanidad_verracos.sql (SQL Editor → New query → Run).' : 'Avisa al profesor.'}</div>` : '');
 
-  function tarjetaSan(r) {
+  // Último realizado del mismo tratamiento (mismo tipo, producto o análisis y destino) antes de esa fecha.
+  const mismoQue = (x, r) => x.tipo === r.tipo && (r.tipo === 'analitica' ? String(x.analisis || '').toLowerCase() === String(r.analisis || '').toLowerCase()
+    : (x.medicamento_id && r.medicamento_id ? x.medicamento_id === r.medicamento_id : String(x.producto || '').toLowerCase() === String(r.producto || '').toLowerCase()));
+  const mismoDestino = (x, r) => x.ambito === r.ambito && (x.cerda_id || null) === (r.cerda_id || null) && (x.verraco_id || null) === (r.verraco_id || null) && (x.zona || null) === (r.zona || null);
+  const anteriorSan = (r) => S.sanidad.filter((x) => x.estado === 'realizado' && x.id !== r.id && x.fecha < r.fecha && mismoQue(x, r) && mismoDestino(x, r)).sort((a, b) => b.fecha.localeCompare(a.fecha))[0];
+  const diasEntre = (a, b) => Math.round((Date.parse(b) - Date.parse(a)) / 864e5);
+  function retrasoSan(r) {
+    if (r.estado !== 'previsto' || r.fecha >= hoy()) return '';
+    const ant = anteriorSan(r); const d = diasEntre(r.fecha, hoy());
+    return `<div class="rojo">${ant ? `Anterior: ${fmt(ant.fecha)} · ` : 'Sin tratamiento anterior registrado · '}Previsto: ${fmt(r.fecha)} · <strong>${d} ${d === 1 ? 'día' : 'días'} de retraso</strong></div>`;
+  }
+  const cancelSan = (r) => (r.estado === 'cancelado' ? `<div>Cancelado el ${fmt(r.cancelado_fecha || r.fecha)}${r.cancelado_motivo ? ` · ${esc(L.MOTIVOS_CANCEL[r.cancelado_motivo] || r.cancelado_motivo)}` : ''}${r.cancelado_detalle ? `: ${esc(r.cancelado_detalle)}` : ''}${r.cancelado_por ? ` · por ${esc(verAlias(r.cancelado_por) || '?')}` : ''}</div>` : '');
+
+  function tarjetaSan(r, conAcciones = true) {
     const h = hoy();
-    const estado = r.estado === 'realizado' ? ['Realizado', ''] : r.fecha < h ? ['Retrasado', 'rojo'] : ['Previsto', 'nar'];
+    const estado = r.estado === 'cancelado' ? ['Cancelado', 'gris'] : r.estado === 'realizado' ? ['Realizado', ''] : r.fecha < h ? ['Retrasado', 'rojo'] : ['Previsto', 'nar'];
     const med = medPorId(r.medicamento_id);
     const CAR = { obligatorio: 'rojo', recomendado: 'nar', voluntario: 'gris' }, RES = { pendiente: 'nar', negativo: '', positivo: 'rojo' };
     const chips = `${r.caracter ? `<span class="chip ${CAR[r.caracter]}">${esc(L.CARACTER[r.caracter])}</span>` : ''}${r.tipo === 'analitica' && r.estado === 'realizado' && r.resultado ? `<span class="chip ${RES[r.resultado]}">Resultado: ${esc(L.RESULTADOS[r.resultado])}</span>` : ''}`;
     return `<div class="evento"><div class="entre"><strong>${esc(nombreSan(r.tipo))}${r.tipo === 'analitica' && r.analisis ? ` · ${esc(r.analisis)}` : ''}</strong><span class="chip ${estado[1]}">${estado[0]} · ${fmt(r.fecha)}</span></div>
-      ${chips ? `<div class="chips-fila">${chips}</div>` : ''}
+      ${chips ? `<div class="chips-fila">${chips}</div>` : ''}${retrasoSan(r)}${cancelSan(r)}
       ${r.tipo === 'analitica' && (r.muestra || r.laboratorio) ? `<div class="suave">${esc([r.muestra && `Muestra: ${r.muestra}`, r.laboratorio && `Laboratorio: ${r.laboratorio}`].filter(Boolean).join(' · '))}</div>` : ''}
       ${r.tipo === 'analitica' && r.resultado_nota ? `<div>${esc(r.resultado_nota)}</div>` : ''}
       <div>${esc(destinoSan(r))}${r.producto ? ` · ${esc(r.producto)}` : ''}${r.dosis ? ` · ${esc(r.dosis)}` : ''}${r.via ? ` · ${esc(r.via)}` : ''}</div>
       ${r.motivo ? `<div class="suave">Motivo: ${esc(r.motivo)}</div>` : ''}${r.obs ? `<div class="suave">${esc(r.obs)}</div>` : ''}
       ${r.supresion_hasta && r.estado === 'realizado' ? `<div class="suave">Supresión hasta el ${fmt(r.supresion_hasta)}</div>` : ''}
       <div class="suave peq">${r.estado === 'realizado' ? `Realizado por ${esc(verAlias(r.realizado_por) || quienEs(r.autor, r.autor_alias))}` : `Programado por ${esc(quienEs(r.autor, r.autor_alias))}`}${r.repetir_dias ? ` · se repite cada ${r.repetir_dias} días` : ''}${med && med.ficha_url ? ` · <a href="${esc(med.ficha_url)}" target="_blank" rel="noopener noreferrer external">Ficha técnica ↗</a>` : ''}</div>
-      <div class="acciones">${r.estado === 'previsto' ? `<a class="btn peq" href="#/sanidad/realizar/${r.id}">Marcar como hecho</a>` : ''}
-        <a class="btn sec peq" href="#/sanidad/editar/${r.id}">Corregir</a>${puedeEditarSan(r) ? `<button class="btn peligro peq" type="button" data-borrar-san="${r.id}">Borrar</button>` : ''}</div>
+      ${!conAcciones ? '' : r.estado === 'cancelado' ? `<div class="acciones"><a class="btn sec peq" href="#/sanidad/cancelar/${r.id}">Ver o deshacer la cancelación</a>${puedeEditarSan(r) ? `<button class="btn peligro peq" type="button" data-borrar-san="${r.id}">Borrar</button>` : ''}</div>`
+      : `<div class="acciones">${r.estado === 'previsto' ? `<a class="btn peq" href="#/sanidad/realizar/${r.id}">Marcar como hecho</a><a class="btn sec peq" href="#/sanidad/cancelar/${r.id}">Cancelar</a>` : ''}
+        <a class="btn sec peq" href="#/sanidad/editar/${r.id}">Corregir</a>${puedeEditarSan(r) ? `<button class="btn peligro peq" type="button" data-borrar-san="${r.id}">Borrar</button>` : ''}</div>`}
       ${r.modificado ? `<div class="suave peq">Corregido por ${esc(verAlias(r.modificado_por) || '?')}</div>` : ''}</div>`;
   }
 
   function seccionSanidad(filtro, enlace) {
     const regs = S.sanidad.filter(filtro).slice().sort((a, b) => (a.fecha < b.fecha ? 1 : -1));
     return `<section class="tarjeta"><div class="entre"><h2>Sanidad y manejos</h2><a class="btn sec peq" href="${enlace}">${ICONOS.mas}Añadir</a></div>
-      ${regs.length ? regs.slice(0, 6).map(tarjetaSan).join('') + (regs.length > 6 ? `<details><summary class="suave" style="min-height:44px;display:flex;align-items:center">Ver ${regs.length - 6} más</summary>${regs.slice(6).map(tarjetaSan).join('')}</details>` : '') : '<div class="suave">Sin registros de sanidad.</div>'}</section>`;
+      ${regs.length ? regs.slice(0, 6).map((r) => tarjetaSan(r)).join('') + (regs.length > 6 ? `<details><summary class="suave" style="min-height:44px;display:flex;align-items:center">Ver ${regs.length - 6} más</summary>${regs.slice(6).map((r) => tarjetaSan(r)).join('')}</details>` : '') : '<div class="suave">Sin registros de sanidad.</div>'}</section>`;
   }
 
   function enlazarBorrarSan(volver) {
@@ -1087,16 +1101,16 @@
     for (let i = 0; i < hueco; i++) celdas.push('<span></span>');
     for (let d = 1; d <= diasMes; d++) {
       const iso = `${mes}-${dos(d)}`; const it = porDia[iso] || [];
-      const puntos = it.map((r) => `<i style="background:${r.estado === 'realizado' ? 'var(--verde)' : r.fecha < h ? 'var(--rojo)' : 'var(--naranja)'}"></i>`).join('');
+      const puntos = it.map((r) => `<i style="background:${r.estado === 'cancelado' ? '#9AA49E' : r.estado === 'realizado' ? 'var(--verde)' : r.fecha < h ? 'var(--rojo)' : 'var(--naranja)'}"></i>`).join('');
       celdas.push(`<button type="button" data-dia="${iso}" class="dia ${iso === h ? 'hoy' : ''} ${S.borrador.dia === iso ? 'sel' : ''}" aria-label="${d} de ${NOMBRES_MES[m - 1]}: ${it.length} registros"><span>${d}</span><span class="puntos">${puntos}</span></button>`);
     }
     const lista = (S.borrador.dia && S.borrador.dia.startsWith(mes) ? (porDia[S.borrador.dia] || []) : Object.keys(porDia).sort().flatMap((k) => porDia[k]));
     const ant = m === 1 ? `${a - 1}-12` : `${a}-${dos(m - 1)}`, sig = m === 12 ? `${a + 1}-01` : `${a}-${dos(m + 1)}`;
     return `<section class="tarjeta"><div class="entre"><button class="btn sec peq" type="button" data-mes="${ant}" aria-label="Mes anterior">‹</button><h2>${NOMBRES_MES[m - 1]} ${a}</h2><button class="btn sec peq" type="button" data-mes="${sig}" aria-label="Mes siguiente">›</button></div>
       <div class="calendario"><b>L</b><b>M</b><b>X</b><b>J</b><b>V</b><b>S</b><b>D</b>${celdas.join('')}</div>
-      <div class="opciones peq"><span class="chip">● Realizado</span><span class="chip nar">● Previsto</span><span class="chip rojo">● Retrasado</span></div></section>
+      <div class="opciones peq"><span class="chip">● Realizado</span><span class="chip nar">● Previsto</span><span class="chip rojo">● Retrasado</span><span class="chip gris">● Cancelado</span></div></section>
       <section class="tarjeta"><div class="entre"><h2>${S.borrador.dia && S.borrador.dia.startsWith(mes) ? `Día ${fmt(S.borrador.dia)}` : 'Este mes'}</h2>${S.borrador.dia ? '<button class="btn sec peq" type="button" data-dia="">Ver todo el mes</button>' : ''}</div>
-      ${lista.length ? lista.map(tarjetaSan).join('') : '<div class="suave">Nada registrado ni previsto.</div>'}</section>`;
+      ${lista.length ? lista.map((r) => tarjetaSan(r)).join('') : '<div class="suave">Nada registrado ni previsto.</div>'}</section>`;
   }
 
   function registroHTML() {
@@ -1142,6 +1156,42 @@
     enlazarBorrarSan(() => vistaSanidad(sec));
   }
 
+  // ---- Cancelar un previsto (con fecha y motivo) o ver/deshacer una cancelación
+  function vistaSanidadCancelar(id) {
+    const r = S.sanidad.find((x) => x.id === id);
+    if (!r || r.estado === 'realizado') return vistaNoEncontrado();
+    const ya = r.estado === 'cancelado';
+    pintar(`${cabecera({ volver: '#/sanidad', textoVolver: 'Volver', titulo: ya ? 'Tratamiento cancelado' : 'Cancelar lo previsto' })}
+      <main class="cuerpo"><div id="mensajes" aria-live="polite"></div>
+        <section class="tarjeta">${tarjetaSan(r, false)}</section>
+        ${ya ? '<button class="btn sec" type="button" id="b-deshacer">Deshacer la cancelación (vuelve a previsto)</button>'
+        : `<form class="formu" id="f-canc" novalidate>
+          <div class="campo"><label for="c-fecha">Fecha de cancelación</label><input id="c-fecha" name="fecha" type="date" value="${hoy()}" max="${hoy()}"></div>
+          <div class="campo"><span class="et" id="et-mot">Motivo</span><div class="opciones" role="radiogroup" aria-labelledby="et-mot">${Object.entries(L.MOTIVOS_CANCEL).map(([k, t]) => `<label><input type="radio" name="motivo" value="${k}"> ${t}</label>`).join('')}</div></div>
+          <div class="campo"><label for="c-detalle">Detalle</label><input id="c-detalle" name="detalle" type="text" placeholder="Qué veterinario, por qué producto se cambia…"><span class="ayuda">Obligatorio si eliges «Otro motivo».</span></div>
+          <button class="btn peligro" type="submit">Cancelar el tratamiento</button></form>`}
+      </main>`);
+    const msg = (t) => { document.getElementById('mensajes').innerHTML = `<div class="error-caja" role="alert">${esc(t)}</div>`; window.scrollTo(0, 0); };
+    if (ya) return document.getElementById('b-deshacer').addEventListener('click', async (ev) => {
+      ev.target.disabled = true;
+      const { error } = await sb.from('sanidad').update({ estado: 'previsto', cancelado_fecha: null, cancelado_motivo: null, cancelado_detalle: null, cancelado_por: null }).eq('id', id);
+      if (error) { ev.target.disabled = false; return msg(traducirError(error)); }
+      toast('Vuelve a estar previsto'); await refrescar(); location.hash = '#/sanidad';
+    });
+    const f = document.getElementById('f-canc');
+    f.addEventListener('submit', async (ev) => {
+      ev.preventDefault(); const x = new FormData(f);
+      const fecha = x.get('fecha'); const motivo = x.get('motivo'); const detalle = String(x.get('detalle') || '').trim() || null;
+      if (!fecha || fecha > hoy()) return msg('Revisa la fecha de cancelación.');
+      if (!motivo) return msg('Elige el motivo.');
+      if (motivo === 'otro' && !detalle) return msg('Explica el motivo en «Detalle».');
+      const b = f.querySelector('button[type=submit]'); b.disabled = true;
+      const { error } = await sb.from('sanidad').update({ estado: 'cancelado', cancelado_fecha: fecha, cancelado_motivo: motivo, cancelado_detalle: detalle, cancelado_por: S.perfil.alias }).eq('id', id);
+      if (error) { b.disabled = false; return msg(traducirError(error)); }
+      toast('Cancelado'); await refrescar(); location.hash = '#/sanidad';
+    });
+  }
+
   // ---- Formulario de sanidad (registrar, programar, corregir, marcar como hecho)
   function vistaSanidadForm(modo, id, pre = {}) {
     if (S.faltaSQL05) return vistaSanidad('calendario');
@@ -1176,7 +1226,7 @@
     const meds = S.medicamentos.filter((m) => m.activo || m.id === v.medicamento_id);
     pintar(`${cabecera({ volver, textoVolver: 'Cancelar', titulo })}
       <main class="cuerpo">
-        ${modo === 'editar' ? avisoAjeno(reg) : ''}
+        ${modo === 'editar' ? avisoAjeno(reg) : ''}${reg ? retrasoSan(reg) : ''}
         <form class="formu" id="f-san" novalidate>
           ${modo === 'realizar' ? '' : `<div class="campo"><span class="et" id="et-est">Estado</span><div class="opciones" role="radiogroup" aria-labelledby="et-est">
             <label><input type="radio" name="estado" value="realizado" ${v.estado === 'realizado' ? 'checked' : ''}> Realizado</label>
@@ -1782,7 +1832,7 @@
         hoja('Verracos', T.verracos.map((v) => ({ Crotal: v.crotal, 'Otros crotales': (v.otros_crotales || []).join(', '), Raza: v.raza, Nacimiento: v.fecha_nacimiento || '', Entrada: v.fecha_entrada || '', Verraquera: v.verraquera || '', 'Fecha de baja': v.fecha_baja || '', 'Causa de baja': v.causa_baja || '' })));
         hoja('Eventos', T.eventos.filter((e) => e.granja_id === C.granjaPorcino).map(fila));
         const medDe = Object.fromEntries(T.medicamentos.map((m) => [m.id, m]));
-        hoja('Sanidad', T.sanidad.map((r) => ({ Granja: r.granja_id === 1 ? '1.º' : '2.º', Estado: r.estado === 'previsto' ? 'Previsto' : 'Realizado', Fecha: r.fecha, Qué: nombreSan(r.tipo), Carácter: L.CARACTER[r.caracter] || '', Análisis: r.analisis || '', Muestra: r.muestra || '', Laboratorio: r.laboratorio || '', Resultado: L.RESULTADOS[r.resultado] || '', 'Detalle del resultado': r.resultado_nota || '', Destino: r.ambito === 'zona' ? r.zona : r.ambito === 'granja' ? 'Toda la granja' : r.ambito === 'verraco' ? `Verraco ${verracoDe[r.verraco_id] || '?'}` : `${r.ambito === 'camada' ? 'Lechones de ' : 'Cerda '}${crotalDe[r.cerda_id] || '?'}`, 'Nº animales': r.n_animales ?? '', Producto: r.producto || '', 'Materia activa': (medDe[r.medicamento_id] || {}).materia_activa || '', Dosis: r.dosis || '', Vía: r.via || '', Lote: r.lote || '', Caducidad: r.caducidad || '', 'Supresión hasta': r.supresion_hasta || '', Motivo: r.motivo || '', Observaciones: r.obs || '', 'Registrado por': aliasDe[r.autor] || r.autor_alias || '', 'Realizado por': r.realizado_por || '' })));
+        hoja('Sanidad', T.sanidad.map((r) => ({ Granja: r.granja_id === 1 ? '1.º' : '2.º', Estado: { previsto: 'Previsto', realizado: 'Realizado', cancelado: 'Cancelado' }[r.estado], Fecha: r.fecha, Qué: nombreSan(r.tipo), 'Cancelado el': r.cancelado_fecha || '', 'Motivo de cancelación': L.MOTIVOS_CANCEL[r.cancelado_motivo] || '', 'Detalle de cancelación': r.cancelado_detalle || '', 'Cancelado por': r.cancelado_por || '', Carácter: L.CARACTER[r.caracter] || '', Análisis: r.analisis || '', Muestra: r.muestra || '', Laboratorio: r.laboratorio || '', Resultado: L.RESULTADOS[r.resultado] || '', 'Detalle del resultado': r.resultado_nota || '', Destino: r.ambito === 'zona' ? r.zona : r.ambito === 'granja' ? 'Toda la granja' : r.ambito === 'verraco' ? `Verraco ${verracoDe[r.verraco_id] || '?'}` : `${r.ambito === 'camada' ? 'Lechones de ' : 'Cerda '}${crotalDe[r.cerda_id] || '?'}`, 'Nº animales': r.n_animales ?? '', Producto: r.producto || '', 'Materia activa': (medDe[r.medicamento_id] || {}).materia_activa || '', Dosis: r.dosis || '', Vía: r.via || '', Lote: r.lote || '', Caducidad: r.caducidad || '', 'Supresión hasta': r.supresion_hasta || '', Motivo: r.motivo || '', Observaciones: r.obs || '', 'Registrado por': aliasDe[r.autor] || r.autor_alias || '', 'Realizado por': r.realizado_por || '' })));
         hoja('Medicamentos', T.medicamentos.map((m) => ({ 'Nombre comercial': m.nombre, 'Materia activa': m.materia_activa || '', Tipo: m.tipo, Presentación: m.presentacion || '', 'Posología (cerdo)': (m.posologia || {}).porcino || m.dosis || '', Vía: m.via || '', 'Supresión (días)': m.supresion_dias ?? '', Lote: m.lote || '', Caducidad: m.caducidad || '', 'Ficha técnica': m.ficha_url || '', Activo: m.activo ? 'Sí' : 'No' })));
         hoja('Extracciones', T.extracciones.map((x) => ({ Granja: x.granja_id === 1 ? '1.º' : '2.º', Verraco: verracoDe[x.verraco_id] || '?', Extracción: x.fecha, Verificación: x.fecha_verificacion || '', 'Nº dosis': x.n_dosis, 'Motilidad %': x.motilidad ?? '', 'Volumen c.c.': x.volumen ?? '', Observaciones: x.obs || '', 'Registrado por': aliasDe[x.autor] || x.autor_alias || '' })));
         hoja('Recuentos', T.recuentos.map((x) => ({ Granja: x.granja_id === 1 ? '1.º' : '2.º', Estancia: x.estancia, Fecha: x.fecha, Animales: x.n, Observaciones: x.obs || '', 'Registrado por': aliasDe[x.autor] || x.autor_alias || '' })));
@@ -1955,6 +2005,7 @@
       case 'sanidad':
         if (['nuevo', 'programar'].includes(a)) return vistaSanidadForm(a, null, { ambito: b, ref: c });
         if (['editar', 'realizar'].includes(a)) return vistaSanidadForm(a, b);
+        if (a === 'cancelar') return vistaSanidadCancelar(b);
         return vistaSanidad(a || 'calendario');
       case 'medicamento': location.replace(`../#/medicamento/${a}/porc`); return; // una sola ficha de producto (CIFEAFARM)
       case 'correcciones': return vistaCorrecciones(a || 'pendientes');

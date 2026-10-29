@@ -1086,10 +1086,24 @@
     const car = r.caracter ? `<span class="chip ${CHIP_CAR[r.caracter]}">${esc(L.CARACTER[r.caracter])}</span>` : '';
     return (car || res ? `<div class="chips-fila">${car}${res}</div>` : '') + (d ? `<div class="suave peq">${esc(d)}</div>` : '') + (r.tipo === 'analitica' && r.resultado_nota ? `<div class="peq">${esc(r.resultado_nota)}</div>` : '');
   }
+  // Último realizado del mismo tratamiento (mismo tipo, producto o análisis y destino) antes de esa fecha.
+  const mismoQue = (x, r) => x.tipo === r.tipo && (r.tipo === 'analitica' ? String(x.analisis || '').toLowerCase() === String(r.analisis || '').toLowerCase()
+    : (x.medicamento_id && r.medicamento_id ? x.medicamento_id === r.medicamento_id : String(x.producto || '').toLowerCase() === String(r.producto || '').toLowerCase()));
+  const mismoDestino = (x, r) => x.ambito === r.ambito && (r.ambito === 'corralina' ? x.corralina_id === r.corralina_id : r.ambito === 'especie' ? x.especie === r.especie
+    : r.ambito === 'animales' ? (x.animales || []).some((id) => (r.animales || []).includes(id)) : true);
+  const anteriorSan = (r) => S.sanidad.filter((x) => x.estado === 'realizado' && x.id !== r.id && x.fecha < r.fecha && mismoQue(x, r) && mismoDestino(x, r)).sort((a, b) => b.fecha.localeCompare(a.fecha))[0];
+  const diasEntre = (a, b) => Math.round((Date.parse(b) - Date.parse(a)) / 864e5);
+  function retrasoSan(r) {
+    if (r.estado !== 'previsto' || r.fecha >= hoy()) return '';
+    const ant = anteriorSan(r); const d = diasEntre(r.fecha, hoy());
+    return `<div class="peq rojo">${ant ? `Anterior: ${fmt(ant.fecha)} · ` : 'Sin tratamiento anterior registrado · '}Previsto: ${fmt(r.fecha)} · <strong>${d} ${d === 1 ? 'día' : 'días'} de retraso</strong></div>`;
+  }
+  const cancelSan = (r) => (r.estado === 'cancelado' ? `<div class="peq">Cancelado el ${fmt(r.cancelado_fecha || r.fecha)}${r.cancelado_motivo ? ` · ${esc(L.MOTIVOS_CANCEL[r.cancelado_motivo] || r.cancelado_motivo)}` : ''}${r.cancelado_detalle ? `: ${esc(r.cancelado_detalle)}` : ''}${r.cancelado_por ? ` · por ${esc(verAlias(r.cancelado_por) || '?')}` : ''}</div>` : '');
   function tarjetaSan(r, conEnlace = true) {
-    const prev = r.estado === 'previsto';
-    const href = prev ? `#/sanidad/realizar/${r.id}` : `#/sanidad/editar/${r.id}`;
-    const dentro = `<div class="entre"><strong>${esc(L.TIPOS_SAN[r.tipo])}${r.tipo === 'analitica' && r.analisis ? ` · ${esc(r.analisis)}` : r.producto ? ` · ${esc(r.producto)}` : ''}</strong><span class="chip ${prev ? (r.fecha < hoy() ? 'rojo' : 'nar') : 'gris'}">${prev ? (r.fecha < hoy() ? 'Atrasado' : `Previsto ${corta(r.fecha)}`) : fmt(r.fecha)}</span></div>
+    const prev = r.estado === 'previsto'; const canc = r.estado === 'cancelado';
+    const href = canc ? `#/sanidad/cancelar/${r.id}` : prev ? `#/sanidad/realizar/${r.id}` : `#/sanidad/editar/${r.id}`;
+    const dentro = `<div class="entre"><strong>${esc(L.TIPOS_SAN[r.tipo])}${r.tipo === 'analitica' && r.analisis ? ` · ${esc(r.analisis)}` : r.producto ? ` · ${esc(r.producto)}` : ''}</strong><span class="chip ${prev ? (r.fecha < hoy() ? 'rojo' : 'nar') : 'gris'}">${canc ? `Cancelado · previsto ${corta(r.fecha)}` : prev ? (r.fecha < hoy() ? `Atrasado ${diasEntre(r.fecha, hoy())} d` : `Previsto ${corta(r.fecha)}`) : fmt(r.fecha)}</span></div>
+      ${retrasoSan(r)}${cancelSan(r)}
       <div class="suave peq">${esc(destinoSan(r))}${r.dosis ? ` · ${esc(r.dosis)}` : ''}${r.via ? ` · ${esc(r.via)}` : ''}${r.duracion_dias > 1 ? ` · ${r.duracion_dias} días` : ''}${r.motivo ? ` · ${esc(r.motivo)}` : ''}</div>
       ${chipsSan(r)}
       ${r.leche_hasta || r.carne_hasta ? `<div class="peq ${(r.leche_hasta && r.leche_hasta >= hoy()) || (r.carne_hasta && r.carne_hasta >= hoy()) ? 'rojo' : 'suave'}">${r.leche_hasta ? `Leche no apta hasta ${fmt(r.leche_hasta)}` : ''}${r.leche_hasta && r.carne_hasta ? ' · ' : ''}${r.carne_hasta ? `Carne no apta hasta ${fmt(r.carne_hasta)}` : ''}</div>` : ''}
@@ -1115,7 +1129,8 @@
       cuerpo = `<div class="botones"><a class="btn" href="#/sanidad/nuevo/granja">${ICONOS.mas}Registrar lo hecho</a><a class="btn sec" href="#/sanidad/programar/granja">Programar</a></div>
         <div class="suave">Lo previsto queda pendiente hasta que alguien (profesor o alumno) lo valida al hacerlo: toca el registro y pulsa «Hecho».</div>
         ${atr.length ? `<section class="tarjeta" style="border-color:#E4A59E"><h2>Atrasado (${atr.length})</h2>${atr.map((r) => tarjetaSan(r)).join('')}</section>` : ''}
-        <section class="tarjeta"><h2>Próximamente</h2>${resto.map((r) => tarjetaSan(r)).join('') || '<div class="suave">No hay nada programado.</div>'}</section>`;
+        <section class="tarjeta"><h2>Próximamente</h2>${resto.map((r) => tarjetaSan(r)).join('') || '<div class="suave">No hay nada programado.</div>'}</section>
+        ${(() => { const c = S.sanidad.filter((r) => r.estado === 'cancelado').sort((x, y) => String(y.cancelado_fecha || y.fecha).localeCompare(String(x.cancelado_fecha || x.fecha))); return c.length ? `<section class="tarjeta"><details><summary class="suave" style="min-height:44px;display:flex;align-items:center">Cancelados (${c.length})</summary>${c.map((r) => tarjetaSan(r)).join('')}</details></section>` : ''; })()}`;
     } else if (tab === 'registro') {
       const hechos = S.sanidad.filter((r) => r.estado === 'realizado').sort((x, y) => y.fecha.localeCompare(x.fecha));
       cuerpo = `<a class="btn" href="#/sanidad/nuevo/granja">${ICONOS.mas}Registrar lo hecho</a>
@@ -1140,6 +1155,42 @@
       </main>${navegacion('sanidad')}`);
   }
 
+  // Cancelar un previsto (con fecha y motivo) o ver/deshacer una cancelación.
+  function vistaSanCancelar(id) {
+    const r = S.sanidad.find((x) => x.id === id);
+    if (!r || r.estado === 'realizado') return vistaNoEncontrado();
+    const ya = r.estado === 'cancelado';
+    pintar(`${cabecera({ volver: '#/sanidad', textoVolver: 'Volver', titulo: ya ? 'Tratamiento cancelado' : 'Cancelar lo previsto' })}
+      <main class="cuerpo"><div id="msg"></div>
+        <section class="tarjeta">${tarjetaSan(r, false)}</section>
+        ${ya ? `<button class="btn sec" type="button" id="b-deshacer">Deshacer la cancelación (vuelve a previsto)</button>`
+        : `<form class="formu" id="f-canc" novalidate>
+          <div class="campo"><label for="c-fecha">Fecha de cancelación</label><input id="c-fecha" name="fecha" type="date" value="${hoy()}" max="${hoy()}"></div>
+          <div class="campo"><span class="et">Motivo</span><div class="opciones">${Object.entries(L.MOTIVOS_CANCEL).map(([k, t]) => `<label><input type="radio" name="motivo" value="${k}"> ${t}</label>`).join('')}</div></div>
+          <div class="campo"><label for="c-detalle">Detalle</label><input id="c-detalle" name="detalle" type="text" placeholder="Qué veterinario, por qué producto se cambia…"><span class="ayuda">Obligatorio si eliges «Otro motivo».</span></div>
+          <button class="btn peligro" type="submit">Cancelar el tratamiento</button></form>`}
+      </main>${navegacion('sanidad')}`);
+    const msg = (t) => { document.getElementById('msg').innerHTML = errorCaja(t); window.scrollTo(0, 0); };
+    if (ya) return document.getElementById('b-deshacer').addEventListener('click', async (ev) => {
+      ev.target.disabled = true;
+      const { error } = await sb.from('rum_sanidad').update({ estado: 'previsto', cancelado_fecha: null, cancelado_motivo: null, cancelado_detalle: null, cancelado_por: null }).eq('id', id);
+      if (error) { ev.target.disabled = false; return msg(traducirError(error)); }
+      toast('Vuelve a estar previsto'); await refrescar(); location.hash = '#/sanidad/calendario';
+    });
+    const f = document.getElementById('f-canc');
+    f.addEventListener('submit', async (ev) => {
+      ev.preventDefault(); const x = new FormData(f);
+      const fecha = x.get('fecha'); const motivo = x.get('motivo'); const detalle = String(x.get('detalle') || '').trim() || null;
+      if (!fecha || fecha > hoy()) return msg('Revisa la fecha de cancelación.');
+      if (!motivo) return msg('Elige el motivo.');
+      if (motivo === 'otro' && !detalle) return msg('Explica el motivo en «Detalle».');
+      const b = f.querySelector('button[type=submit]'); b.disabled = true;
+      const { error } = await sb.from('rum_sanidad').update({ estado: 'cancelado', cancelado_fecha: fecha, cancelado_motivo: motivo, cancelado_detalle: detalle, cancelado_por: S.perfil.alias }).eq('id', id);
+      if (error) { b.disabled = false; return msg(traducirError(error)); }
+      toast('Cancelado'); await refrescar(); location.hash = '#/sanidad/calendario';
+    });
+  }
+
   // Registrar (hecho), programar (previsto), validar un previsto o corregir un registro.
   function vistaSanForm(modo, id, ambitoPre, refPre) {
     const fila = id ? S.sanidad.find((r) => r.id === id) : null;
@@ -1157,6 +1208,7 @@
     const pideCar = carObl || modo === 'realizar' || !!v.caracter;
     pintar(`${cabecera({ volver, textoVolver: ambitoPre === 'animal' ? 'Ficha' : 'Volver', titulo })}
       <main class="cuerpo">${modo === 'editar' && fila && fila.estado === 'realizado' ? avisoAjeno(fila) : ''}<div id="msg"></div>
+        ${fila ? retrasoSan(fila) : ''}
         ${modo === 'realizar' ? '<div class="ok-caja">Revisa los datos, completa el lote del producto y pulsa «Guardar como hecho». Quedará validado a tu nombre.</div>' : ''}
         <form class="formu" id="f-san" novalidate>
           <div class="campo"><label for="tipo">Qué</label><select id="tipo" name="tipo">${Object.entries(L.TIPOS_SAN).map(([k, x]) => `<option value="${k}" ${v.tipo === k ? 'selected' : ''}>${x}</option>`).join('')}</select></div>
@@ -1194,7 +1246,8 @@
           ${modo !== 'editar' ? `<div class="campo"><label for="repetir_dias">Repetir dentro de (días, opcional)</label><input id="repetir_dias" name="repetir_dias" type="number" min="1" value="${esc(v.repetir_dias || '')}"><span class="ayuda">Al guardarlo como hecho, se programa solo el siguiente.</span></div>` : ''}
           <div class="campo"><label for="obs">Observaciones</label><textarea id="obs" name="obs">${esc(v.obs || '')}</textarea></div>
           <button class="btn" type="submit">${realizado && modo !== 'editar' ? 'Guardar como hecho' : modo === 'programar' ? 'Programar' : 'Guardar'}</button>
-          ${modo === 'realizar' ? '<a class="btn sec" href="#/sanidad/editar/' + id + '">Solo corregir lo previsto</a>' : ''}</form>
+          ${modo === 'realizar' ? '<a class="btn sec" href="#/sanidad/editar/' + id + '">Solo corregir lo previsto</a>' : ''}
+          ${modo === 'realizar' || (modo === 'editar' && fila.estado === 'previsto') ? `<a class="btn sec" href="#/sanidad/cancelar/${id}">No se va a hacer: cancelar</a>` : ''}</form>
         ${puedeBorrar && modo === 'editar' ? '<button class="btn peligro" type="button" id="b-borrar-san">Borrar este registro</button>' : ''}
       </main>${navegacion('sanidad')}`);
     const f = document.getElementById('f-san');
@@ -1453,6 +1506,7 @@
     for (const r of san) {
       const que = `${r.producto || ''}${r.zona ? ` · ${r.zona}` : ''}${r.cerda_id ? ` · cerda ${crotal[r.cerda_id] || '?'}` : ''}${r.verraco_id ? ` · verraco ${crotal[r.verraco_id] || '?'}` : ''}`;
       if (r.estado === 'realizado') out.push({ granja: 'porc', alias: r.realizado_por || r.autor_alias, fecha: r.fecha, clase: `Sanidad: ${SAN_PORC[r.tipo] || r.tipo}`, que, enlace: 'porc/#/sanidad/registro' });
+      if (r.estado === 'cancelado' && r.cancelado_por) out.push({ granja: 'porc', alias: r.cancelado_por, fecha: r.cancelado_fecha || r.fecha, clase: 'Sanidad cancelada', que: `${SAN_PORC[r.tipo] || r.tipo} · ${que}`, enlace: 'porc/#/sanidad' });
       if (r.estado === 'previsto' || (r.realizado_por && r.realizado_por !== r.autor_alias)) out.push({ granja: 'porc', alias: r.autor_alias, fecha: String(r.creado).slice(0, 10), clase: 'Sanidad programada', que: `${SAN_PORC[r.tipo] || r.tipo} · ${que}`, enlace: 'porc/#/sanidad' });
     }
     for (const x of ext) out.push({ granja: 'porc', alias: x.autor_alias, fecha: x.fecha, clase: 'Extracción de semen', que: `Verraco ${crotal[x.verraco_id] || '?'} · ${x.n_dosis} dosis`, enlace: `porc/#/verraco/${x.verraco_id}` });
@@ -1472,6 +1526,7 @@
     }
     for (const r of S.sanidad) {
       if (r.estado === 'realizado') out.push({ autor: r.realizado_por === r.autor_alias ? r.autor : null, alias: r.realizado_por || r.autor_alias, curso: r.realizado_por === r.autor_alias ? r.curso : null, fecha: r.fecha, clase: 'Sanidad', que: `${L.TIPOS_SAN[r.tipo]} · ${r.producto || ''} · ${destinoSan(r)}`, enlace: `#/sanidad/editar/${r.id}` });
+      if (r.estado === 'cancelado' && r.cancelado_por) out.push({ alias: r.cancelado_por, fecha: r.cancelado_fecha || r.fecha, clase: 'Sanidad cancelada', que: `${L.TIPOS_SAN[r.tipo]} · ${L.MOTIVOS_CANCEL[r.cancelado_motivo] || ''}`, enlace: `#/sanidad/cancelar/${r.id}` });
       if (r.estado === 'previsto' || r.realizado_por !== r.autor_alias) out.push({ autor: r.autor, alias: r.autor_alias, curso: r.curso, fecha: String(r.creado).slice(0, 10), clase: 'Sanidad programada', que: `${L.TIPOS_SAN[r.tipo]} · ${r.producto || ''}`, enlace: `#/sanidad/editar/${r.id}` });
     }
     for (const l of S.lotes) out.push({ autor: l.autor, alias: l.autor_alias, curso: l.curso, fecha: l.fecha_entrada, clase: 'Lote de cubrición', que: l.nombre, enlace: `#/lote/${l.id}` });
@@ -1723,7 +1778,7 @@
         X.utils.book_append_sheet(libro, X.utils.json_to_sheet(S.animales.slice().sort((x, y) => x.especie.localeCompare(y.especie) || L.ordenNatural(x, y)).map((a) => filaExcel(a, a.fecha_baja ? null : ubic(a)))), 'Animales');
         X.utils.book_append_sheet(libro, X.utils.json_to_sheet(S.eventos.map((e) => { const a = animal(e.animal_id); return { Fecha: e.fecha, Animal: nombreA(a), Crotal: a ? a.crotal || '' : '', Registro: nombreEvento(e), Detalle: resumenEvento(e).replace(/<[^>]+>/g, ''), Observaciones: (e.datos && e.datos.obs) || '', Curso: curso(e.curso), 'Registrado por': quienEs(e.autor, e.autor_alias), 'Registrado el': String(e.creado || '').slice(0, 16).replace('T', ' '), 'Datos completos': JSON.stringify(esVet() ? { ...(e.datos || {}), asistentes: undefined } : (e.datos || {})) }; }).concat([]) || [{}]), 'Historial');
         X.utils.book_append_sheet(libro, X.utils.json_to_sheet(S.medicamentos.length ? S.medicamentos.map((m) => ({ Producto: m.nombre, 'Materia activa': m.materia_activa || '', Clase: (m.clases || []).map(L.nombreClase).join(', '), 'Posología cabras': posologiaDe(m, 'caprino'), 'Posología ovejas': posologiaDe(m, 'ovino'), 'Posología cerdos': posologiaDe(m, 'porcino'), Vía: m.via || '', 'Espera leche rumiantes (d)': m.espera_leche_rum ?? '', 'Espera carne rumiantes (d)': m.espera_carne_rum ?? '', 'Espera carne cerdo (d)': m.supresion_dias ?? '', 'En uso': m.activo !== false ? 'Sí' : 'No' })) : [{ '': 'Sin productos' }]), 'Productos');
-        X.utils.book_append_sheet(libro, X.utils.json_to_sheet(S.sanidad.length ? S.sanidad.map((r) => ({ Estado: r.estado === 'previsto' ? 'Previsto' : 'Realizado', Fecha: r.fecha, Qué: L.TIPOS_SAN[r.tipo], Carácter: L.CARACTER[r.caracter] || '', Análisis: r.analisis || '', Muestra: r.muestra || '', Laboratorio: r.laboratorio || '', Resultado: L.RESULTADOS[r.resultado] || '', 'Detalle del resultado': r.resultado_nota || '', Destino: destinoSan(r), Animales: (r.animales || []).map((x) => nombreA(animal(x))).join(', '), Producto: r.producto || '', Dosis: r.dosis || '', Vía: r.via || '', 'Días de tratamiento': r.duracion_dias, Lote: r.lote || '', Caducidad: r.caducidad || '', 'Espera carne (días)': r.espera_carne ?? '', 'Espera leche (días)': r.espera_leche ?? '', 'Carne no apta hasta': r.carne_hasta || '', 'Leche no apta hasta': r.leche_hasta || '', Motivo: r.motivo || '', Veterinario: r.veterinario || '', Observaciones: r.obs || '', 'Registrado por': verAlias(r.autor_alias, r.curso) || '', 'Realizado por': verAlias(r.realizado_por) || '' })) : [{ '': 'Sin registros' }]), 'Sanidad');
+        X.utils.book_append_sheet(libro, X.utils.json_to_sheet(S.sanidad.length ? S.sanidad.map((r) => ({ Estado: { previsto: 'Previsto', realizado: 'Realizado', cancelado: 'Cancelado' }[r.estado], Fecha: r.fecha, Qué: L.TIPOS_SAN[r.tipo], 'Cancelado el': r.cancelado_fecha || '', 'Motivo de cancelación': L.MOTIVOS_CANCEL[r.cancelado_motivo] || '', 'Detalle de cancelación': r.cancelado_detalle || '', 'Cancelado por': verAlias(r.cancelado_por) || '', Carácter: L.CARACTER[r.caracter] || '', Análisis: r.analisis || '', Muestra: r.muestra || '', Laboratorio: r.laboratorio || '', Resultado: L.RESULTADOS[r.resultado] || '', 'Detalle del resultado': r.resultado_nota || '', Destino: destinoSan(r), Animales: (r.animales || []).map((x) => nombreA(animal(x))).join(', '), Producto: r.producto || '', Dosis: r.dosis || '', Vía: r.via || '', 'Días de tratamiento': r.duracion_dias, Lote: r.lote || '', Caducidad: r.caducidad || '', 'Espera carne (días)': r.espera_carne ?? '', 'Espera leche (días)': r.espera_leche ?? '', 'Carne no apta hasta': r.carne_hasta || '', 'Leche no apta hasta': r.leche_hasta || '', Motivo: r.motivo || '', Veterinario: r.veterinario || '', Observaciones: r.obs || '', 'Registrado por': verAlias(r.autor_alias, r.curso) || '', 'Realizado por': verAlias(r.realizado_por) || '' })) : [{ '': 'Sin registros' }]), 'Sanidad');
         X.utils.book_append_sheet(libro, X.utils.json_to_sheet(S.lotes.length ? S.lotes.map((l) => ({ Lote: l.nombre, Especie: L.ESPECIES[l.especie].nombre, Corralina: nombreCorr(l.corralina_id), Machos: l.machos.map((x) => nombreA(animal(x))).join(', '), Hembras: l.hembras.map((x) => nombreA(animal(x))).join(', '), 'Entrada del macho': l.fecha_entrada, 'Salida del macho': l.fecha_salida || '', 'Registrado por': verAlias(l.autor_alias, l.curso) || '' })) : [{ '': 'Sin lotes' }]), 'Lotes');
         X.utils.book_append_sheet(libro, X.utils.json_to_sheet(S.corralinas.map((c) => ({ Nave: c.nave, Corralina: c.numero, Uso: c.uso || '', Activa: c.activa ? 'Sí' : 'No' }))), 'Corralinas');
         X.writeFile(libro, `${fichero}.xlsx`);
@@ -1807,6 +1862,7 @@
       case 'sanidad':
         if (['nuevo', 'programar'].includes(a)) return vistaSanForm(a, null, b, location.hash.split('/')[4]);
         if (['realizar', 'editar'].includes(a)) return vistaSanForm(a, b);
+        if (a === 'cancelar') return vistaSanCancelar(b);
         return vistaSanidad(a || 'calendario');
       case 'medicamento': return vistaMedicamento(a, b);
       case 'mas': return vistaMas();
@@ -1837,7 +1893,7 @@
     render();
   });
   setInterval(() => { const h = document.getElementById('hora-consulta'); if (h) h.textContent = fechaHora(new Date()); }, 20000);
-  const escribiendo = () => /^#\/(alta|editar|trasladar|nota|baja|lote\/nuevo|sacar|eco|parto|registro|acrotalar|sanidad\/(nuevo|programar|realizar|editar)|medicamento|manejo\/|seguimiento)/.test(location.hash);
+  const escribiendo = () => /^#\/(alta|editar|trasladar|nota|baja|lote\/nuevo|sacar|eco|parto|registro|acrotalar|sanidad\/(nuevo|programar|realizar|editar|cancelar)|medicamento|manejo\/|seguimiento)/.test(location.hash);
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible' && S.perfil && (!S.cargado || Date.now() - S.cargado > 120000) && !escribiendo()) refrescar();
   });

@@ -68,3 +68,10 @@ Trabaja con los animales y la granja: registra, corrige y borra cualquier regist
 1. Ejecuta una vez en Supabase `sql/08_controles_analiticos.sql` (SQL Editor → New query → Run). Es repetible y no borra datos.
 2. En **Sanidad → Programar** aparece «Control analítico» en «Qué» y hay que elegir si es **obligatorio, recomendado o voluntario** (también para vacunas, tratamientos y el resto).
 3. Al marcar un control como hecho se apunta el resultado: pendiente, negativo o positivo, con el detalle.
+
+## 10. Tratamientos antiguos, retrasos y cancelaciones (0.9.0)
+
+1. Ejecuta una vez en Supabase `sql/09_cancelaciones.sql` (SQL Editor → New query → Run). Es repetible y no borra datos. Sin él, la app funciona pero no deja cancelar.
+2. **Tratamientos antiguos:** Sanidad → Registrar lo hecho → la fecha está justo debajo de «Qué». Pon la fecha real (puede ser del año pasado). En cabras y ovejas, si eliges una especie, una corralina o toda la granja, se apuntan los animales que había en esa fecha. Los animales que se fueron antes de importar el censo no están en la app: si importa, anótalos en Observaciones.
+3. **Atrasados:** muestran el tratamiento anterior, la fecha prevista y los días de retraso.
+4. **Cancelar:** en cabras y ovejas, abre lo previsto y pulsa «No se va a hacer: cancelar»; en porcino, botón «Cancelar». Fecha, motivo y detalle (obligatorio si el motivo es «Otro»). Lo cancelado no se borra: en cabras y ovejas está al final de «Previsto», en «Cancelados»; en porcino sale en el calendario en gris. Desde ahí se puede deshacer.

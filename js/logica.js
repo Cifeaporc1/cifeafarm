@@ -252,6 +252,7 @@
   // V3 · Sanidad
   // =====================================================================
   const TIPOS_SAN = { vacunacion: 'Vacunación', desparasitacion: 'Desparasitación', tratamiento: 'Tratamiento', vitaminas: 'Vitaminas / minerales', pezunas: 'Arreglo de pezuñas', analitica: 'Control analítico', otro: 'Otro' };
+  const MOTIVOS_CANCEL = { prescripcion: 'Prescripción veterinaria', retirado: 'Producto retirado del mercado', cambio: 'Cambio por otro producto', baja: 'Animal dado de baja o vendido', otro: 'Otro motivo' };
   const CARACTER = { obligatorio: 'Obligatorio', recomendado: 'Recomendado', voluntario: 'Voluntario' };
   const RESULTADOS = { pendiente: 'Pendiente', negativo: 'Negativo', positivo: 'Positivo' };
   const MUESTRAS = ['Sangre', 'Leche', 'Heces', 'Orina', 'Hisopo', 'Pienso', 'Agua'];
@@ -310,5 +311,5 @@
   }
 
   window.Logica = { TAREAS, REF4, ultimoSeguimiento, avisosSeguimiento, ESPECIES, CAT, CAPAS, ORIGENES, CAUSAS_BAJA, hoyISO, dias, esCria, nombreAnimal, ordenNatural, porFecha, ubicacion, vivoEn, edad, revisar, mapaColumnas, normalizarFila, fechaISO,
-    REF, sumarDias, HEMBRAS, MACHOS, ESTADOS, estadoRepro, avisosRepro, resumenParidera, TIPOS_SAN, CARACTER, RESULTADOS, MUESTRAS, TIPOS_MED, CLASES_MED, nombreClase, retiradas, avisosSanidad };
+    REF, sumarDias, HEMBRAS, MACHOS, ESTADOS, estadoRepro, avisosRepro, resumenParidera, TIPOS_SAN, CARACTER, MOTIVOS_CANCEL, RESULTADOS, MUESTRAS, TIPOS_MED, CLASES_MED, nombreClase, retiradas, avisosSanidad };
 })();

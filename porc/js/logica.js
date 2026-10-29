@@ -380,6 +380,7 @@
     analitica:      { nombre: 'Control analítico', grupo: 'analitica' },
     otro:           { nombre: 'Otro', grupo: 'medicamento' },
   };
+  const MOTIVOS_CANCEL = { prescripcion: 'Prescripción veterinaria', retirado: 'Producto retirado del mercado', cambio: 'Cambio por otro producto', baja: 'Animal dado de baja o vendido', otro: 'Otro motivo' };
   const CARACTER = { obligatorio: 'Obligatorio', recomendado: 'Recomendado', voluntario: 'Voluntario' };
   const RESULTADOS = { pendiente: 'Pendiente', negativo: 'Negativo', positivo: 'Positivo' };
   const MUESTRAS = ['Sangre', 'Suero', 'Heces', 'Orina', 'Hisopo', 'Semen', 'Pienso', 'Agua'];
@@ -437,7 +438,7 @@
   const CLASES_MED = { antibiotico: 'Antibiótico', antiinflamatorio: 'Antiinflamatorio', analgesico: 'Analgésico', tranquilizante: 'Tranquilizante / sedante', anestesico: 'Anestésico',
     antiparasitario_int: 'Antiparasitario interno', antiparasitario_ext: 'Antiparasitario externo', vacuna: 'Vacuna', hormonal: 'Hormonal', vitaminas: 'Vitaminas y minerales',
     desinfectante: 'Desinfectante', insecticida: 'Insecticida', raticida: 'Raticida' };
-  const api = { CLASES_MED, REF, CAUSAS_BAJA, CAUSAS_ADULTO, CAUSAS_CEBO, CAPACIDAD, SANIDAD, CARACTER, RESULTADOS, MUESTRAS, ZONAS, usaProducto, comprobarSanidad, avisosSanidad, estadoDosis, FASES, sumarDias, dias, hoyISO, ordenar, estadoCerda, camada, fechasCiclo, indicesCiclo, avisos, ocupacion, capacidadDe, sitioPlano, ESTANCIAS, cuentaGrupos, comprobarMovGrupo, comprobar };
+  const api = { CLASES_MED, REF, CAUSAS_BAJA, CAUSAS_ADULTO, CAUSAS_CEBO, CAPACIDAD, SANIDAD, CARACTER, MOTIVOS_CANCEL, RESULTADOS, MUESTRAS, ZONAS, usaProducto, comprobarSanidad, avisosSanidad, estadoDosis, FASES, sumarDias, dias, hoyISO, ordenar, estadoCerda, camada, fechasCiclo, indicesCiclo, avisos, ocupacion, capacidadDe, sitioPlano, ESTANCIAS, cuentaGrupos, comprobarMovGrupo, comprobar };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else raiz.Logica = api;
 })(typeof window !== 'undefined' ? window : globalThis);

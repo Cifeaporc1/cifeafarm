@@ -28,6 +28,7 @@ Es una herramienta docente para las clases de Luis. No sustituye a los libros of
 | `sql/06_porcino_correcciones.sql` | Las dos granjas: los alumnos corrigen registros de otros (el profesor lo ve en Correcciones y puede deshacerlo), catálogo de productos abierto a los alumnos y lechones destetados que se quedan en la paridera y otros crotales de los verracos (repetible) |
 | `sql/07_posologia.sql` | Catálogo: posología por especie de destino (cabras, ovejas, cerdos); copia la antigua dosificación sin borrarla (repetible) |
 | `sql/08_controles_analiticos.sql` | Las dos granjas: controles analíticos en sanidad (qué se analiza, muestra, laboratorio y resultado) y carácter de lo programado: obligatorio, recomendado o voluntario (repetible) |
+| `sql/09_cancelaciones.sql` | Las dos granjas: cancelar lo programado en sanidad con fecha, motivo y detalle, sin borrarlo y con opción de deshacer (repetible) |
 | `GUIA.md` | Puesta en marcha paso a paso |
 
 ## Reglas
@@ -49,3 +50,4 @@ Es una herramienta docente para las clases de Luis. No sustituye a los libros of
 5. **Hecha (0.2.0):** integración de CIFEAPORC en una sola app, con una sola granja real de porcino y gestión de alumnos común.
 6. **Hecha (0.7.2):** catálogo de productos común a todas las especies, con una sola ficha de producto: clase (antibiótico, antiinflamatorio, tranquilizante…, varias), tiempos de espera de rumiantes (leche y carne) y de cerdo, lote y caducidad. La especie se elige al aplicar el producto.
 7. **Hecha (0.8.0):** controles analíticos en sanidad en las dos granjas (qué se analiza, tipo de muestra, laboratorio y, al hacerlo, resultado pendiente, negativo o positivo con detalle) y carácter de todo lo programado: obligatorio, recomendado o voluntario (hay que elegirlo al programar; se ve en el calendario, en las fichas y en el Excel).
+8. **Hecha (0.9.0):** sanidad en las dos granjas: la fecha va arriba y admite fechas pasadas para apuntar tratamientos antiguos (en cabras y ovejas se apuntan los animales que había en esa fecha y en su corralina de entonces; una repetición que caería en el pasado no se programa); lo atrasado muestra la fecha del tratamiento anterior, la fecha prevista y los días de retraso; lo previsto se puede cancelar con fecha, motivo (prescripción veterinaria, producto retirado del mercado, cambio por otro producto, animal dado de baja o vendido, otro) y detalle, y se puede deshacer.
