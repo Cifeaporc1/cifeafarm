@@ -380,6 +380,20 @@
     analitica:      { nombre: 'Control analítico', grupo: 'analitica' },
     otro:           { nombre: 'Otro', grupo: 'medicamento' },
   };
+  // Repetición: cada N días, semanas, meses o años (lo antiguo solo tiene repetir_dias)
+  const UNIDADES_REP = { dias: ['día', 'días'], semanas: ['semana', 'semanas'], meses: ['mes', 'meses'], anios: ['año', 'años'] };
+  function sumarPeriodo(f, n, u) {
+    if (u === 'meses' || u === 'anios') {
+      const [y, m, d] = f.split('-').map(Number); const t = new Date(Date.UTC(y, m - 1 + (u === 'anios' ? n * 12 : n), 1));
+      const ult = new Date(Date.UTC(t.getUTCFullYear(), t.getUTCMonth() + 1, 0)).getUTCDate(); t.setUTCDate(Math.min(d, ult));
+      return t.toISOString().slice(0, 10);
+    }
+    return sumarDias(f, n * (u === 'semanas' ? 7 : 1));
+  }
+  const repeticion = (r) => (r && r.repetir_n && UNIDADES_REP[r.repetir_unidad] ? { n: r.repetir_n, u: r.repetir_unidad } : r && r.repetir_dias ? { n: r.repetir_dias, u: 'dias' } : null);
+  const textoRep = (rep) => (rep ? `${rep.n} ${UNIDADES_REP[rep.u][rep.n === 1 ? 0 : 1]}` : '');
+  // Columnas a guardar (repetir_dias se rellena cuando es exacto, para lo antiguo)
+  const filaRep = (n, u) => (n > 0 && UNIDADES_REP[u] ? { repetir_n: n, repetir_unidad: u, repetir_dias: u === 'dias' ? n : u === 'semanas' ? n * 7 : null } : { repetir_n: null, repetir_unidad: null, repetir_dias: null });
   const MOTIVOS_CANCEL = { prescripcion: 'Prescripción veterinaria', retirado: 'Producto retirado del mercado', cambio: 'Cambio por otro producto', baja: 'Animal dado de baja o vendido', otro: 'Otro motivo' };
   const CARACTER = { obligatorio: 'Obligatorio', recomendado: 'Recomendado', voluntario: 'Voluntario' };
   const RESULTADOS = { pendiente: 'Pendiente', negativo: 'Negativo', positivo: 'Positivo' };
@@ -406,7 +420,7 @@
       errores.push('Indica el producto utilizado.');
     if (v.caducidad && v.fecha && v.caducidad < v.fecha) avisosF.push(`El producto está caducado (caducidad ${v.caducidad.split('-').reverse().join('/')}).`);
     if (v.tipo === 'castracion' && v.edad && Number(v.edad) > 7) avisosF.push('Lechones de más de 7 días: revisa los requisitos legales (anestesia, analgesia y veterinario).');
-    if (v.repetir_dias && !(Number(v.repetir_dias) > 0)) errores.push('«Repetir cada» debe ser un número de días mayor que 0.');
+    if (v.repetir_n && !(Number(v.repetir_n) > 0)) errores.push('«Repetir cada» debe ser un número mayor que 0.');
     return { errores, avisos: avisosF };
   }
 
@@ -438,7 +452,7 @@
   const CLASES_MED = { antibiotico: 'Antibiótico', antiinflamatorio: 'Antiinflamatorio', analgesico: 'Analgésico', tranquilizante: 'Tranquilizante / sedante', anestesico: 'Anestésico',
     antiparasitario_int: 'Antiparasitario interno', antiparasitario_ext: 'Antiparasitario externo', vacuna: 'Vacuna', hormonal: 'Hormonal', vitaminas: 'Vitaminas y minerales',
     desinfectante: 'Desinfectante', insecticida: 'Insecticida', raticida: 'Raticida' };
-  const api = { CLASES_MED, REF, CAUSAS_BAJA, CAUSAS_ADULTO, CAUSAS_CEBO, CAPACIDAD, SANIDAD, CARACTER, MOTIVOS_CANCEL, RESULTADOS, MUESTRAS, ZONAS, usaProducto, comprobarSanidad, avisosSanidad, estadoDosis, FASES, sumarDias, dias, hoyISO, ordenar, estadoCerda, camada, fechasCiclo, indicesCiclo, avisos, ocupacion, capacidadDe, sitioPlano, ESTANCIAS, cuentaGrupos, comprobarMovGrupo, comprobar };
+  const api = { CLASES_MED, REF, CAUSAS_BAJA, CAUSAS_ADULTO, CAUSAS_CEBO, CAPACIDAD, SANIDAD, CARACTER, UNIDADES_REP, sumarPeriodo, repeticion, textoRep, filaRep, MOTIVOS_CANCEL, RESULTADOS, MUESTRAS, ZONAS, usaProducto, comprobarSanidad, avisosSanidad, estadoDosis, FASES, sumarDias, dias, hoyISO, ordenar, estadoCerda, camada, fechasCiclo, indicesCiclo, avisos, ocupacion, capacidadDe, sitioPlano, ESTANCIAS, cuentaGrupos, comprobarMovGrupo, comprobar };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else raiz.Logica = api;
 })(typeof window !== 'undefined' ? window : globalThis);

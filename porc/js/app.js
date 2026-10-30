@@ -1065,7 +1065,7 @@
       <div>${esc(destinoSan(r))}${r.producto ? ` · ${esc(r.producto)}` : ''}${r.dosis ? ` · ${esc(r.dosis)}` : ''}${r.via ? ` · ${esc(r.via)}` : ''}</div>
       ${r.motivo ? `<div class="suave">Motivo: ${esc(r.motivo)}</div>` : ''}${r.obs ? `<div class="suave">${esc(r.obs)}</div>` : ''}
       ${r.supresion_hasta && r.estado === 'realizado' ? `<div class="suave">Supresión hasta el ${fmt(r.supresion_hasta)}</div>` : ''}
-      <div class="suave peq">${r.estado === 'realizado' ? `Realizado por ${esc(verAlias(r.realizado_por) || quienEs(r.autor, r.autor_alias))}` : `Programado por ${esc(quienEs(r.autor, r.autor_alias))}`}${r.repetir_dias ? ` · se repite cada ${r.repetir_dias} días` : ''}${med && med.ficha_url ? ` · <a href="${esc(med.ficha_url)}" target="_blank" rel="noopener noreferrer external">Ficha técnica ↗</a>` : ''}</div>
+      <div class="suave peq">${r.estado === 'realizado' ? `Realizado por ${esc(verAlias(r.realizado_por) || quienEs(r.autor, r.autor_alias))}` : `Programado por ${esc(quienEs(r.autor, r.autor_alias))}`}${L.repeticion(r) ? ` · se repite cada ${L.textoRep(L.repeticion(r))}` : ''}${med && med.ficha_url ? ` · <a href="${esc(med.ficha_url)}" target="_blank" rel="noopener noreferrer external">Ficha técnica ↗</a>` : ''}</div>
       ${!conAcciones ? '' : r.estado === 'cancelado' ? `<div class="acciones"><a class="btn sec peq" href="#/sanidad/cancelar/${r.id}">Ver o deshacer la cancelación</a>${puedeEditarSan(r) ? `<button class="btn peligro peq" type="button" data-borrar-san="${r.id}">Borrar</button>` : ''}</div>`
       : `<div class="acciones">${r.estado === 'previsto' ? `<a class="btn peq" href="#/sanidad/realizar/${r.id}">Marcar como hecho</a><a class="btn sec peq" href="#/sanidad/cancelar/${r.id}">Cancelar</a>` : ''}
         <a class="btn sec peq" href="#/sanidad/editar/${r.id}">Corregir</a>${puedeEditarSan(r) ? `<button class="btn peligro peq" type="button" data-borrar-san="${r.id}">Borrar</button>` : ''}</div>`}
@@ -1201,10 +1201,10 @@
     if (S.borrador.clave !== clave) {
       let v;
       if (reg) {
-        v = { ...reg, n_animales: reg.n_animales ?? '', repetir_dias: reg.repetir_dias ?? '', edad: '' };
+        v = { ...reg, n_animales: reg.n_animales ?? '', repetir_n: (L.repeticion(reg) || {}).n ?? '', repetir_unidad: (L.repeticion(reg) || {}).u || 'dias', edad: '' };
         if (modo === 'realizar') { v.estado = 'realizado'; v.fecha = hoy(); }
       } else {
-        v = { estado: modo === 'programar' ? 'previsto' : 'realizado', tipo: '', fecha: hoy(), ambito: 'granja', cerda_id: '', verraco_id: '', zona: '', n_animales: '', medicamento_id: '', producto: '', dosis: '', via: '', lote: '', caducidad: '', motivo: '', obs: '', repetir_dias: '', edad: '' };
+        v = { estado: modo === 'programar' ? 'previsto' : 'realizado', tipo: '', fecha: hoy(), ambito: 'granja', cerda_id: '', verraco_id: '', zona: '', n_animales: '', medicamento_id: '', producto: '', dosis: '', via: '', lote: '', caducidad: '', motivo: '', obs: '', repetir_n: '', repetir_unidad: 'dias', edad: '' };
         if (pre.ambito === 'cerda' && cerdaPorId(pre.ref)) { v.cerda_id = pre.ref; v.ambito = estadoDe(pre.ref).fase === 'lactante' ? 'camada' : 'cerda'; }
         if (pre.ambito === 'verraco' && verracoPorId(pre.ref)) { v.verraco_id = pre.ref; v.ambito = 'verraco'; }
       }
@@ -1254,7 +1254,7 @@
             </fieldset>` : ''}
             ${v.estado === 'previsto' || v.caracter ? `<div class="campo"><span class="et" id="et-car">Carácter${v.estado === 'previsto' ? '' : ' <span class="suave">(opcional)</span>'}</span><div class="opciones" role="radiogroup" aria-labelledby="et-car">${Object.entries(L.CARACTER).map(([k, t]) => `<label><input type="radio" name="caracter" value="${k}" ${v.caracter === k ? 'checked' : ''}> ${t}</label>`).join('')}</div></div>` : ''}
             ${T.motivo || v.tipo === 'otro' ? campo('motivo', v.tipo === 'raboteo' ? 'Motivo (caudofagia detectada)' : 'Motivo', inp('motivo'), v.estado === 'previsto' ? ' <span class="suave">(opcional)</span>' : '') : ''}
-            ${campo('repetir_dias', 'Repetir cada (días)', inp('repetir_dias', 'number', 'inputmode="numeric" min="1" placeholder="Vacío si no se repite"'), ' <span class="suave">(opcional)</span>')}
+            ${campo('repetir_n', 'Repetir cada', `<div class="dos">${inp('repetir_n', 'number', 'inputmode="numeric" min="1" placeholder="Vacío si no se repite"')}<select id="s-repetir_unidad" name="repetir_unidad" aria-label="Unidad">${Object.entries(L.UNIDADES_REP).map(([k, t]) => opt(k, t[1], v.repetir_unidad || 'dias')).join('')}</select></div>`, ' <span class="suave">(opcional)</span>')}
             ${campo('obs', 'Observaciones', `<textarea id="s-obs" name="obs">${esc(v.obs || '')}</textarea>`, ' <span class="suave">(opcional)</span>')}
           ` : '<div class="suave">Elige qué se hace para ver el resto de campos.</div>'}
           <div id="mensajes" aria-live="polite"></div>
@@ -1297,7 +1297,7 @@
       caducidad: usa && v.estado === 'realizado' ? v.caducidad || null : null,
       supresion_hasta: v.estado === 'realizado' && m && m.supresion_dias != null && m.supresion_dias > 0 ? L.sumarDias(v.fecha, m.supresion_dias) : null,
       motivo: [v.motivo, T.edad && v.edad ? `${v.edad} días de edad` : ''].filter(Boolean).join(' · ') || null,
-      obs: v.obs || null, repetir_dias: num(v.repetir_dias) || null,
+      obs: v.obs || null, ...L.filaRep(num(v.repetir_n), v.repetir_unidad || 'dias'),
       caracter: L.CARACTER[v.caracter] ? v.caracter : null,
       analisis: v.tipo === 'analitica' ? v.analisis || null : null,
       muestra: v.tipo === 'analitica' ? v.muestra || null : null,
@@ -1311,9 +1311,9 @@
     else ({ error } = await sb.from('sanidad').insert({ ...fila, granja_id: S.granja }));
     // Si se ha hecho y se repite, se programa el siguiente
     let siguiente = null;
-    const pasado = fila.estado === 'realizado' && fila.repetir_dias && L.sumarDias(fila.fecha, fila.repetir_dias) < hoy();
-    if (!error && !pasado && fila.estado === 'realizado' && fila.repetir_dias && (!reg || reg.estado === 'previsto' || modo !== 'editar')) {
-      siguiente = L.sumarDias(fila.fecha, fila.repetir_dias);
+    const pasado = fila.estado === 'realizado' && fila.repetir_n && L.sumarPeriodo(fila.fecha, fila.repetir_n, fila.repetir_unidad) < hoy();
+    if (!error && !pasado && fila.estado === 'realizado' && fila.repetir_n && (!reg || reg.estado === 'previsto' || modo !== 'editar')) {
+      siguiente = L.sumarPeriodo(fila.fecha, fila.repetir_n, fila.repetir_unidad);
       const prox = { ...fila, estado: 'previsto', fecha: siguiente, lote: null, caducidad: null, supresion_hasta: null, resultado: null, resultado_nota: null, granja_id: S.granja };
       ({ error } = await sb.from('sanidad').insert(prox));
     }

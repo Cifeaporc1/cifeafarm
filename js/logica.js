@@ -252,6 +252,20 @@
   // V3 · Sanidad
   // =====================================================================
   const TIPOS_SAN = { vacunacion: 'Vacunación', desparasitacion: 'Desparasitación', tratamiento: 'Tratamiento', vitaminas: 'Vitaminas / minerales', pezunas: 'Arreglo de pezuñas', analitica: 'Control analítico', otro: 'Otro' };
+  // Repetición: cada N días, semanas, meses o años (lo antiguo solo tiene repetir_dias)
+  const UNIDADES_REP = { dias: ['día', 'días'], semanas: ['semana', 'semanas'], meses: ['mes', 'meses'], anios: ['año', 'años'] };
+  function sumarPeriodo(f, n, u) {
+    if (u === 'meses' || u === 'anios') {
+      const [y, m, d] = f.split('-').map(Number); const t = new Date(Date.UTC(y, m - 1 + (u === 'anios' ? n * 12 : n), 1));
+      const ult = new Date(Date.UTC(t.getUTCFullYear(), t.getUTCMonth() + 1, 0)).getUTCDate(); t.setUTCDate(Math.min(d, ult));
+      return t.toISOString().slice(0, 10);
+    }
+    return sumarDias(f, n * (u === 'semanas' ? 7 : 1));
+  }
+  const repeticion = (r) => (r && r.repetir_n && UNIDADES_REP[r.repetir_unidad] ? { n: r.repetir_n, u: r.repetir_unidad } : r && r.repetir_dias ? { n: r.repetir_dias, u: 'dias' } : null);
+  const textoRep = (rep) => (rep ? `${rep.n} ${UNIDADES_REP[rep.u][rep.n === 1 ? 0 : 1]}` : '');
+  // Columnas a guardar (repetir_dias se rellena cuando es exacto, para lo antiguo)
+  const filaRep = (n, u) => (n > 0 && UNIDADES_REP[u] ? { repetir_n: n, repetir_unidad: u, repetir_dias: u === 'dias' ? n : u === 'semanas' ? n * 7 : null } : { repetir_n: null, repetir_unidad: null, repetir_dias: null });
   const MOTIVOS_CANCEL = { prescripcion: 'Prescripción veterinaria', retirado: 'Producto retirado del mercado', cambio: 'Cambio por otro producto', baja: 'Animal dado de baja o vendido', otro: 'Otro motivo' };
   const CARACTER = { obligatorio: 'Obligatorio', recomendado: 'Recomendado', voluntario: 'Voluntario' };
   const RESULTADOS = { pendiente: 'Pendiente', negativo: 'Negativo', positivo: 'Positivo' };
@@ -311,5 +325,5 @@
   }
 
   window.Logica = { TAREAS, REF4, ultimoSeguimiento, avisosSeguimiento, ESPECIES, CAT, CAPAS, ORIGENES, CAUSAS_BAJA, hoyISO, dias, esCria, nombreAnimal, ordenNatural, porFecha, ubicacion, vivoEn, edad, revisar, mapaColumnas, normalizarFila, fechaISO,
-    REF, sumarDias, HEMBRAS, MACHOS, ESTADOS, estadoRepro, avisosRepro, resumenParidera, TIPOS_SAN, CARACTER, MOTIVOS_CANCEL, RESULTADOS, MUESTRAS, TIPOS_MED, CLASES_MED, nombreClase, retiradas, avisosSanidad };
+    REF, sumarDias, HEMBRAS, MACHOS, ESTADOS, estadoRepro, avisosRepro, resumenParidera, TIPOS_SAN, CARACTER, UNIDADES_REP, sumarPeriodo, repeticion, textoRep, filaRep, MOTIVOS_CANCEL, RESULTADOS, MUESTRAS, TIPOS_MED, CLASES_MED, nombreClase, retiradas, avisosSanidad };
 })();

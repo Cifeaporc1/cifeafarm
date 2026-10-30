@@ -75,3 +75,10 @@ Trabaja con los animales y la granja: registra, corrige y borra cualquier regist
 2. **Tratamientos antiguos:** Sanidad → Registrar lo hecho → la fecha está justo debajo de «Qué». Pon la fecha real (puede ser del año pasado). En cabras y ovejas, si eliges una especie, una corralina o toda la granja, se apuntan los animales que había en esa fecha. Los animales que se fueron antes de importar el censo no están en la app: si importa, anótalos en Observaciones.
 3. **Atrasados:** muestran el tratamiento anterior, la fecha prevista y los días de retraso.
 4. **Cancelar:** en cabras y ovejas, abre lo previsto y pulsa «No se va a hacer: cancelar»; en porcino, botón «Cancelar». Fecha, motivo y detalle (obligatorio si el motivo es «Otro»). Lo cancelado no se borra: en cabras y ovejas está al final de «Previsto», en «Cancelados»; en porcino sale en el calendario en gris. Desde ahí se puede deshacer.
+
+## 11. Calendario, plano y repeticiones (0.10.0)
+
+1. Ejecuta una vez en Supabase `sql/10_repeticion.sql` (SQL Editor → New query → Run). Es repetible y no borra datos. Sin él, al guardar un tratamiento que se repite da error.
+2. **Calendario (CIFEARUMI):** Sanidad → Calendario. Verde hecho, naranja previsto, rojo atrasado, gris cancelado. Toca un día para ver sus registros; ‹ › cambian de mes.
+3. **Repetir cada:** número y unidad (días, semanas, meses o años). «Cada 1 mes» desde el 31 de enero cae el 28 o 29 de febrero.
+4. **Mapa (CIFEARUMI):** plano de las dos naves. Cada corralina muestra una cabra o una oveja (o las dos) con cuántos animales hay. Toca una corralina para ver sus animales. En el móvil, la nave de machos y ovejas se desliza de lado.

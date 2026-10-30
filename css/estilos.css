@@ -284,3 +284,14 @@ h2 { margin-top: 4px; }
 .animal-fila.seg select, .animal-fila.seg input { width: 84px; min-height: 44px; padding: 6px 8px; font-size: 16px; flex: none; }
 .curso-acceso { border-top: 1px solid var(--linea); padding-top: 8px; }
 .chips-fila { display: flex; flex-wrap: wrap; gap: 6px; margin: 4px 0; }
+.leyenda svg { vertical-align: middle; margin-right: 4px; }
+.plano-rumi { overflow-x: auto; margin-bottom: 10px; }
+.plano-rumi .plano.ancho-min { min-width: 860px; }
+@media (min-width: 760px) { .plano-rumi .plano.nave-corta { max-width: 62%; } }
+.plano .r-num { font-size: 28px; font-weight: 700; }
+.plano .r-uso { font-size: 24px; font-weight: 700; fill: var(--verde-osc); }
+.plano .r-cuenta { font-size: 44px; font-weight: 800; }
+.plano .r-det { font-size: 21px; }
+.plano .r-det.rojo { fill: var(--rojo); font-weight: 700; }
+.plano .r-aviso { fill: var(--rojo-claro); pointer-events: none; }
+.plano use { pointer-events: none; }

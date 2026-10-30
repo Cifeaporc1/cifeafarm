@@ -288,28 +288,99 @@
   }
 
   // ---------------------------------------------------------------- mapa
+  // Dibujos de cabra (murciano-granadina) y oveja (segureña) para el plano
+  const DEFS_RUMI = `<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+<symbol id="cabra" viewBox="0 0 64 48">
+  <path d="M13 19c-2-2-4-5-3-8" fill="none" stroke="#3A2419" stroke-width="2.6" stroke-linecap="round"/>
+  <rect x="15" y="28" width="4.2" height="17" rx="1.6" fill="#2A1A12"/><rect x="21" y="29" width="4" height="16" rx="1.6" fill="#3A2419"/>
+  <rect x="37" y="28" width="4.2" height="17" rx="1.6" fill="#2A1A12"/><rect x="43" y="29" width="4" height="16" rx="1.6" fill="#3A2419"/>
+  <path d="M11 22c0-7 6-10 14-10h13c6 0 10 3 10 9 0 6-4 10-10 10H22c-7 0-11-3-11-9z" fill="#4A2E22"/>
+  <path d="M40 17l6-9 7 3-4 10z" fill="#4A2E22"/>
+  <path d="M47 7c3-3 8-2 10 1l4 7c1 2 0 4-2 4h-3c-4 0-7-3-9-6z" fill="#4A2E22"/>
+  <path d="M48 11l-7 2 6 2z" fill="#36211A"/>
+  <path d="M50 6c-1-3-3-5-7-5" fill="none" stroke="#9A8A76" stroke-width="2.2" stroke-linecap="round"/>
+  <path d="M55 18l1 7 3-7z" fill="#2A1A12"/>
+  <circle cx="54" cy="10.5" r="1.1" fill="#F2E6D0"/>
+</symbol>
+<symbol id="oveja" viewBox="0 0 64 48">
+  <rect x="17" y="30" width="3.6" height="15" rx="1.4" fill="#6B5A4A"/><rect x="23" y="31" width="3.4" height="14" rx="1.4" fill="#7A6856"/>
+  <rect x="37" y="30" width="3.6" height="15" rx="1.4" fill="#6B5A4A"/><rect x="43" y="31" width="3.4" height="14" rx="1.4" fill="#7A6856"/>
+  <g fill="#F5F1E8" stroke="#C7BCAA" stroke-width="1.2">
+    <circle cx="17" cy="24" r="7"/><circle cx="24" cy="17" r="8"/><circle cx="33" cy="15" r="8"/><circle cx="42" cy="18" r="7.5"/>
+    <circle cx="45" cy="26" r="7"/><circle cx="37" cy="29" r="7.5"/><circle cx="27" cy="29" r="7.5"/><circle cx="19" cy="30" r="6"/>
+  </g>
+  <ellipse cx="31" cy="23" rx="15" ry="8" fill="#F5F1E8"/>
+  <ellipse cx="47.5" cy="18" rx="4.5" ry="1.8" transform="rotate(-25 47.5 18)" fill="#C8AC88"/>
+  <path d="M50 14c3-3 7-2 9 1l2 7c1 3-1 5-4 5-4 0-7-4-8-8z" fill="#DCC6A6"/>
+  <circle cx="51.5" cy="13" r="3.6" fill="#F5F1E8" stroke="#C7BCAA" stroke-width="1"/>
+  <circle cx="55.5" cy="17.5" r="1.1" fill="#2A2420"/>
+  <ellipse cx="59.5" cy="24" rx="1.3" ry=".9" fill="#7A5E48"/>
+</symbol></defs></svg>`;
+  // Plano de las dos naves (como el de CIFEAPORC). Cada corralina: su número, su uso,
+  // una cabra o una oveja (o las dos) con cuántos animales hay y el desglose por categorías.
+  function planoRumi(en) {
+    const ret = retiradasHoy();
+    const naveDe = (nv) => S.corralinas.filter((c) => c.nave === nv).sort((x, y) => x.numero - y.numero);
+    const txt = (x, y, t, cls = 'r-num') => `<text x="${x}" y="${y}" class="${cls}" text-anchor="middle">${t}</text>`;
+    const H = 370;
+    const corral = (c, x, y, w) => {
+      const l = en[c.id] || []; const k = contar(l);
+      const cab = l.filter((a) => a.especie === 'caprino').length, ove = l.filter((a) => a.especie === 'ovino').length;
+      const esp = [cab && ['cabra', cab], ove && ['oveja', ove]].filter(Boolean);
+      const desg = Object.entries(k.cat).sort((p, q) => Object.keys(L.CAT).indexOf(p[0]) - Object.keys(L.CAT).indexOf(q[0])).map(([cat, n]) => `${n} ${(n === 1 ? L.CAT[cat].nombre : L.CAT[cat].plural).toLowerCase()}`);
+      const leche = l.filter((a) => ret[a.id] && ret[a.id].leche && a.especie === 'caprino' && esHembraRepro(a)).length;
+      let t = `<rect class="corral ${c.activa ? '' : 'servicio'}" x="${x}" y="${y}" width="${w}" height="${H}"/><circle cx="${x + w / 2}" cy="${y + 32}" r="22" class="circ"/>${txt(x + w / 2, y + 41, c.numero, 'r-num')}`;
+      if (c.uso) t += txt(x + w / 2, y + 80, esc(c.uso.length > 12 ? `${c.uso.slice(0, 11)}…` : c.uso), 'r-uso');
+      const top = y + 94, zona = 150, alto = esp.length === 2 ? 66 : 96, ancho = alto * 4 / 3;
+      esp.forEach(([sim, n], i) => {
+        const yy = top + (esp.length === 2 ? i * (alto + 10) : (zona - alto) / 2);
+        t += `<use href="#${sim}" x="${x + w / 2 - ancho + 6}" y="${yy}" width="${ancho}" height="${alto}"/>${txt(x + w / 2 + 42, yy + alto * 0.7, n, 'r-cuenta')}`;
+      });
+      if (!l.length) t += txt(x + w / 2, top + zona / 2 + 8, c.activa ? 'Vacía' : 'No se usa', 'r-det');
+      desg.slice(0, 3).forEach((d, i) => { t += txt(x + w / 2, top + zona + 24 + i * 24, esc(d), 'r-det'); });
+      if (desg.length > 3) t += txt(x + w / 2, top + zona + 24 + 3 * 24, `y ${desg.length - 3} más`, 'r-det');
+      if (leche) t += `<rect x="${x + 8}" y="${y + H - 36}" width="${w - 16}" height="28" rx="6" class="r-aviso"/>${txt(x + w / 2, y + H - 16, `Leche retirada: ${leche}`, 'r-det rojo')}`;
+      return `<a href="#/corralina/${c.id}" class="zona-plano" aria-label="Corralina ${c.numero}${c.uso ? `, ${esc(c.uso)}` : ''}: ${l.length} animales"><rect x="${x}" y="${y}" width="${w}" height="${H}" rx="4"/></a>${t}`;
+    };
+    const W = 200;
+    // Nave de cría y ordeño: sala de ordeño y corralinas 1-3
+    const cria = naveDe('Cría y Ordeño'); const w1 = 30 + (cria.length + 1) * (W + 10) + 20;
+    let g1 = `<rect class="pared" x="12" y="12" width="${w1 - 24}" height="${H + 36}"/><rect class="corral servicio" x="30" y="30" width="${W}" height="${H}"/>${txt(30 + W / 2, 30 + H / 2 - 6, 'Sala de', 'r-uso')}${txt(30 + W / 2, 30 + H / 2 + 22, 'ordeño', 'r-uso')}`;
+    cria.forEach((c, i) => { g1 += corral(c, 30 + (i + 1) * (W + 10), 30, W); });
+    g1 += txt(w1 / 2, H + 92, 'NAVE CRÍA Y ORDEÑO', 'rotulo');
+    // Nave de machos y ovejas: corralinas 1-7 seguidas
+    const mach = naveDe('Machos y Ovejas'); const w2 = 30 + mach.length * W + 30;
+    let g2 = `<rect class="pared" x="12" y="12" width="${w2 - 24}" height="${H + 36}"/>`;
+    mach.forEach((c, i) => { g2 += corral(c, 30 + i * W, 30, W); });
+    g2 += txt(w2 / 2, H + 92, 'NAVE MACHOS Y OVEJAS', 'rotulo');
+    const svg = (w, g, et, ancha) => `<div class="plano-caja plano-rumi"><svg class="plano ${ancha ? 'ancho-min' : 'nave-corta'}" viewBox="0 0 ${w} ${H + 110}" role="img" aria-label="${et}">${g}</svg></div>`;
+    return (cria.length ? svg(w1, g1, 'Nave de cría y ordeño', false) : '') + (mach.length ? svg(w2, g2, 'Nave de machos y ovejas', true) : '');
+  }
+
   function vistaMapa() {
     const act = activos(); const n = contar(act);
     const en = {}; for (const a of act) { const u = ubic(a) || 0; (en[u] = en[u] || []).push(a); }
-    const naves = [...new Set(S.corralinas.map((c) => c.nave))];
+    const conPlano = ['Cría y Ordeño', 'Machos y Ovejas'];
+    const otras = [...new Set(S.corralinas.map((c) => c.nave))].filter((nv) => !conPlano.includes(nv));
     const tile = (c) => {
       const l = en[c.id] || []; const k = contar(l);
       const desglose = Object.entries(k.cat).sort((x, y) => Object.keys(L.CAT).indexOf(x[0]) - Object.keys(L.CAT).indexOf(y[0])).map(([cat, x]) => `${x} ${(x === 1 ? L.CAT[cat].nombre : L.CAT[cat].plural).toLowerCase()}`).join(' · ');
-      return `<a class="corral-tile ${l.length ? 'ocupado' : ''} ${c.activa ? '' : 'inactiva'}" href="#/corralina/${c.id}">
-        <span class="num">${c.numero}</span><strong>${l.length}</strong>
-        <span class="uso">${esc(c.uso || '')}</span><span class="peq suave">${desglose || 'Vacía'}</span>${(() => { const ret = retiradasHoy(); const n = l.filter((a) => ret[a.id] && ret[a.id].leche && a.especie === 'caprino' && esHembraRepro(a)).length; return n ? `<span class="chip rojo">Leche retirada: ${n}</span>` : ''; })()}</a>`;
+      return `<a class="corral-tile ${l.length ? 'ocupado' : ''} ${c.activa ? '' : 'inactiva'}" href="#/corralina/${c.id}"><span class="num">${c.numero}</span><strong>${l.length}</strong><span class="uso">${esc(c.uso || '')}</span><span class="peq suave">${desglose || 'Vacía'}</span></a>`;
     };
-    pintar(`${cabecera()}
+    pintar(`${cabecera()}${DEFS_RUMI}
       <main class="cuerpo">${faltaSQLCaja()}
         <h1 style="font-size:22px">Mapa de la granja</h1>
         <div class="totales3"><div class="dato"><span class="et">Caprino</span><span class="val">${n.caprino}</span></div>
           <div class="dato ovi"><span class="et">Ovino</span><span class="val">${n.ovino}</span></div>
           <div class="dato gris"><span class="et">Total</span><span class="val">${act.length}</span></div></div>
-        ${naves.map((nv) => `<section class="nave"><h2>Nave ${esc(nv)}</h2>
-          <div class="nave-grid">${S.corralinas.filter((c) => c.nave === nv).sort((x, y) => x.numero - y.numero).map(tile).join('')}</div>
-          ${nv === 'Cría y Ordeño' ? '<div class="sala-ordeno">Sala de ordeño</div>' : ''}</section>`).join('')}
+        ${planoRumi(en)}
+        <div class="leyenda"><span><svg width="34" height="26" aria-hidden="true"><use href="#cabra" width="34" height="26"/></svg> Cabras</span><span><svg width="34" height="26" aria-hidden="true"><use href="#oveja" width="34" height="26"/></svg> Ovejas</span></div>
+        <div class="suave peq">Toca una corralina para ver sus animales, trasladarlos o registrar sanidad. En el móvil, la nave de machos y ovejas se desliza de lado.</div>
+        ${otras.map((nv) => `<section class="nave"><h2>Nave ${esc(nv)}</h2><div class="nave-grid">${S.corralinas.filter((c) => c.nave === nv).sort((x, y) => x.numero - y.numero).map(tile).join('')}</div></section>`).join('')}
         ${en[0] && en[0].length ? `<a class="tarjeta enlace" href="#/corralina/0"><div class="entre"><strong>Sin ubicar</strong><span class="chip nar">${en[0].length}</span></div><div class="suave">Animales sin corralina asignada.</div></a>` : ''}
+        <div class="suave peq">El plano muestra dónde dicen los registros que está cada animal. Si no coincide con la nave, falta registrar un traslado.</div>
       </main>${navegacion('mapa')}`);
+    $app.className = 'ancho';
   }
 
   // ---------------------------------------------------------------- corralina (lista y traslado en grupo)
@@ -1107,7 +1178,7 @@
       <div class="suave peq">${esc(destinoSan(r))}${r.dosis ? ` · ${esc(r.dosis)}` : ''}${r.via ? ` · ${esc(r.via)}` : ''}${r.duracion_dias > 1 ? ` · ${r.duracion_dias} días` : ''}${r.motivo ? ` · ${esc(r.motivo)}` : ''}</div>
       ${chipsSan(r)}
       ${r.leche_hasta || r.carne_hasta ? `<div class="peq ${(r.leche_hasta && r.leche_hasta >= hoy()) || (r.carne_hasta && r.carne_hasta >= hoy()) ? 'rojo' : 'suave'}">${r.leche_hasta ? `Leche no apta hasta ${fmt(r.leche_hasta)}` : ''}${r.leche_hasta && r.carne_hasta ? ' · ' : ''}${r.carne_hasta ? `Carne no apta hasta ${fmt(r.carne_hasta)}` : ''}</div>` : ''}
-      <div class="suave peq">${prev ? `Programado por ${esc(verAlias(r.autor_alias, r.curso) || '?')}` : `Por ${esc(verAlias(r.realizado_por || r.autor_alias) || '?')}`}${r.veterinario ? ` · prescribe ${esc(r.veterinario)}` : ''}</div>`;
+      <div class="suave peq">${prev ? `Programado por ${esc(verAlias(r.autor_alias, r.curso) || '?')}` : `Por ${esc(verAlias(r.realizado_por || r.autor_alias) || '?')}`}${r.veterinario ? ` · prescribe ${esc(r.veterinario)}` : ''}${L.repeticion(r) ? ` · se repite cada ${L.textoRep(L.repeticion(r))}` : ''}</div>`;
     return conEnlace ? `<a class="evento enlace" href="${href}">${dentro}</a>` : `<div class="evento">${dentro}</div>`;
   }
   function seccionSanidad(a) {
@@ -1120,8 +1191,30 @@
       ${a.fecha_baja ? '' : `<div class="botones"><a class="btn sec peq" href="#/sanidad/nuevo/animal/${a.id}">Registrar tratamiento</a><a class="btn sec peq" href="#/sanidad/programar/animal/${a.id}">Programar</a></div>`}</section>`;
   }
 
+  // Calendario del mes (como en CIFEAPORC): un punto por registro; al tocar un día, sus registros.
+  function calendarioSan() {
+    const h = hoy(); const mes = S.borrador.mesSan || h.slice(0, 7); const dia = S.borrador.diaSan && S.borrador.diaSan.startsWith(mes) ? S.borrador.diaSan : null;
+    const [a, m] = mes.split('-').map(Number); const dd = (n) => String(n).padStart(2, '0');
+    const diasMes = new Date(Date.UTC(a, m, 0)).getUTCDate(); const hueco = (new Date(Date.UTC(a, m - 1, 1)).getUTCDay() + 6) % 7;
+    const porDia = {}; for (const r of S.sanidad) if (r.fecha.startsWith(mes)) (porDia[r.fecha] = porDia[r.fecha] || []).push(r);
+    const MESES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+    const color = (r) => (r.estado === 'cancelado' ? '#9AA49E' : r.estado === 'realizado' ? 'var(--verde)' : r.fecha < h ? 'var(--rojo)' : 'var(--naranja)');
+    const celdas = []; for (let i = 0; i < hueco; i++) celdas.push('<span></span>');
+    for (let d = 1; d <= diasMes; d++) {
+      const iso = `${mes}-${dd(d)}`; const it = porDia[iso] || [];
+      celdas.push(`<button type="button" data-dia-san="${iso}" class="dia ${iso === h ? 'hoy' : ''} ${dia === iso ? 'sel' : ''}" aria-label="${d} de ${MESES[m - 1]}: ${it.length} registros"><span>${d}</span><span class="puntos">${it.map((r) => `<i style="background:${color(r)}"></i>`).join('')}</span></button>`);
+    }
+    const lista = dia ? (porDia[dia] || []) : Object.keys(porDia).sort().flatMap((k) => porDia[k]);
+    const ant = m === 1 ? `${a - 1}-12` : `${a}-${dd(m - 1)}`, sig = m === 12 ? `${a + 1}-01` : `${a}-${dd(m + 1)}`;
+    return `<section class="tarjeta"><div class="entre"><button class="btn sec peq" type="button" data-mes-san="${ant}" aria-label="Mes anterior">‹</button><h2>${MESES[m - 1]} ${a}</h2><button class="btn sec peq" type="button" data-mes-san="${sig}" aria-label="Mes siguiente">›</button></div>
+      <div class="calendario"><b>L</b><b>M</b><b>X</b><b>J</b><b>V</b><b>S</b><b>D</b>${celdas.join('')}</div>
+      <div class="opciones peq"><span class="chip">● Hecho</span><span class="chip nar">● Previsto</span><span class="chip rojo">● Atrasado</span><span class="chip gris">● Cancelado</span></div></section>
+      <section class="tarjeta"><div class="entre"><h2>${dia ? `Día ${fmt(dia)}` : 'Este mes'}</h2>${dia ? '<button class="btn sec peq" type="button" data-dia-san="">Ver todo el mes</button>' : ''}</div>
+      ${lista.length ? lista.map((r) => tarjetaSan(r)).join('') : '<div class="suave">Nada hecho ni previsto.</div>'}</section>`;
+  }
+
   function vistaSanidad(tab) {
-    const pest = [['calendario', 'Previsto'], ['registro', 'Hecho'], ['retiradas', 'Retiradas'], ['medicamentos', 'Productos']];
+    const pest = [['calendario', 'Calendario'], ['registro', 'Hecho'], ['retiradas', 'Retiradas'], ['medicamentos', 'Productos']];
     let cuerpo = '';
     if (tab === 'calendario') {
       const prev = S.sanidad.filter((r) => r.estado === 'previsto').sort((x, y) => x.fecha.localeCompare(y.fecha));
@@ -1129,7 +1222,8 @@
       cuerpo = `<div class="botones"><a class="btn" href="#/sanidad/nuevo/granja">${ICONOS.mas}Registrar lo hecho</a><a class="btn sec" href="#/sanidad/programar/granja">Programar</a></div>
         <div class="suave">Lo previsto queda pendiente hasta que alguien (profesor o alumno) lo valida al hacerlo: toca el registro y pulsa «Hecho».</div>
         ${atr.length ? `<section class="tarjeta" style="border-color:#E4A59E"><h2>Atrasado (${atr.length})</h2>${atr.map((r) => tarjetaSan(r)).join('')}</section>` : ''}
-        <section class="tarjeta"><h2>Próximamente</h2>${resto.map((r) => tarjetaSan(r)).join('') || '<div class="suave">No hay nada programado.</div>'}</section>
+        ${calendarioSan()}
+        <section class="tarjeta"><details><summary class="suave" style="min-height:44px;display:flex;align-items:center">Todo lo previsto a partir de hoy (${resto.length})</summary>${resto.map((r) => tarjetaSan(r)).join('') || '<div class="suave">No hay nada programado.</div>'}</details></section>
         ${(() => { const c = S.sanidad.filter((r) => r.estado === 'cancelado').sort((x, y) => String(y.cancelado_fecha || y.fecha).localeCompare(String(x.cancelado_fecha || x.fecha))); return c.length ? `<section class="tarjeta"><details><summary class="suave" style="min-height:44px;display:flex;align-items:center">Cancelados (${c.length})</summary>${c.map((r) => tarjetaSan(r)).join('')}</details></section>` : ''; })()}`;
     } else if (tab === 'registro') {
       const hechos = S.sanidad.filter((r) => r.estado === 'realizado').sort((x, y) => y.fecha.localeCompare(x.fecha));
@@ -1153,6 +1247,8 @@
         <div class="pestanas">${pest.map(([k, x]) => `<a href="#/sanidad/${k}" class="${tab === k ? 'activo' : ''}">${x}</a>`).join('')}</div>
         ${cuerpo}
       </main>${navegacion('sanidad')}`);
+    $app.querySelectorAll('[data-mes-san]').forEach((b) => b.addEventListener('click', () => { S.borrador.mesSan = b.dataset.mesSan; S.borrador.diaSan = null; vistaSanidad('calendario'); }));
+    $app.querySelectorAll('[data-dia-san]').forEach((b) => b.addEventListener('click', () => { S.borrador.diaSan = b.dataset.diaSan || null; vistaSanidad('calendario'); }));
   }
 
   // Cancelar un previsto (con fecha y motivo) o ver/deshacer una cancelación.
@@ -1243,7 +1339,7 @@
           </div>
           <div class="dos"><div class="campo"><label for="motivo">Motivo</label><input id="motivo" name="motivo" type="text" value="${esc(v.motivo || '')}" placeholder="Mamitis, cojera, plan sanitario…"></div>
             <div class="campo"><label for="veterinario">Veterinario que lo prescribe</label><input id="veterinario" name="veterinario" type="text" value="${esc(v.veterinario || '')}"></div></div>
-          ${modo !== 'editar' ? `<div class="campo"><label for="repetir_dias">Repetir dentro de (días, opcional)</label><input id="repetir_dias" name="repetir_dias" type="number" min="1" value="${esc(v.repetir_dias || '')}"><span class="ayuda">Al guardarlo como hecho, se programa solo el siguiente.</span></div>` : ''}
+          ${modo !== 'editar' ? (() => { const rp = L.repeticion(v) || { n: '', u: 'dias' }; return `<div class="campo"><span class="et">Repetir cada <span class="suave">(opcional)</span></span><div class="dos"><input id="repetir_n" name="repetir_n" type="number" min="1" inputmode="numeric" aria-label="Cada cuántos" value="${esc(rp.n)}" placeholder="Vacío si no se repite"><select id="repetir_unidad" name="repetir_unidad" aria-label="Unidad">${Object.entries(L.UNIDADES_REP).map(([k, t]) => `<option value="${k}" ${rp.u === k ? 'selected' : ''}>${t[1]}</option>`).join('')}</select></div><span class="ayuda">Al guardarlo como hecho, se programa solo el siguiente.</span></div>`; })() : ''}
           <div class="campo"><label for="obs">Observaciones</label><textarea id="obs" name="obs">${esc(v.obs || '')}</textarea></div>
           <button class="btn" type="submit">${realizado && modo !== 'editar' ? 'Guardar como hecho' : modo === 'programar' ? 'Programar' : 'Guardar'}</button>
           ${modo === 'realizar' ? '<a class="btn sec" href="#/sanidad/editar/' + id + '">Solo corregir lo previsto</a>' : ''}
@@ -1279,7 +1375,7 @@
       if (an) { Object.assign(r, { medicamento_id: null, producto: null, dosis: null, via: null, duracion_dias: 1, espera_leche: null, espera_carne: null }); if ('lote' in r) { r.lote = null; r.caducidad = null; } }
       r.corralina_id = r.ambito === 'corralina' ? (num('corralina_id') || null) : null;
       r.especie = r.ambito === 'especie' ? x.get('especie') : null;
-      const repetir = num('repetir_dias');
+      const rep = L.filaRep(num('repetir_n'), x.get('repetir_unidad') || 'dias'); const repetir = rep.repetir_n;
       if (!r.ambito) return msg('Elige a quién se aplica.');
       if (r.ambito === 'corralina' && !r.corralina_id) return msg('Elige la corralina.');
       if (carObl && !r.caracter) return msg('Indica si es obligatorio, recomendado o voluntario.');
@@ -1297,15 +1393,15 @@
       if (realizado && !(r.animales || fila.animales || []).length) return msg(r.fecha < hoy() ? 'No había animales en ese destino en esa fecha (según los datos de la app).' : 'No hay animales en ese destino.');
       const b = f.querySelector('button[type=submit]'); b.disabled = true;
       let res;
-      if (modo === 'nuevo') res = await sb.from('rum_sanidad').insert({ ...r, estado: 'realizado', repetir_dias: repetir });
-      else if (modo === 'programar') res = await sb.from('rum_sanidad').insert({ ...r, estado: 'previsto', repetir_dias: repetir });
-      else if (modo === 'realizar') res = await sb.from('rum_sanidad').update({ ...r, estado: 'realizado', repetir_dias: repetir }).eq('id', id);
+      if (modo === 'nuevo') res = await sb.from('rum_sanidad').insert({ ...r, estado: 'realizado', ...rep });
+      else if (modo === 'programar') res = await sb.from('rum_sanidad').insert({ ...r, estado: 'previsto', ...rep });
+      else if (modo === 'realizar') res = await sb.from('rum_sanidad').update({ ...r, estado: 'realizado', ...rep }).eq('id', id);
       else res = await sb.from('rum_sanidad').update(r).eq('id', id);
       if (res.error) { b.disabled = false; return msg(traducirError(res.error)); }
       let pasado = false;
-      if (realizado && repetir && modo !== 'editar' && L.sumarDias(r.fecha, repetir) < hoy()) pasado = true;
+      if (realizado && repetir && modo !== 'editar' && L.sumarPeriodo(r.fecha, rep.repetir_n, rep.repetir_unidad) < hoy()) pasado = true;
       else if (realizado && repetir && modo !== 'editar') {
-        const sig = { ...r, estado: 'previsto', fecha: L.sumarDias(r.fecha, repetir), repetir_dias: repetir, lote: null, caducidad: null, resultado: null, resultado_nota: null, caracter: r.caracter || (fila && fila.caracter) || null, animales: r.ambito === 'animales' ? r.animales : [] };
+        const sig = { ...r, estado: 'previsto', fecha: L.sumarPeriodo(r.fecha, rep.repetir_n, rep.repetir_unidad), ...rep, lote: null, caducidad: null, resultado: null, resultado_nota: null, caracter: r.caracter || (fila && fila.caracter) || null, animales: r.ambito === 'animales' ? r.animales : [] };
         const r2 = await sb.from('rum_sanidad').insert(sig); if (r2.error) toast(`Guardado, pero no se pudo programar el siguiente: ${traducirError(r2.error)}`);
       }
       S.borrador.grupo = null;
