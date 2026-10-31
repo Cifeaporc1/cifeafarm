@@ -1235,7 +1235,8 @@
         <div class="lista">${lista.map((a) => `<a class="animal-fila" href="#/animal/${a.id}"><div><strong>${esc(nombreA(a))}</strong><div class="suave">${esc(catNombre(a.categoria))} · ${esc(nombreCorrCorto(ubic(a)))}</div>
           <div class="peq rojo">${ret[a.id].leche ? `Leche hasta ${fmt(ret[a.id].leche.hasta)}` : ''}${ret[a.id].leche && ret[a.id].carne ? ' · ' : ''}${ret[a.id].carne ? `Carne hasta ${fmt(ret[a.id].carne.hasta)}` : ''}</div></div>${chipRetirada(ret[a.id])}</a>`).join('') || '<div class="vacio">Ningún animal en tiempo de espera.</div>'}</div>`;
     } else {
-      cuerpo = `<a class="btn" href="#/medicamento/nuevo">${ICONOS.mas}Añadir producto</a><div class="suave peq">Toca un producto para ver su ficha técnica o completar sus datos.</div>
+      const nRep = gruposRepetidos().length;
+      cuerpo = `${esProf() && nRep ? `<a class="aviso-caja enlace" href="#/sanidad/repetidos"><strong>Hay ${nRep} ${nRep === 1 ? 'producto repetido' : 'productos repetidos'}.</strong> Toca para unirlos.</a>` : ''}<a class="btn" href="#/medicamento/nuevo">${ICONOS.mas}Añadir producto</a>${esProf() ? '<a class="btn sec" href="#/sanidad/repetidos">Productos repetidos / unir</a>' : ''}<div class="suave peq">Toca un producto para ver su ficha técnica o completar sus datos.</div>
         <div class="suave">Catálogo común a todas las especies (también lo usa CIFEAPORC). La especie se elige al aplicarlo.</div>
         <div class="lista">${S.medicamentos.filter((m) => m.activo !== false).map((m) => `<a href="#/medicamento/${m.id}" class="animal-fila"><div><strong>${esc(m.nombre)}</strong><div class="suave">${esc(m.materia_activa || '')}${resumenPoso(m, ESP_POSO.slice(0, 2)) ? ` · ${esc(resumenPoso(m, ESP_POSO.slice(0, 2)))}` : ''}${m.via ? ` · ${esc(m.via)}` : ''}</div>
           ${(m.clases || []).length ? `<div class="opciones" style="gap:4px;margin-top:4px">${m.clases.map((c) => `<span class="chip">${esc(L.nombreClase(c))}</span>`).join('')}</div>` : ''}
@@ -1417,6 +1418,59 @@
   const resumenPoso = (m, esps) => { const p = (m && m.posologia) || {}; const t = esps.filter(([k]) => p[k]).map(([k, n]) => `${n}: ${p[k]}`); return t.length ? t.join(' · ') : (m && m.dosis) || ''; };
   // Enlace que se abre fuera de la app, en el navegador
   const enlaceFicha = (url, texto = 'Abrir la ficha técnica', cls = 'btn') => (url ? `<a class="${cls}" href="${esc(url)}" target="_blank" rel="noopener noreferrer external">${texto} ↗</a>` : '');
+  // ---- Productos repetidos: mismo nombre sin contar mayúsculas, tildes, espacios ni signos
+  const claveMed = (t) => String(t || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]/g, '');
+  const CAMPOS_MED = ['materia_activa', 'tipo', 'presentacion', 'dosis', 'via', 'supresion_dias', 'lote', 'caducidad', 'ficha_url', 'notas', 'espera_carne_rum', 'espera_leche_rum'];
+  const datosMed = (m) => CAMPOS_MED.filter((k) => m[k] != null && String(m[k]).trim() !== '').length + ((m.especies || []).length ? 1 : 0) + ((m.clases || []).length ? 1 : 0) + Object.keys(m.posologia || {}).length;
+  const ordenMed = (a, b) => datosMed(b) - datosMed(a) || (b.activo !== false) - (a.activo !== false) || String(a.creado).localeCompare(String(b.creado));
+  function gruposRepetidos() {
+    const g = {}; for (const m of S.medicamentos) { const k = claveMed(m.nombre); if (k) (g[k] = g[k] || []).push(m); }
+    return Object.values(g).filter((x) => x.length > 1).map((x) => x.sort(ordenMed)).sort((a, b) => a[0].nombre.localeCompare(b[0].nombre));
+  }
+  async function unirMed(conservar, otros) {
+    const { data, error } = await sb.rpc('unir_medicamentos', { conservar, otros });
+    if (error) throw new Error(/unir_medicamentos|function/i.test(error.message || '') ? 'Falta ejecutar en Supabase el archivo 11_unir_productos.sql.' : traducirError(error));
+    return data || 0;
+  }
+  function vistaRepetidos() {
+    if (!esProf()) return vistaNoEncontrado('Esta pantalla es del profesor.');
+    const grupos = gruposRepetidos();
+    const ficha = (m, gi, sel) => `<label class="animal-fila check"><input type="radio" name="g${gi}" value="${m.id}" ${sel ? 'checked' : ''}>
+      <div><strong>${esc(m.nombre)}</strong>${m.activo === false ? ' <span class="chip gris">Retirado</span>' : ''}
+        <div class="suave">${esc([m.materia_activa, m.presentacion].filter(Boolean).join(' · ') || 'Sin materia activa ni presentación')}</div>
+        <div class="suave peq">${datosMed(m)} datos rellenos${m.ficha_url ? ' · con ficha técnica' : ''}${(m.clases || []).length ? ` · ${m.clases.map(L.nombreClase).join(', ')}` : ''}${m.autor_alias ? ` · añadido por ${esc(verAlias(m.autor_alias))}` : ''}</div></div>
+      <a class="ver" href="#/medicamento/${m.id}">Ver</a></label>`;
+    const opts = S.medicamentos.slice().sort((a, b) => a.nombre.localeCompare(b.nombre)).map((m) => `<option value="${m.id}">${esc(m.nombre)}${m.materia_activa ? ` (${esc(m.materia_activa)})` : ''}</option>`).join('');
+    pintar(`${cabecera({ volver: '#/sanidad/medicamentos', textoVolver: 'Productos', titulo: 'Productos repetidos', sub: 'Catálogo común a las dos granjas' })}
+      <main class="cuerpo"><div id="msg"></div>
+        <div class="ok-caja">Al unir, se conserva el producto marcado, se completa con los datos que solo tengan los otros (ficha técnica, tiempos de espera, clases…) y los tratamientos de las dos granjas pasan a él. Los otros se borran, pero queda una copia en la base de datos.</div>
+        ${grupos.length ? `<button class="btn" type="button" id="b-todos">Unir todos (${grupos.length} ${grupos.length === 1 ? 'grupo' : 'grupos'}) conservando el marcado</button>
+          ${grupos.map((gr, gi) => `<section class="tarjeta"><h2>${esc(gr[0].nombre)} · ${gr.length} repetidos</h2><div class="suave peq">Marca el que se conserva (propuesto: el más completo).</div>
+            <div class="lista">${gr.map((m, i) => ficha(m, gi, i === 0)).join('')}</div>
+            <button class="btn sec" type="button" data-unir="${gi}">Unir este grupo</button></section>`).join('')}`
+        : '<div class="vacio">No hay productos con el mismo nombre.</div>'}
+        <section class="tarjeta"><h2>Unir a mano</h2><div class="suave">Para el mismo producto escrito de forma distinta (por ejemplo «Oxitetraciclina LA» y «Oxitetraciclina 20 %»).</div>
+          <div class="campo"><label for="u-con">Se conserva</label><select id="u-con"><option value="">Elige…</option>${opts}</select></div>
+          <div class="campo"><label for="u-otro">Se une a él y se borra</label><select id="u-otro"><option value="">Elige…</option>${opts}</select></div>
+          <button class="btn sec" type="button" id="b-mano">Unir estos dos</button></section>
+      </main>${navegacion('sanidad')}`);
+    const msg = (t) => { document.getElementById('msg').innerHTML = errorCaja(t); window.scrollTo(0, 0); };
+    const elegido = (gi) => (document.querySelector(`input[name=g${gi}]:checked`) || {}).value;
+    const ejecutar = async (b, pares) => {
+      if (b.dataset.confirmar !== '1') { b.dataset.confirmar = '1'; b.dataset.texto = b.textContent; b.textContent = '¿Seguro? Pulsa otra vez para unir'; return; }
+      b.disabled = true; b.textContent = 'Uniendo…'; let t = 0;
+      try { for (const [c, o] of pares) t += await unirMed(c, o); } catch (e) { b.disabled = false; b.dataset.confirmar = ''; b.textContent = b.dataset.texto; await refrescar(); return msg(e.message); }
+      toast(`Productos unidos${t ? ` · ${t} ${t === 1 ? 'tratamiento actualizado' : 'tratamientos actualizados'}` : ''}`); await refrescar(); vistaRepetidos();
+    };
+    $app.querySelectorAll('[data-unir]').forEach((b) => b.addEventListener('click', () => { const gi = Number(b.dataset.unir); const c = elegido(gi); ejecutar(b, [[c, grupos[gi].map((m) => m.id).filter((x) => x !== c)]]); }));
+    const bt = document.getElementById('b-todos'); if (bt) bt.addEventListener('click', () => ejecutar(bt, grupos.map((gr, gi) => { const c = elegido(gi); return [c, gr.map((m) => m.id).filter((x) => x !== c)]; })));
+    document.getElementById('b-mano').addEventListener('click', (ev) => {
+      const c = document.getElementById('u-con').value, o = document.getElementById('u-otro').value;
+      if (!c || !o) return msg('Elige los dos productos.'); if (c === o) return msg('Elige dos productos distintos.');
+      ejecutar(ev.target, [[c, [o]]]);
+    });
+  }
+
   function vistaMedicamento(id, desde) {
     const m = id === 'nuevo' ? { especies: [], clases: [], tipo: 'medicamento' } : S.medicamentos.find((x) => x.id === id);
     const volver = desde === 'porc' ? 'porc/#/sanidad/medicamentos' : '#/sanidad/medicamentos';
@@ -1463,6 +1517,8 @@
       if (!nuevo && esProf()) fila.activo = x.get('activo') === 'on';
       if (!fila.nombre) { document.getElementById('msg').innerHTML = errorCaja('Falta el nombre comercial.'); return; }
       if (fila.ficha_url && !/^https?:\/\//i.test(fila.ficha_url)) { document.getElementById('msg').innerHTML = errorCaja('El enlace debe empezar por https://'); return; }
+      const igual = S.medicamentos.find((z) => z.id !== m.id && claveMed(z.nombre) === claveMed(fila.nombre));
+      if (igual && fm.dataset.repetidoOk !== '1') { fm.dataset.repetidoOk = '1'; document.getElementById('msg').innerHTML = `<div class="aviso-caja" role="alert"><strong>Ya existe «${esc(igual.nombre)}» en el catálogo.</strong> Para no repetirlo, <a href="#/medicamento/${igual.id}${desde ? `/${desde}` : ''}">abre ese producto</a> y complétalo. Si de verdad es otro producto, pulsa otra vez «${nuevo ? 'Añadir' : 'Guardar cambios'}».</div>`; window.scrollTo(0, 0); return; }
       const { error } = nuevo ? await sb.from('medicamentos').insert(fila) : await sb.from('medicamentos').update(fila).eq('id', m.id);
       if (error) { document.getElementById('msg').innerHTML = errorCaja(/posologia/i.test(error.message || '') ? 'Falta ejecutar en Supabase el archivo 07_posologia.sql.' : traducirError(error)); return; }
       toast(nuevo ? 'Añadido al catálogo' : 'Cambios guardados');
@@ -1959,6 +2015,7 @@
         if (['nuevo', 'programar'].includes(a)) return vistaSanForm(a, null, b, location.hash.split('/')[4]);
         if (['realizar', 'editar'].includes(a)) return vistaSanForm(a, b);
         if (a === 'cancelar') return vistaSanCancelar(b);
+        if (a === 'repetidos') return vistaRepetidos();
         return vistaSanidad(a || 'calendario');
       case 'medicamento': return vistaMedicamento(a, b);
       case 'mas': return vistaMas();

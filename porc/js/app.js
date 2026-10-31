@@ -1127,7 +1127,7 @@
   function medicamentosHTML() {
     const usos = {}; for (const r of S.sanidad) if (r.medicamento_id && r.estado === 'realizado') { const u = (usos[r.medicamento_id] = usos[r.medicamento_id] || { n: 0, ultimo: '' }); u.n += 1; if (r.fecha > u.ultimo) u.ultimo = r.fecha; }
     const h = hoy(); const meds = S.medicamentos.filter((m) => m.activo || S.borrador.verInactivos);
-    return `<a class="btn" href="../#/medicamento/nuevo/porc">${ICONOS.mas}Añadir medicamento o producto</a>
+    return `<a class="btn" href="../#/medicamento/nuevo/porc">${ICONOS.mas}Añadir medicamento o producto</a>${esProf() ? '<a class="btn sec" href="../#/sanidad/repetidos">Productos repetidos / unir</a>' : ''}
       <div class="suave peq">Toca el nombre de un producto para ver su ficha, añadir el enlace a la ficha técnica o completar sus datos.</div>
       <div class="suave">Catálogo común a todas las especies (también lo usa CIFEARUMI). La especie se elige al aplicarlo.</div>
       <div class="tabla-scroll"><table class="tabla ancha"><thead><tr><th>Nombre comercial</th><th>Ficha técnica</th><th>Materia activa</th><th>Clase</th><th>Posología (cerdo)</th><th>Vía</th><th>Lote</th><th>Caducidad</th><th>Supresión</th><th>Usos</th></tr></thead><tbody>

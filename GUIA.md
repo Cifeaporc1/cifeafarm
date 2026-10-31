@@ -82,3 +82,11 @@ Trabaja con los animales y la granja: registra, corrige y borra cualquier regist
 2. **Calendario (CIFEARUMI):** Sanidad → Calendario. Verde hecho, naranja previsto, rojo atrasado, gris cancelado. Toca un día para ver sus registros; ‹ › cambian de mes.
 3. **Repetir cada:** número y unidad (días, semanas, meses o años). «Cada 1 mes» desde el 31 de enero cae el 28 o 29 de febrero.
 4. **Mapa (CIFEARUMI):** plano de las dos naves. Cada corralina muestra una cabra o una oveja (o las dos) con cuántos animales hay. Toca una corralina para ver sus animales. En el móvil, la nave de machos y ovejas se desliza de lado.
+
+## 12. Unir productos repetidos (0.11.0)
+
+1. Ejecuta una vez en Supabase `sql/11_unir_productos.sql` (SQL Editor → New query → Run). Es repetible y no borra datos al ejecutarlo.
+2. En la app (profesor o veterinaria): Sanidad → Productos → **Productos repetidos / unir**. Si hay repetidos, sale un aviso arriba de la lista.
+3. En cada grupo está marcado el más completo; cambia la marca si prefieres otro. **Unir este grupo** o **Unir todos** (pide confirmar pulsando otra vez).
+4. Lo que hace: completa el producto conservado con los datos que solo tengan los otros, pasa a él los tratamientos de las dos granjas y borra los otros. Los borrados quedan copiados en la tabla `medicamentos_unidos` de Supabase.
+5. **Unir a mano:** para el mismo producto escrito de forma distinta («Oxitetraciclina LA» y «Oxitetra 20 %»), elige cuál se conserva y cuál se une.
