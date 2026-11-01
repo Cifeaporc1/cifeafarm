@@ -90,3 +90,12 @@ Trabaja con los animales y la granja: registra, corrige y borra cualquier regist
 3. En cada grupo está marcado el más completo; cambia la marca si prefieres otro. **Unir este grupo** o **Unir todos** (pide confirmar pulsando otra vez).
 4. Lo que hace: completa el producto conservado con los datos que solo tengan los otros, pasa a él los tratamientos de las dos granjas y borra los otros. Los borrados quedan copiados en la tabla `medicamentos_unidos` de Supabase.
 5. **Unir a mano:** para el mismo producto escrito de forma distinta («Oxitetraciclina LA» y «Oxitetra 20 %»), elige cuál se conserva y cuál se une.
+
+## 13. Administrador, historial, protocolos y pantallas comunes (0.12.0)
+
+1. Ejecuta una vez en Supabase `sql/12_administrador.sql` (SQL Editor → New query → Run). Es repetible y no borra datos. Te marca como administrador (el profesor más antiguo). Si algún día vuelves a ejecutar `05_veterinaria.sql`, ejecuta después otra vez este.
+2. Al entrar, la pantalla de inicio de CIFEAFARM separa **Operaciones de granja** (CIFEARUMI y CIFEAPORC), lo **común** (Gestión y Cuenta) y tu parte de **Administrador**, que solo ves tú.
+3. **Administrador:** operaciones repetidas (abre, corrige o pulsa «Está bien así»), correcciones de cada granja, historial de actividad (quién, qué, fecha y hora, y cuántas veces ha entrado cada uno; filtra por persona, fechas o tipo), actividad para evaluar y personas.
+4. **Personas** (Gestión → Personas): alta de alumnos (uno a uno o una lista), nombre, nuevo PIN, desactivar y **eliminar**. Eliminar quita a la persona y su acceso; sus registros de la granja se conservan con su alias.
+5. **Hoy** en cada granja: tareas de los protocolos del centro (diarias, quincenales, mensuales, trimestrales y semestrales). Se marcan al hacerlas y queda quién y cuándo. El alumno puede desmarcar la suya durante 24 h; el profesor, siempre.
+6. **Dosis de semen:** caducan con más de 4 días (día 0 = extracción). Las caducadas y agotadas dejan de salir en Reproducción y en la ficha del verraco pasan a «Caducadas o agotadas», donde se pueden eliminar las que no se usaron en ninguna inseminación.

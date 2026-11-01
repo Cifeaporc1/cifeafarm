@@ -1,8 +1,8 @@
 // Guarda la "carcasa" de la app para que abra rápido y se pueda instalar.
 // Los datos siempre se piden a Supabase (no se guardan en el móvil).
-const CACHE = 'cifeafarm-v0.11.0';
+const CACHE = 'cifeafarm-v0.12.0';
 const ARCHIVOS = [
-  './', 'index.html', 'css/estilos.css', 'js/config.js', 'js/logica.js', 'js/app.js', 'manifest.webmanifest',
+  './', 'index.html', 'css/estilos.css', 'js/config.js', 'js/comun.js', 'js/logica.js', 'js/app.js', 'manifest.webmanifest',
   'img/logo.jpg', 'img/logo-mini.jpg', 'img/icono-192.png', 'img/icono-512.png', 'img/rumi.jpg', 'img/rumi-logo.jpg', 'img/porc.png',
   'porc/', 'porc/index.html', 'porc/css/estilos.css', 'porc/js/logica.js', 'porc/js/app.js', 'porc/img/logo.jpg', 'porc/img/logo-mini.jpg',
 ];

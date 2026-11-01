@@ -215,3 +215,13 @@ fieldset[disabled] input, fieldset[disabled] select { background: #EEF1EF; color
 .destetados { display: flex; flex-direction: column; gap: 2px; background: #F1E9F6; border-radius: 10px; padding: 8px 10px; color: #5B2C78; text-decoration: none; }
 .destetados strong { color: #5B2C78; }
 .chips-fila { display: flex; flex-wrap: wrap; gap: 6px; margin: 4px 0; }
+.evento.enlace, a.chip { text-decoration: none; color: inherit; }
+.evento.enlace { display: block; }
+.admin-bloque { border: 2px solid var(--azul-vet); }
+.admin-bloque h2 { display: flex; align-items: center; gap: 6px; color: var(--azul-vet); }
+.admin-bloque h2 svg { width: 22px; height: 22px; }
+.tareas-prot label { display: flex; gap: 10px; align-items: flex-start; padding: 8px 0; border-bottom: 1px solid var(--linea); min-height: 44px; }
+.tareas-prot label:last-child { border-bottom: none; }
+.tareas-prot input { width: 22px; height: 22px; flex: none; margin-top: 1px; }
+.tareas-prot .hecha span.t { color: var(--suave); text-decoration: line-through; }
+.tareas-prot h3 { font-size: 15px; margin: 10px 0 2px; color: var(--verde-osc); }

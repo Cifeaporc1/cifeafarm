@@ -12,7 +12,7 @@
     lactacion: 30,
     idcMin: 4, idcMax: 6,          // intervalo destete-cubrición
     destetadosMin: 7, destetadosMax: 9,
-    dosisAviso: 4, dosisCaduca: 5, // el día de extracción es el día 0
+    dosisAviso: 3, dosisCaduca: 4, // el día de extracción es el día 0: caducan con más de 4 días
     sinEcoDias: 35,      // a partir de aquí, una IA sin ecografía se trata como posible gestación
   };
 

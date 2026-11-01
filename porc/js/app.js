@@ -24,7 +24,7 @@
   const fechaHora = (d) => `${dos(d.getDate())}/${dos(d.getMonth() + 1)}/${d.getFullYear()} · ${dos(d.getHours())}:${dos(d.getMinutes())}`;
   const hoy = () => L.hoyISO();
   const esProf = () => S.perfil && ['profesor', 'veterinario'].includes(S.perfil.rol); // profesor o veterinaria
-  const esAdmin = () => S.perfil && S.perfil.rol === 'profesor';                       // solo el profesor
+  const esAdmin = () => !!S.perfil && (S.perfil.admin === true || (S.perfil.admin === undefined && S.perfil.rol === 'profesor')); // solo el administrador
   const rolNombre = () => (S.perfil.rol === 'veterinario' ? 'Veterinaria' : S.perfil.rol === 'profesor' ? 'Profesor' : 'Alumno');
   const nombreGranja = (id) => (S.granjas.find((g) => g.id === id) || {}).nombre || `Granja ${id}`;
   const cerdaPorId = (id) => S.cerdas.find((c) => c.id === id);
@@ -70,6 +70,10 @@
     plano: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path d="M3 4h18v16H3zM3 11h8M11 4v16M15 11h6"/></svg>',
     sanidad: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path d="M9 3h6v6h6v6h-6v6H9v-6H3V9h6z"/></svg>',
     admin: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h10"/></svg>',
+    animales: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 4h12v16H6zM9 9h6M9 13h6M9 17h3"/></svg>',
+    repro: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="9" cy="10" r="5"/><circle cx="15" cy="14" r="5"/></svg>',
+    granjas: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 10l9-6 9 6v10H3zM9 20v-6h6v6"/></svg>',
+    escudo: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z"/><path d="M9 12l2 2 4-4"/></svg>',
     mas: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>',
     atras: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg>',
   };
@@ -117,6 +121,8 @@
     if (esAdmin()) { const r = await sb.from('correcciones').select('*').order('creado', { ascending: false }).limit(300); S.faltaCorr = !!r.error; S.correcciones = r.error ? [] : r.data.filter((c) => !c.tabla.startsWith('rum_')); } // las de rumiantes, en CIFEARUMI
     // Nombres visibles (los de la propia granja y los profesores). Si la función
     // aún no existe en Supabase, la app sigue funcionando solo con alias.
+    { const ph = await sb.from('protocolo_hechas').select('*').eq('granja', 'porc').gte('creado', new Date(Date.now() - 400 * 864e5).toISOString());
+      S.faltaSQL12 = !!ph.error; S.hechas = ph.error ? [] : ph.data; }
     const nv = await sb.rpc('nombres_visibles');
     S.nombres = {};
     if (!nv.error && Array.isArray(nv.data)) for (const p of nv.data) S.nombres[p.user_id] = p;
@@ -155,12 +161,14 @@
       ${horas}</header>`;
   }
 
+  // Las mismas pantallas en todas las granjas: Hoy, Mapa, Animales, Reproducción, Sanidad y CIFEAFARM (lo común)
   function navegacion(activa) {
-    const items = [['inicio', 'Inicio'], ['cerdas', 'Cerdas'], ['verracos', 'Verracos'], ['sanidad', 'Sanidad']];
-    if (esProf()) items.push(['admin', 'Gestión']);
-    items.push(['cuenta', 'Cuenta']);
-    return `<nav class="nav" aria-label="Secciones"><div class="dentro">${items.map(([id, t]) =>
-      `<a href="#/${id}" class="${activa === id ? 'activo' : ''}" ${activa === id ? 'aria-current="page"' : ''}>${ICONOS[id]}${t}</a>`).join('')}</div></nav>`;
+    const alias = { cerdas: 'animales', verracos: 'animales', admin: 'animales', plano: 'mapa', cuenta: 'granjas' };
+    activa = alias[activa] || activa;
+    const items = [['inicio', 'Hoy', 'inicio'], ['mapa', 'Mapa', 'plano'], ['animales', 'Animales', 'animales'], ['reproduccion', 'Reprod.', 'repro'], ['sanidad', 'Sanidad', 'sanidad'], ['granjas', 'CIFEAFARM', 'granjas']];
+    const href = { mapa: '#/plano', granjas: '../#/granjas' };
+    return `<nav class="nav" aria-label="Secciones"><div class="dentro">${items.map(([id, t, ic]) =>
+      `<a href="${href[id] || `#/${id}`}" class="${activa === id ? 'activo' : ''}" ${activa === id ? 'aria-current="page"' : ''}>${ICONOS[ic]}${t}</a>`).join('')}</div></nav>`;
   }
 
   function pintar(html) { $app.className = ''; $app.innerHTML = html; window.scrollTo(0, 0); }
@@ -197,11 +205,6 @@
       const desde = g.movs.filter((m) => m.destino === est).map((m) => m.fecha).sort().pop();
       avDosis.push({ enlace: `#/corral/parideras/${est.split(' ')[1]}`, etiqueta: 'Lechones', titulo: 'Destetados en la paridera', detalle: `${est.replace('Paridera ', 'Sala ').replace('-', ' · paridera ')}: ${g.n} lechones${desde ? ` desde hace ${L.dias(desde, h)} días` : ''} · pasar a lechonera`, nivel: 'proximo' });
     }
-    // Correcciones de alumnos pendientes de revisar (solo el profesor)
-    if (esAdmin() && S.correcciones.length) {
-      const n = S.correcciones.filter((x) => !x.revisada).length;
-      if (n) avDosis.unshift({ enlace: '#/correcciones', etiqueta: 'Profesor', titulo: `${n} ${n === 1 ? 'corrección' : 'correcciones'} de alumnos sin revisar`, detalle: 'Un alumno ha cambiado registros de otros', nivel: 'urgente' });
-    }
     const tarjetasExtra = avSan.map((a) => `<a class="tarjeta enlace" href="#/sanidad/realizar/${a.sanidadId}"><div class="entre"><strong>${esc(a.titulo)}</strong><span class="chip ${a.nivel === 'urgente' ? 'nar' : ''}">${a.nivel === 'urgente' ? 'Hoy' : corta(a.fecha)}</span></div><div class="suave">${esc(a.detalle)}</div></a>`).join('')
       + avDosis.map((a) => `<a class="tarjeta enlace" href="${a.enlace || `#/verraco/${a.v ? a.v.id : ''}`}"><div class="entre"><strong>${esc(a.titulo)}</strong><span class="chip ${a.nivel === 'proximo' ? '' : 'nar'}">${a.etiqueta || 'Verraco'}</span></div><div class="suave">${esc(a.detalle)}</div></a>`).join('');
     const tarjetas = lista.map((a) => `
@@ -211,40 +214,179 @@
     pintar(`${cabecera()}
       <main class="cuerpo">
         <div class="foto logo"><img src="img/logo.jpg" alt="Logotipo CIFEAPORC, chato murciano"></div>
-        <div class="entre"><h1 style="font-size:22px">Hoy, ${DIAS_SEM[d.getDay()]} ${d.getDate()} ${MESES[d.getMonth()]}</h1>
+        <div class="entre"><h1 style="font-size:22px">Hoy, ${DIAS_SEM[d.getDay()]} ${d.getDate()} ${MESES[d.getMonth()]} ${d.getFullYear()}</h1>
           <span class="suave">${lista.length + avSan.length + avDosis.length} ${lista.length + avSan.length + avDosis.length === 1 ? 'aviso' : 'avisos'}</span></div>
-        ${esProf() && (!S.ultimaCopia || Date.now() - S.ultimaCopia > 30 * 864e5) ? `<a class="tarjeta enlace" href="#/admin/granja" style="border-color:var(--naranja-borde)"><div class="entre"><strong>Haz una copia de seguridad</strong><span class="chip nar">Profesor</span></div><div class="suave">${S.ultimaCopia ? `La última es del ${fechaHora(S.ultimaCopia)}` : 'Aún no has descargado ninguna desde este dispositivo'} · Gestión → Granja</div></a>` : ''}
+        ${avisoAdminHoy()}
+        ${resumenZonas()}
+        ${Comun.htmlTareas('porc', h, S.hechas, { esc, puedeDeshacer: (x) => esProf() || (x.autor === S.sesion.user.id && Date.now() - new Date(x.creado).getTime() < 864e5), quien: (x) => verAlias(x.autor_alias, x.curso) || '?', faltaSQL: S.faltaSQL12 })}
+        ${esProf() && !esAdmin() && (!S.ultimaCopia || Date.now() - S.ultimaCopia > 30 * 864e5) ? `<a class="tarjeta enlace" href="#/copia" style="border-color:var(--naranja-borde)"><div class="entre"><strong>Haz una copia de seguridad</strong><span class="chip nar">Profesor</span></div><div class="suave">${S.ultimaCopia ? `La última es del ${fechaHora(S.ultimaCopia)}` : 'Aún no has descargado ninguna desde este dispositivo'} · Gestión → Granja</div></a>` : ''}
         ${tarjetasExtra}${tarjetas || (tarjetasExtra ? '' : '<div class="vacio">No hay avisos para hoy.</div>')}
-        <div class="tarjeta"><h2>Cerdas por fase</h2>
-          <div class="opciones">${L.FASES.map((f) => `<span class="chip ${recuento[f.id] ? '' : 'gris'}">${f.nombre}: ${recuento[f.id] || 0}</span>`).join('')}</div>
-          ${S.cerdas.length === 0 ? `<div class="suave">Aún no hay cerdas en el censo.${esProf() ? ' Dalas de alta en Gestión.' : ''}</div>` : ''}</div>
-        <a class="btn" href="#/cerdas">${ICONOS.mas}Registrar evento</a>
-        <a class="btn sec" href="#/plano">${ICONOS.plano}Plano de la granja</a>
+        <div class="botones"><a class="btn" href="#/animales">${ICONOS.mas}Registrar evento de una cerda</a><a class="btn sec" href="#/plano">${ICONOS.plano}Mapa</a></div>
+        ${ultimosRegistros()}
       </main>${navegacion('inicio')}`);
+    enlazarHoy();
+  }
+  function TIPOS_EV_NOMBRE(e) { return TIPOS[e.tipo] ? TIPOS[e.tipo].nombre : e.tipo; }
+  // Animales por zona y por fase, y total
+  function resumenZonas() {
+    const D = datosPlano();
+    const n = (o) => Object.values(o).flat().length;
+    const lech = Object.values(D.recuento).filter((r) => r.estancia.startsWith('Lechonera')).reduce((a, r) => a + r.n, 0);
+    const cebo = Object.values(D.recuento).filter((r) => r.estancia.startsWith('Cebadero')).reduce((a, r) => a + r.n, 0);
+    const zonas = [['implantacion', 'Implantación', n(D.implantacion) + D.implSin.length], ['vacias', 'Vacías', n(D.vacias)], ['gestacion', 'Gestación', n(D.gestacion)], ['partos', 'Parideras', n(D.partos)],
+      ['verraqueras', 'Verraqueras', n(D.verraqueras)], ['lechoneras', 'Lechoneras', lech], ['cebadero', 'Cebadero', cebo]];
+    const tot = cerdasActivas().length + verracosActivos().length + D.lactantes + lech + cebo;
+    const fases = {}; for (const c of cerdasActivas()) { const f = estadoDe(c.id).fase; fases[f] = (fases[f] || 0) + 1; }
+    return `<section class="tarjeta"><div class="entre"><h2>Animales hoy</h2><span class="chip">Total ${tot}</span></div>
+      <div class="suave peq">Por zona</div><div class="opciones" style="gap:4px">${zonas.map(([z, t, k]) => `<a class="chip ${k ? '' : 'gris'}" href="#/plano/${z}">${t}: ${k}</a>`).join('')}${D.lactantes ? `<span class="chip">Lechones lactantes: ${D.lactantes}</span>` : ''}</div>
+      <div class="suave peq" style="margin-top:6px">Cerdas por fase</div><div class="opciones" style="gap:4px">${L.FASES.map((f) => `<span class="chip ${fases[f.id] ? 'gris' : 'gris'}">${f.nombre}: ${fases[f.id] || 0}</span>`).join('')}</div>
+      ${S.cerdas.length === 0 ? `<div class="suave">Aún no hay cerdas en el censo.${esProf() ? ' Dalas de alta en Animales.' : ''}</div>` : ''}</section>`;
+  }
+  // Solo el administrador: lo pendiente de su parte, separado de lo de la granja
+  function avisoAdminHoy() {
+    if (!esAdmin()) return '';
+    const nCorr = S.correcciones.filter((c) => !c.revisada).length;
+    if (S.repPorc === undefined) {
+      S.repPorc = null;
+      sb.from('avisos_descartados').select('clave').then((r) => {
+        const desc = new Set(r.error ? [] : r.data.map((x) => x.clave)); const crot = {}; for (const x of S.cerdas.concat(S.verracos)) crot[x.id] = x.crotal;
+        S.repPorc = Comun.repetidas(null, { eventos: S.eventos, sanidad: S.sanidad, extracciones: S.extracciones, recuentos: S.recuentos, mov_grupos: S.movGrupos }, { rumi: '../', porc: '' },
+          { eventoPorc: (e) => TIPOS_EV_NOMBRE(e), cerda: (id) => `Cerda ${crot[id] || '?'}`, verraco: (id) => `Verraco ${crot[id] || '?'}` }).filter((x) => !desc.has(x.clave)).length;
+        if (location.hash === '#/inicio' || location.hash === '') vistaInicio();
+      });
+    }
+    const copia = !S.ultimaCopia || Date.now() - S.ultimaCopia > 30 * 864e5;
+    const items = [S.repPorc ? `<a href="../#/admin/repetidas">${S.repPorc} ${S.repPorc === 1 ? 'operación repetida' : 'operaciones repetidas'}</a>` : '', nCorr ? `<a href="#/correcciones">${nCorr} ${nCorr === 1 ? 'corrección' : 'correcciones'} sin revisar</a>` : '', copia ? '<a href="#/copia">Haz una copia de seguridad</a>' : ''].filter(Boolean);
+    return `<section class="tarjeta admin-bloque"><div class="entre"><h2>${ICONOS.escudo} Administrador</h2><a class="btn sec peq" href="../#/admin">Abrir</a></div>
+      ${items.length ? `<div>${items.join(' · ')}</div>` : '<div class="suave">Nada pendiente.</div>'}</section>`;
+  }
+  // Últimos registros de la granja, agrupados por días o por operaciones
+  function ultimosRegistros() {
+    const modo = S.borrador.regModo || 'dias';
+    const crot = (id) => (cerdaPorId(id) || verracoPorId(id) || {}).crotal || '?';
+    const regs = [
+      ...S.eventos.filter((e) => !(e.datos && e.datos.origen === 'historico')).map((e) => ({ creado: e.creado, fecha: e.fecha, op: TIPOS_EV_NOMBRE(e), titulo: `Cerda ${crot(e.cerda_id)} · ${TIPOS_EV_NOMBRE(e)}`, det: esc(quienEs(e.autor, e.autor_alias)), enlace: `#/cerda/${e.cerda_id}` })),
+      ...S.sanidad.filter((r) => r.estado === 'realizado').map((r) => ({ creado: r.modificado || r.creado, fecha: r.fecha, op: `Sanidad: ${nombreSan(r.tipo)}`, titulo: `${nombreSan(r.tipo)}${r.producto ? ` · ${r.producto}` : ''}`, det: `${esc(destinoSan(r))} · ${esc(verAlias(r.realizado_por || r.autor_alias) || '?')}`, enlace: `#/sanidad/editar/${r.id}` })),
+      ...S.extracciones.map((x) => ({ creado: x.creado, fecha: x.fecha, op: 'Extracción de semen', titulo: `Verraco ${crot(x.verraco_id)} · ${x.n_dosis} dosis`, det: esc(quienEs(x.autor, x.autor_alias)), enlace: `#/verraco/${x.verraco_id}` })),
+      ...S.recuentos.map((x) => ({ creado: x.creado, fecha: x.fecha, op: 'Recuento', titulo: `${x.estancia}: ${x.n}`, det: esc(quienEs(x.autor, x.autor_alias)), enlace: '#/plano' })),
+      ...S.movGrupos.map((x) => ({ creado: x.creado, fecha: x.fecha, op: 'Lechoneras y cebo', titulo: `${TIPOS_MOVG[x.tipo] || x.tipo} · ${x.n} · ${[x.origen, x.destino].filter(Boolean).join(' → ')}`, det: esc(quienEs(x.autor, x.autor_alias)), enlace: '#/plano' })),
+      ...S.hechas.map((x) => ({ creado: x.creado, fecha: x.creado.slice(0, 10), op: 'Tarea del protocolo', titulo: (Comun.PROTOCOLOS.porc.grupos.flatMap((g) => g.tareas).find((t) => t[0] === x.tarea) || [, x.tarea])[1], det: esc(verAlias(x.autor_alias, x.curso) || '?'), enlace: '#/inicio' })),
+    ].sort((x, y) => String(y.creado).localeCompare(String(x.creado))).slice(0, 40);
+    const grupos = {}; for (const r of regs) { const k = modo === 'dias' ? r.fecha : r.op; (grupos[k] = grupos[k] || []).push(r); }
+    const claves = Object.keys(grupos).sort((a, b) => (modo === 'dias' ? b.localeCompare(a) : grupos[b].length - grupos[a].length));
+    return `<section class="tarjeta"><h2>Últimos registros</h2>
+      <div class="pestanas">${[['dias', 'Por días'], ['ops', 'Por operaciones']].map(([k, t]) => `<button type="button" data-regmodo="${k}" class="${modo === k ? 'activo' : ''}">${t}</button>`).join('')}</div>
+      ${claves.map((k) => `<h3 class="peq" style="margin:10px 0 2px">${modo === 'dias' ? fmt(k) : esc(k)} <span class="suave">(${grupos[k].length})</span></h3>${grupos[k].map((r) => `<a class="evento enlace" href="${r.enlace}"><div class="entre"><strong>${esc(r.titulo)}</strong>${modo === 'ops' ? `<span class="suave">${fmt(r.fecha)}</span>` : ''}</div><div class="suave peq">${r.det}</div></a>`).join('')}`).join('') || '<div class="suave">Todavía no hay registros.</div>'}</section>`;
+  }
+  function enlazarHoy() {
+    $app.querySelectorAll('[data-regmodo]').forEach((b) => b.addEventListener('click', () => { S.borrador.regModo = b.dataset.regmodo; vistaInicio(); }));
+    $app.querySelectorAll('[data-tarea]').forEach((c) => c.addEventListener('change', async () => {
+      c.disabled = true;
+      const h = S.hechas.find((x) => x.tarea === c.dataset.tarea && x.periodo === c.dataset.periodo);
+      const r = c.checked ? await sb.from('protocolo_hechas').insert({ granja: 'porc', tarea: c.dataset.tarea, periodo: c.dataset.periodo }).select().single()
+        : await sb.from('protocolo_hechas').delete().eq('id', h.id);
+      if (r.error) { c.disabled = false; c.checked = !c.checked; return toast(/duplicate|unique/i.test(r.error.message || '') ? 'Otra persona ya la ha marcado: pulsa Actualizar' : traducirError(r.error)); }
+      if (c.checked) S.hechas.push(r.data); else S.hechas = S.hechas.filter((x) => x !== h);
+      vistaInicio();
+    }));
   }
 
-  // ---------------------------------------------------------------- cerdas
-  function vistaCerdas() {
-    const filtro = S.borrador.filtro || '';
-    const lista = cerdasActivas().filter((c) => !filtro ||
-      [c.crotal, ...(c.otros_crotales || [])].some((x) => String(x).toLowerCase().includes(filtro.toLowerCase())));
+  // ---------------------------------------------------------------- animales (reproductoras, verracos, lechones y cebo, bajas)
+  function vistaAnimales(tab = 'cerdas') {
+    const pest = [['cerdas', 'Reproductoras'], ['verracos', 'Verracos'], ['lechones', 'Lechones y cebo'], ['bajas', 'Bajas']];
+    let cuerpo = '';
+    if (tab === 'cerdas') {
+      const filtro = S.borrador.filtro || ''; const fase = S.borrador.faseFiltro || '';
+      const lista = cerdasActivas().filter((c) => (!fase || estadoDe(c.id).fase === fase) && (!filtro || [c.crotal, ...(c.otros_crotales || [])].some((x) => String(x).toLowerCase().includes(filtro.toLowerCase()))));
+      cuerpo = `<div class="botones"><a class="btn sec peq" href="#/censo/cerda/nueva">${ICONOS.mas}Alta de cerda</a><a class="btn sec peq" href="#/censo/historial">Altas y bajas</a></div>
+        <div class="campo"><input id="buscar" type="text" inputmode="search" aria-label="Buscar por crotal" placeholder="Buscar por crotal…" value="${esc(filtro)}"></div>
+        <div class="campo"><select id="f-fase" aria-label="Fase"><option value="">Todas las fases (${cerdasActivas().length})</option>${L.FASES.map((f) => `<option value="${f.id}" ${fase === f.id ? 'selected' : ''}>${f.nombre} (${cerdasActivas().filter((c) => estadoDe(c.id).fase === f.id).length})</option>`).join('')}</select></div>
+        <div class="lista">${lista.map((c) => { const e = estadoDe(c.id);
+          return `<a class="cerda-fila" href="#/cerda/${c.id}"><div><strong>${esc(c.crotal)}</strong><div class="suave">${esc(e.ubicacion || 'Sin ubicación')} · ${e.partos} ${e.partos === 1 ? 'parto' : 'partos'}</div></div>
+            <span class="chip ${['inseminada', 'paridera'].includes(e.fase) ? 'nar' : ''}">${faseNombre(e.fase)}</span></a>`; }).join('') || '<div class="vacio">No hay cerdas que coincidan.</div>'}</div>`;
+    }
+    if (tab === 'verracos') {
+      const stats = {};
+      for (const c of S.cerdas) for (const ci of estadoDe(c.id).ciclos) {
+        if (!ci.ia) continue;
+        const id = ci.ia.datos.verraco; const st = (stats[id] = stats[id] || { ia: 0, ecos: 0, pos: 0, partos: 0, vivos: 0 });
+        st.ia += 1; const ult = ci.ecos.filter((e) => e.datos.resultado !== 'dudosa').pop();
+        if (ult) { st.ecos += 1; if (ult.datos.resultado === 'positiva') st.pos += 1; }
+        if (ci.parto) { st.partos += 1; st.vivos += L.camada(ci).vivos; }
+      }
+      cuerpo = `<div class="botones"><a class="btn sec peq" href="#/censo/verraco/nuevo">${ICONOS.mas}Alta de verraco</a><a class="btn sec peq" href="#/censo/historial">Altas y bajas</a></div>
+        <section class="tarjeta"><h2>Verracos (${verracosActivos().length})</h2><div class="suave peq">Toca un verraco para ver su ficha, registrar una extracción o ver sus dosis.</div>
+          ${verracosActivos().length ? `<table class="tabla"><thead><tr><th>Verraco</th><th>Verraquera</th><th>IA</th><th>Eco +</th><th>Vivos/parto</th></tr></thead><tbody>
+          ${verracosActivos().map((x) => { const st = stats[x.id] || { ia: 0, ecos: 0, pos: 0, partos: 0, vivos: 0 };
+            return `<tr><td><a href="#/verraco/${x.id}"><strong>${esc(x.crotal)}</strong></a></td><td>${x.verraquera || '—'}</td><td>${st.ia}</td><td>${st.ecos ? Math.round((100 * st.pos) / st.ecos) + ' %' : '—'}</td><td>${st.partos ? (st.vivos / st.partos).toFixed(1).replace('.', ',') : '—'}</td></tr>`; }).join('')}
+          </tbody></table>` : '<div class="suave">No hay verracos en el censo.</div>'}</section>`;
+    }
+    if (tab === 'lechones') {
+      const D = datosPlano();
+      const lact = cerdasActivas().map((c) => ({ c, e: estadoDe(c.id) })).filter((x) => x.e.fase === 'lactante').map((x) => ({ ...x, cm: L.camada(x.e.actual) }));
+      const grupo = (pref) => Object.values(D.recuento).filter((r) => r.estancia.startsWith(pref)).sort((a, b) => a.estancia.localeCompare(b.estancia, 'es', { numeric: true }));
+      const lech = grupo('Lechonera'), cebo = grupo('Cebadero'), dest = grupo('Paridera');
+      const suma = (l) => l.reduce((a, r) => a + r.n, 0);
+      const filaG = (r, z) => `<a class="cerda-fila" href="#/plano/${z}"><div><strong>${esc(r.estancia)}</strong><div class="suave">${r.contado ? 'Recuento' : 'Último movimiento'} del ${corta(r.fecha)}</div></div><span class="chip">${r.n}</span></a>`;
+      cuerpo = `<div class="totales"><div class="dato"><span class="et">Lactantes</span><span class="val">${D.lactantes}</span></div><div class="dato"><span class="et">Lechoneras</span><span class="val">${suma(lech)}</span></div><div class="dato"><span class="et">Cebo</span><span class="val">${suma(cebo)}</span></div></div>
+        <section class="tarjeta"><h2>Lechones lactantes (${D.lactantes})</h2>${lact.map(({ c, e, cm }) => `<a class="cerda-fila" href="#/cerda/${c.id}"><div><strong>Camada de ${esc(c.crotal)}</strong><div class="suave">${esc(e.ubicacion || '')}${e.actual && e.actual.parto ? ` · ${L.dias(e.actual.parto.fecha, hoy())} días` : ''}${e.actual && e.actual.parto && e.actual.parto.datos ? ` · nacieron ${(+e.actual.parto.datos.vivos_m || 0) ? `${+e.actual.parto.datos.vivos_m} machos y ` : ''}${(+e.actual.parto.datos.vivos_h || 0) ? `${+e.actual.parto.datos.vivos_h} hembras` : ''}` : ''}</div></div><span class="chip">${cm ? cm.actuales : 0}</span></a>`).join('') || '<div class="suave">No hay camadas en lactación.</div>'}</section>
+        ${dest.length ? `<section class="tarjeta"><h2>Destetados en paridera (${suma(dest)})</h2>${dest.map((r) => filaG(r, 'partos')).join('')}</section>` : ''}
+        <section class="tarjeta"><h2>Lechoneras (${suma(lech)})</h2>${lech.map((r) => filaG(r, 'lechoneras')).join('') || '<div class="suave">Sin lechones en lechoneras.</div>'}</section>
+        <section class="tarjeta"><h2>Cebadero (${suma(cebo)})</h2>${cebo.filter((r) => r.n).map((r) => filaG(r, 'cebadero')).join('') || '<div class="suave">Sin cerdos de cebo.</div>'}</section>
+        <div class="suave peq">Los lechones y el cebo se llevan por grupos (recuentos y movimientos), no uno a uno. Se registran desde el <a href="#/plano">Mapa</a>.</div>`;
+    }
+    if (tab === 'bajas') {
+      const bc = S.cerdas.filter((x) => x.fecha_baja), bv = S.verracos.filter((x) => x.fecha_baja);
+      const bg = movsGrupos().filter((m) => ['muerte', 'venta', 'matadero'].includes(m.tipo)).sort((a, b) => (a.fecha < b.fecha ? 1 : -1)).slice(0, 40);
+      const fila = (x, tipo) => `<a class="cerda-fila" href="#/${tipo}/${x.id}"><div><strong>${esc(x.crotal)}</strong><div class="suave">${tipo === 'cerda' ? 'Cerda' : 'Verraco'} · baja ${fmt(x.fecha_baja)} · ${esc(x.causa_baja || '')}</div></div><span class="chip gris">Baja</span></a>`;
+      cuerpo = `<a class="btn sec peq" href="#/censo/historial">Historial de altas y bajas</a>
+        <section class="tarjeta"><h2>Cerdas y verracos dados de baja (${bc.length + bv.length})</h2>${[...bc.map((x) => fila(x, 'cerda')), ...bv.map((x) => fila(x, 'verraco'))].join('') || '<div class="suave">Ninguno.</div>'}</section>
+        <section class="tarjeta"><h2>Lechones y cebo: muertes, ventas y matadero</h2>${bg.map((m) => `<div class="evento"><div class="entre"><strong>${esc(TIPOS_MOVG[m.tipo] || m.tipo)} · ${m.n}</strong><span class="suave">${fmt(m.fecha)}</span></div><div class="suave peq">${esc(m.origen || '')}${m.causa ? ` · ${esc(m.causa)}` : ''}</div></div>`).join('') || '<div class="suave">Ninguna.</div>'}</section>`;
+    }
     pintar(`${cabecera()}
       <main class="cuerpo">
-        <div class="entre"><h1 style="font-size:22px">Cerdas</h1><span class="suave">${cerdasActivas().length} en el censo</span></div>
-        <div class="botones"><a class="btn sec peq" href="#/plano">${ICONOS.plano}Ver en el plano</a><a class="btn sec peq" href="#/censo/cerda/nueva">${ICONOS.mas}Alta de cerda</a><a class="btn sec peq" href="#/censo/historial">Altas y bajas</a></div>
-        <div class="campo"><input id="buscar" type="text" inputmode="search" aria-label="Buscar por crotal" placeholder="Buscar por crotal…" value="${esc(filtro)}"></div>
-        <div class="lista">${lista.map((c) => {
-          const e = estadoDe(c.id);
-          return `<a class="cerda-fila" href="#/cerda/${c.id}"><div><strong>${esc(c.crotal)}</strong>
-            <div class="suave">${esc(e.ubicacion || 'Sin ubicación')} · ${e.partos} ${e.partos === 1 ? 'parto' : 'partos'}</div></div>
-            <span class="chip ${['inseminada', 'paridera'].includes(e.fase) ? 'nar' : ''}">${faseNombre(e.fase)}</span></a>`;
-        }).join('') || '<div class="vacio">No hay cerdas que coincidan.</div>'}</div>
-      </main>${navegacion('cerdas')}`);
+        <div class="entre"><h1 style="font-size:22px">Animales</h1><a class="btn sec peq" href="#/plano">${ICONOS.plano}Mapa</a></div>
+        <div class="pestanas">${pest.map(([k, t]) => `<a href="#/animales/${k}" class="${tab === k ? 'activo' : ''}">${t}</a>`).join('')}</div>
+        ${cuerpo}
+      </main>${navegacion('animales')}`);
     const b = document.getElementById('buscar');
-    b.addEventListener('input', () => {
-      S.borrador.filtro = b.value; const pos = b.selectionStart; vistaCerdas();
-      const nb = document.getElementById('buscar'); nb.focus(); nb.setSelectionRange(pos, pos);
-    });
+    if (b) b.addEventListener('input', () => { S.borrador.filtro = b.value; const pos = b.selectionStart; vistaAnimales('cerdas'); const nb = document.getElementById('buscar'); nb.focus(); nb.setSelectionRange(pos, pos); });
+    const ff = document.getElementById('f-fase'); if (ff) ff.addEventListener('change', () => { S.borrador.faseFiltro = ff.value; vistaAnimales('cerdas'); });
+  }
+
+  // ---------------------------------------------------------------- reproducción (rueda de gestación y dosis)
+  function vistaReproduccion() {
+    const h = hoy();
+    const cer = cerdasActivas().map((c) => ({ c, e: estadoDe(c.id) }));
+    const fila = ({ c, e }, det) => `<a class="cerda-fila" href="#/cerda/${c.id}"><div><strong>${esc(c.crotal)}</strong><div class="suave">${det}</div></div><span class="chip ${['inseminada', 'paridera'].includes(e.fase) ? 'nar' : ''}">${faseNombre(e.fase)}</span></a>`;
+    const fc = (e) => L.fechasCiclo(e.actual);
+    const grupos = [
+      ['Vacías y destetadas', cer.filter((x) => ['vacia', 'destetada'].includes(x.e.fase)), (x) => `${esc(x.e.ubicacion || 'Sin ubicación')}${x.e.ultimoDestete ? ` · destete hace ${L.dias(x.e.ultimoDestete, h)} días` : ''}`],
+      ['Inseminadas', cer.filter((x) => x.e.fase === 'inseminada'), (x) => { const f = fc(x.e); return `IA ${fmt(f.ia)} (día ${L.dias(f.ia, h)}) · ecografía desde el ${corta(f.ecoDesde)}`; }],
+      ['Gestantes', cer.filter((x) => x.e.fase === 'gestante'), (x) => { const f = fc(x.e); return `IA ${fmt(f.ia)} · a paridera el ${corta(f.paridera)} · parto previsto ${corta(f.parto)}`; }],
+      ['En paridera', cer.filter((x) => x.e.fase === 'paridera'), (x) => { const f = fc(x.e); return `${esc(x.e.ubicacion || '')} · parto previsto ${corta(f.parto)}`; }],
+      ['Lactantes', cer.filter((x) => x.e.fase === 'lactante'), (x) => { const p = x.e.actual && x.e.actual.parto; const cm = L.camada(x.e.actual); return `${p ? `Parto ${fmt(p.fecha)} · ${L.dias(p.fecha, h)} días de lactación` : ''}${cm ? ` · ${cm.actuales} lechones` : ''}`; }],
+    ];
+    for (const g of grupos) g[1].sort((a, b) => String(fc(a.e).ia || '').localeCompare(String(fc(b.e).ia || '')));
+    const dosis = S.extracciones.map((x) => ({ x, e: estadoExtraccion(x) })).filter(({ e }) => e.estado === 'valida' || e.estado === 'usar').reverse();
+    pintar(`${cabecera()}
+      <main class="cuerpo">
+        <h1 style="font-size:22px">Reproducción</h1>
+        <div class="opciones">${L.FASES.map((f) => `<span class="chip ${cer.some((x) => x.e.fase === f.id) ? '' : 'gris'}">${f.nombre}: ${cer.filter((x) => x.e.fase === f.id).length}</span>`).join('')}</div>
+        <section class="tarjeta"><h2>Dosis de semen disponibles</h2>
+          ${dosis.length ? dosis.map(({ x, e }) => `<a class="cerda-fila" href="#/verraco/${x.verraco_id}"><div><strong>${esc((verracoPorId(x.verraco_id) || {}).crotal || '?')}</strong><div class="suave">Extracción del ${corta(x.fecha)} · día ${e.dia} · válida hasta el día ${L.REF.dosisCaduca}</div></div><span class="chip ${e.estado === 'usar' ? 'nar' : ''}">${e.restantes} dosis</span></a>`).join('')
+            : '<div class="suave">No hay dosis válidas. Registra la extracción desde la ficha del verraco (Animales → Verracos).</div>'}
+          <div class="suave peq">Las caducadas (más de ${L.REF.dosisCaduca} días) y las agotadas ya no salen aquí; se pueden eliminar desde la ficha de cada verraco.</div></section>
+        <h2 style="font-size:18px">Rueda de gestación</h2>
+        ${grupos.map(([t, l, det]) => `<section class="tarjeta"><h2>${t} (${l.length})</h2>${l.map((x) => fila(x, det(x))).join('') || '<div class="suave">Ninguna.</div>'}</section>`).join('')}
+      </main>${navegacion('reproduccion')}`);
+  }
+
+  // ---------------------------------------------------------------- copia de seguridad de porcino (desde Gestión o Cuenta de CIFEAFARM)
+  function vistaCopia() {
+    if (!esProf()) return vistaNoEncontrado('La copia de seguridad es del profesor y de la veterinaria.');
+    pintar(`${cabecera({ volver: '../#/gestion', textoVolver: 'Gestión', titulo: 'Copia de seguridad · porcino' })}<main class="cuerpo">${adminGranja()}</main>${navegacion('granjas')}`);
+    enlazarAdmin('granja');
   }
 
   // ---------------------------------------------------------------- ficha
@@ -646,34 +788,6 @@
   }
 
   // ---------------------------------------------------------------- verracos
-  function vistaVerracos() {
-    const stats = {};
-    for (const c of S.cerdas) {
-      for (const ci of estadoDe(c.id).ciclos) {
-        if (!ci.ia) continue;
-        const id = ci.ia.datos.verraco; const s = (stats[id] = stats[id] || { ia: 0, ecos: 0, pos: 0, partos: 0, vivos: 0 });
-        s.ia += 1;
-        const ultima = ci.ecos.filter((e) => e.datos.resultado !== 'dudosa').pop();
-        if (ultima) { s.ecos += 1; if (ultima.datos.resultado === 'positiva') s.pos += 1; }
-        if (ci.parto) { s.partos += 1; s.vivos += L.camada(ci).vivos; }
-      }
-    }
-    pintar(`${cabecera()}
-      <main class="cuerpo">
-        <div class="foto"><img src="img/verraco.jpg" alt="Verraco chato murciano"></div>
-        <div class="entre"><h1 style="font-size:22px">Verracos</h1><span class="suave">${verracosActivos().length} en el censo</span></div>
-        <div class="botones"><a class="btn sec peq" href="#/censo/verraco/nuevo">${ICONOS.mas}Alta de verraco</a><a class="btn sec peq" href="#/censo/historial">Altas y bajas</a></div>
-        <section class="tarjeta"><h2>Resultados</h2>
-          ${verracosActivos().length ? `<table class="tabla"><thead><tr><th>Verraco</th><th>Verraquera</th><th>IA</th><th>Eco +</th><th>Vivos/parto</th></tr></thead><tbody>
-          ${verracosActivos().map((x) => { const s = stats[x.id] || { ia: 0, ecos: 0, pos: 0, partos: 0, vivos: 0 };
-            return `<tr><td><a href="#/verraco/${x.id}"><strong>${esc(x.crotal)}</strong></a></td><td>${x.verraquera || '—'}</td><td>${s.ia}</td><td>${s.ecos ? Math.round((100 * s.pos) / s.ecos) + ' %' : '—'}</td><td>${s.partos ? (s.vivos / s.partos).toFixed(1).replace('.', ',') : '—'}</td></tr>`; }).join('')}
-          </tbody></table>` : '<div class="suave">No hay verracos en el censo.</div>'}</section>
-        <section class="tarjeta"><h2>Dosis disponibles</h2>${(() => {
-          const filas = S.extracciones.map((x) => ({ x, e: estadoExtraccion(x) })).filter(({ e }) => e.estado === 'valida' || e.estado === 'usar').reverse();
-          return filas.length ? filas.map(({ x, e }) => `<a class="cerda-fila" href="#/verraco/${x.verraco_id}"><div><strong>${esc((verracoPorId(x.verraco_id) || {}).crotal || '?')}</strong><div class="suave">Extracción del ${corta(x.fecha)} · día ${e.dia}</div></div><span class="chip ${e.estado === 'usar' ? 'nar' : ''}">${e.restantes} dosis${e.estado === 'usar' ? ' · usar ya' : ''}</span></a>`).join('')
-            : '<div class="suave">No hay dosis válidas registradas. Registra las extracciones desde la ficha de cada verraco (toca su crotal).</div>'; })()}</section>
-      </main>${navegacion('verracos')}`);
-  }
 
   // ---------------------------------------------------------------- plano de la granja
   const COLOR_FASE = { vacia: '#7D8781', inseminada: '#1F5FAF', gestante: '#2F6B4F', paridera: '#C8641E', lactante: '#7A3E9D', destetada: '#A88A1E' };
@@ -820,7 +934,7 @@
           ${D.implSin.length ? `<div>En implantación sin jaula: ${lista(D.implSin, (x) => `<a href="#/cerda/${x.c.id}">${esc(x.c.crotal)}</a>`)}. <span class="suave">Corrige su inseminación o registra un traslado indicando la jaula.</span></div>` : ''}
           ${D.verracosSin.length ? `<div>Verracos sin verraquera: ${lista(D.verracosSin, (x) => `<a href="#/verraco/${x.id}">${esc(x.crotal)}</a>`)}. <span class="suave">${esProf() ? 'Asígnala en Gestión → Censo.' : 'Avisa al profesor.'}</span></div>` : ''}</section>` : ''}
         <div class="suave peq">El plano muestra dónde dicen los registros que está cada animal. Si no coincide con la nave, falta registrar un movimiento.</div>
-      </main>${navegacion('cerdas')}`);
+      </main>${navegacion('mapa')}`);
     $app.className = 'ancho';
   }
 
@@ -876,7 +990,7 @@
     pintar(`${cabecera({ volver: '#/plano', textoVolver: 'Plano', titulo })}${DEFS_CERDO}
       <main class="cuerpo">${cuerpo}
         ${['lechoneras', 'cebadero'].includes(z) ? '' : `<div class="leyenda">${L.FASES.map((f) => `<span><i style="background:${COLOR_FASE[f.id]}"></i>${f.nombre}</span>`).join('')}</div>`}
-      </main>${navegacion('cerdas')}`);
+      </main>${navegacion('mapa')}`);
   }
 
   // ---- Un corral o lechonera: número actual, historial y acciones
@@ -917,7 +1031,7 @@
         ${G.n < 0 ? '<div class="aviso-caja">Salen más animales de los que había: falta registrar una entrada o hacer un recuento.</div>' : ''}
         ${z === 'parideras' ? `<div class="botones"><a class="btn" href="#/movg/traslado/${z}/${k}">Pasar a lechonera</a><a class="btn sec" href="#/movg/muerte/${z}/${k}">Muerte</a></div><div class="suave peq">Sala ${k.split('-')[0]}, paridera ${k.split('-')[1]}. Puedes pasarlos todos o una parte.</div>` : `<div class="botones"><a class="btn" href="#/recuento/${z}/${k}">Contar</a>${S.faltaSQL07 ? '' : `<a class="btn sec" href="#/movg/entrada/${z}/${k}">Entrada</a><a class="btn sec" href="#/movg/traslado/${z}/${k}">Traslado</a><a class="btn sec" href="#/movg/muerte/${z}/${k}">Muerte</a><a class="btn sec" href="#/movg/venta/${z}/${k}">Venta / matadero</a>`}</div>`}
         <section class="tarjeta"><h2>Historial</h2>${hist.length ? hist.slice(0, 30).map(linea).join('') : '<div class="suave">Sin recuentos ni movimientos.</div>'}</section>
-      </main>${navegacion('cerdas')}`);
+      </main>${navegacion('mapa')}`);
     $app.querySelectorAll('[data-borrar-g]').forEach((b) => b.addEventListener('click', async () => {
       if (b.dataset.confirmar !== '1') { b.dataset.confirmar = '1'; b.textContent = '¿Seguro? Pulsa otra vez'; return; }
       const [tabla, id] = b.dataset.borrarG.split(':'); b.disabled = true;
@@ -1113,6 +1227,14 @@
       ${lista.length ? lista.map((r) => tarjetaSan(r)).join('') : '<div class="suave">Nada registrado ni previsto.</div>'}</section>`;
   }
 
+  // Animales tratados ahora: en supresión y tratamientos de los últimos 7 días (con su motivo)
+  function tratadosHTML() {
+    const h = hoy(); const sup = enSupresion(() => true);
+    const recientes = S.sanidad.filter((r) => r.estado === 'realizado' && r.fecha <= h && r.fecha >= L.sumarDias(h, -7) && L.usaProducto(r.tipo) && !sup.includes(r)).sort((a, b) => (a.fecha < b.fecha ? 1 : -1));
+    return `<section class="tarjeta"><h2>En periodo de supresión (${sup.length})</h2><div class="suave peq">No vender ni enviar a matadero.</div>${sup.map((r) => tarjetaSan(r)).join('') || '<div class="suave">Ninguno.</div>'}</section>
+      <section class="tarjeta"><h2>Tratados en los últimos 7 días (${recientes.length})</h2><div class="suave peq">Con el motivo del tratamiento (enfermedad o problema) cuando se apuntó.</div>${recientes.map((r) => tarjetaSan(r)).join('') || '<div class="suave">Ninguno.</div>'}</section>`;
+  }
+
   function registroHTML() {
     const filtro = S.borrador.filtroSan || '';
     const filas = S.sanidad.filter((r) => r.estado === 'realizado' && (!filtro || r.tipo === filtro)).slice().sort((a, b) => (a.fecha < b.fecha ? 1 : -1));
@@ -1139,8 +1261,8 @@
   }
 
   function vistaSanidad(sec) {
-    const pest = `<div class="pestanas" role="tablist">${[['calendario', 'Calendario'], ['registro', 'Registro'], ['medicamentos', 'Medicamentos']].map(([k, t]) => `<a role="tab" href="#/sanidad/${k}" class="${sec === k ? 'activo' : ''}" aria-selected="${sec === k}">${t}</a>`).join('')}</div>`;
-    const cuerpo = sec === 'registro' ? registroHTML() : sec === 'medicamentos' ? medicamentosHTML() : calendarioHTML();
+    const pest = `<div class="pestanas" role="tablist">${[['calendario', 'Calendario'], ['registro', 'Registro'], ['tratados', 'Tratados'], ['medicamentos', 'Medicamentos']].map(([k, t]) => `<a role="tab" href="#/sanidad/${k}" class="${sec === k ? 'activo' : ''}" aria-selected="${sec === k}">${t}</a>`).join('')}</div>`;
+    const cuerpo = sec === 'registro' ? registroHTML() : sec === 'medicamentos' ? medicamentosHTML() : sec === 'tratados' ? tratadosHTML() : calendarioHTML();
     pintar(`${cabecera()}
       <main class="cuerpo">
         <div class="foto"><img src="img/salud.jpg" alt="Ganadero y veterinaria tratando a los lechones"></div>
@@ -1447,7 +1569,7 @@
         <div class="dos peq"><span>Día ${st.dia} · quedan <strong>${st.restantes}</strong> de ${e.n_dosis} dosis</span><span>Motilidad ${e.motilidad ?? '—'} % · ${e.volumen ?? '—'} c.c.</span></div>
         <div class="suave peq">${e.fecha_verificacion ? `Verificación ${fmt(e.fecha_verificacion)} · ` : ''}${usosExtraccion(e.id)} IA con esta extracción · por ${esc(quienEs(e.autor, e.autor_alias))}</div>
         ${e.obs ? `<div class="suave">${esc(e.obs)}</div>` : ''}
-        <div class="acciones"><a class="btn sec peq" href="#/extraccion/${id}/${e.id}">Corregir</a>${puede ? `<button class="btn peligro peq" type="button" data-borrar-ext="${e.id}">Borrar</button>` : ''}</div>
+        <div class="acciones"><a class="btn sec peq" href="#/extraccion/${id}/${e.id}">Corregir</a>${puede && (!usosExtraccion(e.id) || !['caducada', 'agotada'].includes(st.estado)) ? `<button class="btn peligro peq" type="button" data-borrar-ext="${e.id}">${['caducada', 'agotada'].includes(st.estado) ? 'Eliminar' : 'Borrar'}</button>` : ''}</div>
         ${e.modificado ? `<div class="suave peq">Corregida por ${esc(verAlias(e.modificado_por) || '?')}</div>` : ''}</div>`; };
     pintar(`${cabecera({ volver: '#/verracos', textoVolver: 'Verracos', titulo: x.crotal, sub: `${esc(x.raza)}${x.verraquera ? ` · verraquera ${x.verraquera}` : ''}${x.fecha_baja ? ` · <strong>baja ${fmt(x.fecha_baja)}</strong>` : ''}` })}
       <main class="cuerpo">
@@ -1458,7 +1580,12 @@
         <div class="dos"><div class="dato"><span class="et">Partos</span><span class="val">${s.partos}</span><span class="nota">de sus cubriciones</span></div>
           <div class="dato"><span class="et">Vivos por parto</span><span class="val">${s.partos ? (s.vivos / s.partos).toFixed(1).replace('.', ',') : '—'}</span><span class="nota">media</span></div></div>
         <div class="botones"><a class="btn" href="#/extraccion/${id}/nueva">${ICONOS.mas}Registrar extracción</a>${x.fecha_baja ? '' : `<a class="btn sec" href="#/trasladoverraco/${id}">Traslado</a>`}</div>
-        <section class="tarjeta"><h2>Extracciones y dosis</h2>${exts.length ? exts.slice(0, 6).map(tarjetaExt).join('') + (exts.length > 6 ? `<details><summary class="suave" style="min-height:44px;display:flex;align-items:center">Ver ${exts.length - 6} anteriores</summary>${exts.slice(6).map(tarjetaExt).join('')}</details>` : '') : '<div class="suave">Sin extracciones registradas.</div>'}
+        ${(() => { const vig = exts.filter((e) => !['caducada', 'agotada'].includes(estadoExtraccion(e).estado)); const viejas = exts.filter((e) => !vig.includes(e));
+          const borrables = viejas.filter((e) => estadoExtraccion(e).estado === 'caducada' && !usosExtraccion(e.id));
+          return `<section class="tarjeta"><h2>Dosis disponibles</h2>${vig.length ? vig.map(tarjetaExt).join('') : '<div class="suave">No quedan dosis válidas de este verraco.</div>'}
+          ${viejas.length ? `<details><summary class="suave" style="min-height:44px;display:flex;align-items:center">Caducadas o agotadas (${viejas.length})</summary>
+            ${esProf() && borrables.length ? `<button class="btn peligro peq" type="button" data-borrar-caducadas="${borrables.map((e) => e.id).join(',')}">Eliminar las ${borrables.length} caducadas sin usar</button>` : ''}
+            ${viejas.map(tarjetaExt).join('')}<div class="suave peq">Las que se usaron en alguna inseminación no se eliminan: forman parte de la historia de esas cerdas.</div></details>` : ''}`; })()}
           <div class="suave peq">Día 0 = extracción · aviso el día ${L.REF.dosisAviso} · caducan después del día ${L.REF.dosisCaduca} · cada inseminación usa 2 dosis.</div></section>
         <section class="tarjeta"><h2>Últimas cubriciones</h2>${s.ultimas.length ? s.ultimas.slice(0, 8).map(({ c, ci }) => `<a class="cerda-fila" href="#/cerda/${c.id}"><div><strong>${esc(c.crotal)}</strong><div class="suave">IA ${fmt(ci.ia.fecha)}</div></div><span class="chip ${ci.parto ? '' : ci.cierre ? 'gris' : 'nar'}">${ci.parto ? `${L.camada(ci).vivos} vivos` : ci.cierre === 'aborto' ? 'Aborto' : ci.cierre ? 'Repetición' : 'En curso'}</span></a>`).join('') : '<div class="suave">Sin inseminaciones registradas.</div>'}</section>
         ${seccionSanidad((r) => r.verraco_id === id, `#/sanidad/nuevo/verraco/${id}`)}
@@ -1475,6 +1602,12 @@
       b.disabled = true; const { error } = await sb.from('extracciones').delete().eq('id', b.dataset.borrarExt);
       if (error) { toast(traducirError(error)); b.disabled = false; return; }
       toast('Extracción borrada'); await refrescar(); vistaVerraco(id);
+    }));
+    $app.querySelectorAll('[data-borrar-caducadas]').forEach((b) => b.addEventListener('click', async () => {
+      if (b.dataset.confirmar !== '1') { b.dataset.confirmar = '1'; b.textContent = '¿Seguro? Pulsa otra vez'; return; }
+      b.disabled = true; const { error } = await sb.from('extracciones').delete().in('id', b.dataset.borrarCaducadas.split(','));
+      if (error) { toast(traducirError(error)); b.disabled = false; return; }
+      toast('Dosis caducadas eliminadas'); await refrescar(); vistaVerraco(id);
     }));
   }
 
@@ -1540,79 +1673,6 @@
   }
 
   // ---------------------------------------------------------------- cuenta
-  function vistaCuenta(mensaje) {
-    pintar(`${cabecera()}
-      <main class="cuerpo">
-        <h1 style="font-size:22px">Tu cuenta</h1>
-        <section class="tarjeta"><div class="filas">
-          ${S.perfil.nombre ? `<div><span>Nombre</span><span>${esc(S.perfil.nombre)}</span></div>` : ''}
-          <div><span>Alias</span><span>${esc(S.perfil.alias)}</span></div>
-          <div><span>Rol</span><span>${rolNombre()}</span></div>
-          ${esProf() ? '' : `<div><span>Curso</span><span>${S.perfil.granja_id}.º</span></div>`}</div></section>
-        <a class="btn sec" href="../#/granjas">Granjas del centro</a>
-        ${mensaje || ''}
-        <form class="formu tarjeta" id="f-clave" novalidate>
-          <h2>${esProf() ? 'Cambiar contraseña' : 'Cambiar PIN'}</h2>
-          <div class="campo"><label for="n1">${esProf() ? 'Nueva contraseña (mínimo 8 caracteres)' : 'Nuevo PIN (6 cifras)'}</label>
-            <input id="n1" name="n1" type="password" ${esProf() ? '' : 'inputmode="numeric" maxlength="6"'} autocomplete="new-password"></div>
-          <div class="campo"><label for="n2">Repítelo</label>
-            <input id="n2" name="n2" type="password" ${esProf() ? '' : 'inputmode="numeric" maxlength="6"'} autocomplete="new-password"></div>
-          <button class="btn" type="submit">Guardar</button>
-        </form>
-        <section class="tarjeta"><h2>Instalar en el móvil</h2>
-          <div class="suave">Android: en Chrome, menú ⋮ → <strong>Instalar aplicación</strong>.<br>iPhone: en Safari, botón Compartir → <strong>Añadir a pantalla de inicio</strong>.</div></section>
-        <button class="btn sec" type="button" data-accion="salir">Salir</button>
-        <div class="suave peq" style="text-align:center">CIFEAPORC · versión ${esc(C.version)}</div>
-      </main>${navegacion('cuenta')}`);
-    document.getElementById('f-clave').addEventListener('submit', async (ev) => {
-      ev.preventDefault();
-      const f = new FormData(ev.target); const a = String(f.get('n1')); const b = String(f.get('n2'));
-      const ok = esProf() ? a.length >= 8 : /^\d{6}$/.test(a);
-      const err = (t) => vistaCuenta(`<div class="error-caja" role="alert">${esc(t)}</div>`);
-      if (!ok) return err(esProf() ? 'La contraseña debe tener al menos 8 caracteres.' : 'El PIN debe tener 6 cifras.');
-      if (a !== b) return err('No coinciden.');
-      const { error } = await sb.auth.updateUser({ password: a });
-      if (error) return err(traducirError(error));
-      vistaCuenta(`<div class="ok-caja" role="status">${esProf() ? 'Contraseña cambiada.' : 'PIN cambiado.'}</div>`);
-    });
-  }
-
-  // ---------------------------------------------------------------- gestión (profesor)
-  async function cargarPerfiles() {
-    const { data, error } = await sb.from('perfiles').select('*').order('alias');
-    if (error) throw error;
-    S.perfiles = data;
-  }
-
-  function vistaAdmin(seccion = 'censo', extra) {
-    if (!esProf()) return vistaNoEncontrado();
-    if (!esAdmin() && seccion === 'alumnos') seccion = 'censo';
-    const pest = `<div class="pestanas" role="tablist">${(esAdmin() ? [['censo', 'Censo'], ['alumnos', 'Alumnos'], ['granja', 'Granja']] : [['censo', 'Censo'], ['granja', 'Granja']]).map(([id, t]) =>
-      `<a role="tab" href="#/admin/${id}" class="${seccion === id ? 'activo' : ''}" aria-selected="${seccion === id}">${t}</a>`).join('')}</div>`;
-    let cuerpo = '';
-    if (seccion === 'censo') cuerpo = adminCenso(extra);
-    if (seccion === 'alumnos') {
-      if (!S.perfiles) { cargarPerfiles().then(() => vistaAdmin('alumnos', extra)).catch((e) => toast(traducirError(e))); cuerpo = '<div class="suave">Cargando alumnos…</div>'; }
-      else cuerpo = adminAlumnos(extra);
-    }
-    if (seccion === 'granja') cuerpo = adminGranja(extra);
-    pintar(`${cabecera({ prof: true })}<main class="cuerpo"><h1 style="font-size:22px">Gestión${esAdmin() ? ' del profesor' : ' de la granja'}</h1>${pest}${cuerpo}</main>${navegacion('admin')}`);
-    enlazarAdmin(seccion);
-  }
-
-  function adminCenso(msg) {
-    const fila = (x, tipo) => `<a class="cerda-fila" href="#/admin/${tipo}/${x.id}"><div><strong>${esc(x.crotal)}</strong>
-      <div class="suave">${x.fecha_baja ? `Baja ${fmt(x.fecha_baja)} · ${esc(x.causa_baja || '')}` : tipo === 'verraco' ? `Verraquera ${x.verraquera || '—'}` : esc(x.origen ? `Procede de ${x.origen}` : x.raza)}</div></div>
-      <span class="chip ${x.fecha_baja ? 'gris' : ''}">${x.fecha_baja ? 'Baja' : 'Editar'}</span></a>`;
-    const activas = S.cerdas.filter((x) => !x.fecha_baja), bajas = S.cerdas.filter((x) => x.fecha_baja);
-    return `${msg || ''}
-      <section class="tarjeta"><div class="entre"><h2>Cerdas (${activas.length})</h2><a class="btn peq" href="#/admin/cerda/nueva">${ICONOS.mas}Alta</a></div>
-        <div class="lista">${activas.map((x) => fila(x, 'cerda')).join('') || '<div class="suave">Sin cerdas.</div>'}</div>
-        ${bajas.length ? `<details><summary class="suave">Ver ${bajas.length} cerdas dadas de baja</summary><div class="lista" style="margin-top:8px">${bajas.map((x) => fila(x, 'cerda')).join('')}</div></details>` : ''}</section>
-      <section class="tarjeta"><div class="entre"><h2>Verracos (${verracosActivos().length})</h2><a class="btn peq" href="#/admin/verraco/nuevo">${ICONOS.mas}Alta</a></div>
-        <div class="lista">${S.verracos.map((x) => fila(x, 'verraco')).join('') || '<div class="suave">Sin verracos.</div>'}</div></section>`;
-  }
-
   function vistaAnimal(tipo, id, desde = 'admin') {
     if (!['cerda', 'verraco'].includes(tipo)) return vistaNoEncontrado();
     if (desde === 'admin' && !esProf()) return vistaNoEncontrado();
@@ -1678,101 +1738,6 @@
   const pinAzar = () => String(Math.floor(100000 + Math.random() * 900000));
   const espera = (ms) => new Promise((r) => setTimeout(r, ms));
   // Crea la cuenta de un alumno (alias + PIN) y su perfil. Devuelve null si va bien o el texto del error.
-  async function crearAcceso(alias, pin, granja, nombre) {
-    // Cliente aparte para no cerrar la sesión del profesor.
-    const sb2 = window.supabase.createClient(C.supabaseUrl, C.supabaseKey, { auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false, storageKey: 'cife-alta' } });
-    const { data, error } = await sb2.auth.signUp({ email: `${alias.toLowerCase()}.g${granja}@${C.dominioAlumnos}`, password: pin });
-    if (error) return traducirError(error);
-    if (!data.user || (data.user.identities && data.user.identities.length === 0)) return 'Ese alias ya existe en ese curso.';
-    const r = await sb.from('perfiles').insert({ user_id: data.user.id, alias, rol: 'alumno', granja_id: granja, ...(nombre ? { nombre } : {}) });
-    return r.error ? traducirError(r.error) : null;
-  }
-  // "LÓPEZ GARCÍA, JUAN" o "Juan López García" → "Juan L." (se puede corregir antes de crear)
-  const capital = (t) => t.toLocaleLowerCase('es').replace(/(^|[\s-])(\p{L})/gu, (m, a, b) => a + b.toLocaleUpperCase('es'));
-  function acortarNombre(linea, acortar) {
-    const t = linea.replace(/\t+/g, ' ').replace(/\s+/g, ' ').trim();
-    if (!t) return '';
-    let nombre, apellido;
-    if (t.includes(',')) { const [a, n] = t.split(','); apellido = a.trim(); nombre = (n || '').trim(); }
-    else {
-      // Desde el final: hasta dos apellidos, cada uno con sus partículas (de, del, la…).
-      const w = t.split(' '); if (w.length === 1) return capital(w[0]);
-      const part = /^(de|del|la|las|los|y|san)$/i; let i = w.length; const grupos = [];
-      while (grupos.length < 2 && i > 1) { let j = i - 1; while (j > 1 && part.test(w[j - 1])) j -= 1; grupos.unshift(w.slice(j, i).join(' ')); i = j; }
-      nombre = w.slice(0, i).join(' '); apellido = grupos.join(' ');
-    }
-    if (!nombre) return capital(apellido).slice(0, 40);
-    const minus = (x) => x.replace(/ (De|Del|La|Las|Los|Y|San) /g, (m) => m.toLocaleLowerCase('es'));
-    if (!acortar) return minus(capital(`${nombre} ${apellido}`)).slice(0, 40);
-    const ini = (apellido.split(' ').find((x) => !/^(de|del|la|las|los|y)$/i.test(x)) || '')[0];
-    return `${capital(nombre)}${ini ? ` ${ini.toLocaleUpperCase('es')}.` : ''}`.slice(0, 40);
-  }
-  function siguienteAlias(prefijo, granja, usados) {
-    let maxN = 0;
-    for (const a of usados) { const m = a.match(new RegExp(`^${prefijo}(\\d+)$`)); if (m) maxN = Math.max(maxN, Number(m[1])); }
-    return () => { maxN += 1; return `${prefijo}${String(maxN).padStart(2, '0')}`; };
-  }
-
-  function bloqueVarios() {
-    const L = S.borrador.lote;
-    if (S.borrador.resultado) {
-      const R = S.borrador.resultado;
-      const filas = R.map((r) => `<tr><td>${esc(r.nombre || '—')}</td><td><strong>${esc(r.alias)}</strong></td><td>${r.error ? `<span class="chip rojo">${esc(r.error)}</span>` : `<strong>${esc(r.pin)}</strong>`}</td></tr>`).join('');
-      return `<section class="tarjeta"><h2>Accesos creados (${R.filter((r) => !r.error).length} de ${R.length})</h2>
-        <div class="aviso-caja"><strong>Copia o imprime esta lista ahora:</strong> los PIN no se vuelven a mostrar. Entrégale a cada alumno su alias y su PIN.</div>
-        <table class="tabla"><thead><tr><th>Nombre</th><th>Alias</th><th>PIN</th></tr></thead><tbody>${filas}</tbody></table>
-        <div class="botones"><button class="btn sec peq" type="button" data-accion="copiar-lista">Copiar lista</button><button class="btn sec peq" type="button" data-accion="imprimir">Imprimir</button><button class="btn peq" type="button" data-accion="cerrar-lista">Hecho</button></div></section>`;
-    }
-    if (L) {
-      return `<form class="formu tarjeta" id="f-lote" novalidate><h2>Revisa la lista · ${esc(nombreGranja(L.granja))}</h2>
-        <div class="suave peq">Corrige los nombres o los alias si hace falta. Al pulsar Crear se generan los accesos uno a uno (tarda unos segundos por alumno).</div>
-        <table class="tabla"><thead><tr><th>Nombre</th><th>Alias</th></tr></thead><tbody>${L.filas.map((f, i) => `<tr>
-          <td><input type="text" name="n${i}" aria-label="Nombre ${i + 1}" maxlength="40" value="${esc(f.nombre)}"></td>
-          <td style="width:96px"><input type="text" name="a${i}" aria-label="Alias ${i + 1}" maxlength="10" value="${esc(f.alias)}"></td></tr>`).join('')}</tbody></table>
-        <div id="progreso" aria-live="polite"></div>
-        <div class="botones"><button class="btn sec" type="button" data-accion="cancelar-lote">Cancelar</button><button class="btn" type="submit">Crear ${L.filas.length} accesos</button></div></form>`;
-    }
-    return `<details class="tarjeta"><summary style="min-height:44px;display:flex;align-items:center;font-weight:700">Añadir varios alumnos a la vez</summary>
-      <form class="formu" id="f-varios" novalidate style="margin-top:10px">
-        <div class="campo"><span class="et" id="et-gv">Curso</span><div class="opciones" role="radiogroup" aria-labelledby="et-gv">
-          <label><input type="radio" name="granja" value="1" checked> 1.º curso</label><label><input type="radio" name="granja" value="2"> 2.º curso</label></div></div>
-        <div class="campo"><label for="v-lista">Pega la lista (un alumno por línea)</label>
-          <textarea id="v-lista" name="lista" rows="8" placeholder="LÓPEZ GARCÍA, JUAN\nMartínez Ruiz, Eva\nAna Pérez Sánchez"></textarea>
-          <span class="ayuda">Vale copiar la columna de nombres de un Excel o de la lista de clase.</span></div>
-        <div class="opciones"><label><input type="checkbox" name="acortar" checked> Guardar solo nombre e inicial del apellido (recomendado)</label></div>
-        <div class="campo"><label for="v-pref">Letra de los alias</label><input id="v-pref" name="prefijo" type="text" maxlength="2" autocapitalize="characters" placeholder="A para 1.º, B para 2.º"></div>
-        <button class="btn" type="submit">Revisar lista</button></form></details>`;
-  }
-
-  function adminAlumnos(msg) {
-    const alumnos = S.perfiles.filter((p) => p.rol === 'alumno');
-    const profes = S.perfiles.filter((p) => p.rol === 'profesor');
-    const pin = pinAzar();
-    const porGranja = (g) => alumnos.filter((a) => a.granja_id === g).map((a) => `
-      <div class="evento"><div class="entre"><strong>${esc(a.alias)}${a.nombre ? ` · ${esc(a.nombre)}` : ''}</strong><span class="chip ${a.activo ? '' : 'gris'}">${a.activo ? 'Activo' : 'Desactivado'}</span></div>
-        ${S.borrador.editNombre === a.user_id ? `<form class="entre" data-form-nombre="${a.user_id}" novalidate style="gap:8px"><input name="nombre" type="text" aria-label="Nombre de ${esc(a.alias)}" maxlength="40" value="${esc(a.nombre || '')}" placeholder="Nombre e inicial (Juan G.)"><button class="btn peq" type="submit">Guardar</button></form>` : ''}
-        <div class="acciones"><button class="btn sec peq" type="button" data-nombre="${a.user_id}">${a.nombre ? 'Cambiar nombre' : 'Poner nombre'}</button>
-        <button class="btn sec peq" type="button" data-pin="${a.user_id}" data-alias="${esc(a.alias)}">Nuevo PIN</button>
-        <button class="btn sec peq" type="button" data-activo="${a.user_id}" data-valor="${a.activo ? '0' : '1'}">${a.activo ? 'Desactivar' : 'Activar'}</button></div></div>`).join('') || '<div class="suave">Sin alumnos.</div>';
-    if (S.borrador.resultado) return `${msg || ''}${bloqueVarios()}`;
-    return `${msg || ''}
-      <form class="formu tarjeta" id="f-alumno" novalidate><h2>Añadir alumno</h2>
-        <div class="campo"><span class="et" id="et-ga">Curso</span><div class="opciones" role="radiogroup" aria-labelledby="et-ga">
-          <label><input type="radio" name="granja" value="1" checked> 1.º curso</label><label><input type="radio" name="granja" value="2"> 2.º curso</label></div></div>
-        <div class="dos"><div class="campo"><label for="al-alias">Alias</label><input id="al-alias" name="alias" type="text" autocapitalize="characters" placeholder="A07"></div>
-          <div class="campo"><label for="al-pin">PIN</label><input id="al-pin" name="pin" type="text" inputmode="numeric" maxlength="6" value="${pin}"></div></div>
-        <div class="campo"><label for="al-nombre">Nombre <span class="suave">(opcional: nombre e inicial del apellido)</span></label><input id="al-nombre" name="nombre" type="text" maxlength="40" placeholder="Juan G."></div>
-        <div class="suave peq">El nombre solo lo ven los compañeros de su curso y el profesor. Se borra al cerrar el curso. Para entrar se usa siempre el alias y el PIN.</div>
-        <button class="btn" type="submit">Crear acceso</button></form>
-      ${bloqueVarios()}
-      <section class="tarjeta"><h2>Alumnos · 1.º curso</h2>${porGranja(1)}</section>
-      <section class="tarjeta"><h2>Alumnos · 2.º curso</h2>${porGranja(2)}</section>
-      <section class="tarjeta"><h2>Profesores</h2>${profes.map((p) => `<div>${esc(p.alias)}</div>`).join('')}
-        <div class="suave peq">Para añadir otro profesor, sigue la guía de puesta en marcha (paso del profesor).</div></section>
-      <section class="aviso-caja"><strong>Cambio de curso escolar</strong><br>Desactiva a todos los alumnos y <strong>borra sus nombres</strong>. Sus registros se conservan con el alias. Después crea los alias del curso nuevo.
-        <div style="margin-top:10px"><button class="btn peligro peq" type="button" data-accion="fin-curso">Cerrar el curso</button></div></section>`;
-  }
-
   // ---------------------------------------------------------------- copia de seguridad
   async function leerTodo() {
     const tablas = {};
@@ -1872,110 +1837,9 @@
       $app.querySelectorAll('[data-granja]').forEach((b) => b.addEventListener('click', async () => {
         S.granja = Number(b.dataset.granja);
         try { localStorage.setItem('cife-granja', String(S.granja)); } catch (_) { /* sin almacenamiento */ }
-        await refrescar(); toast(`Viendo ${nombreGranja(S.granja)}`); vistaAdmin('granja');
+        await refrescar(); toast(`Viendo ${nombreGranja(S.granja)}`); vistaCopia();
       }));
     }
-    if (seccion !== 'alumnos' || !S.perfiles) return;
-    const fa = document.getElementById('f-alumno');
-    if (fa) fa.addEventListener('submit', async (ev) => {
-      ev.preventDefault();
-      const f = Object.fromEntries(new FormData(fa).entries());
-      const alias = String(f.alias || '').trim().toUpperCase();
-      const pin = String(f.pin || '').trim();
-      const granja = Number(f.granja);
-      const nombre = String(f.nombre || '').trim().replace(/\s+/g, ' ').slice(0, 40) || null;
-      const err = (t) => vistaAdmin('alumnos', `<div class="error-caja" role="alert">${esc(t)}</div>`);
-      if (!/^[A-Z0-9]{1,10}$/.test(alias)) return err('El alias solo puede tener letras y números (máximo 10), sin espacios.');
-      if (!/^\d{6}$/.test(pin)) return err('El PIN debe tener 6 cifras.');
-      if (S.perfiles.some((p) => p.alias.toUpperCase() === alias && p.granja_id === granja)) return err('Ese alias ya existe en ese curso.');
-      const fallo = await crearAcceso(alias, pin, granja, nombre);
-      if (fallo) return err(fallo);
-      await cargarPerfiles();
-      vistaAdmin('alumnos', `<div class="ok-caja" role="status"><strong>Acceso creado.</strong><br>${esc(nombreGranja(granja))} · alias <strong>${esc(alias)}</strong>${nombre ? ` (${esc(nombre)})` : ''} · PIN <strong>${esc(pin)}</strong><br>Apúntalo ahora: el PIN no se vuelve a mostrar.</div>`);
-    });
-    const fv = document.getElementById('f-varios');
-    if (fv) fv.addEventListener('submit', (ev) => {
-      ev.preventDefault();
-      const f = new FormData(fv);
-      const granja = Number(f.get('granja'));
-      const acortar = f.get('acortar') === 'on';
-      const prefijo = (String(f.get('prefijo') || '').trim().toUpperCase().replace(/[^A-Z]/g, '') || (granja === 1 ? 'A' : 'B')).slice(0, 2);
-      const nombres = String(f.get('lista') || '').split(/\r?\n/).map((l) => acortarNombre(l, acortar)).filter(Boolean);
-      if (!nombres.length) return vistaAdmin('alumnos', '<div class="error-caja" role="alert">Pega al menos un nombre.</div>');
-      if (nombres.length > 40) return vistaAdmin('alumnos', '<div class="error-caja" role="alert">Máximo 40 alumnos por lista.</div>');
-      const sig = siguienteAlias(prefijo, granja, S.perfiles.filter((p) => p.granja_id === granja).map((p) => p.alias.toUpperCase()));
-      S.borrador.lote = { granja, filas: nombres.map((nombre) => ({ nombre, alias: sig() })) };
-      vistaAdmin('alumnos');
-    });
-    const fl = document.getElementById('f-lote');
-    if (fl) fl.addEventListener('submit', async (ev) => {
-      ev.preventDefault();
-      const L = S.borrador.lote; const f = new FormData(fl);
-      const filas = L.filas.map((x, i) => ({ nombre: String(f.get(`n${i}`) || '').trim().replace(/\s+/g, ' ').slice(0, 40) || null, alias: String(f.get(`a${i}`) || '').trim().toUpperCase() }));
-      const usados = new Set(S.perfiles.filter((p) => p.granja_id === L.granja).map((p) => p.alias.toUpperCase()));
-      const prog = document.getElementById('progreso');
-      for (const x of filas) {
-        if (!/^[A-Z0-9]{1,10}$/.test(x.alias)) { prog.innerHTML = `<div class="error-caja" role="alert">Alias no válido: «${esc(x.alias)}». Solo letras y números, sin espacios.</div>`; return; }
-        if (usados.has(x.alias)) { prog.innerHTML = `<div class="error-caja" role="alert">El alias ${esc(x.alias)} está repetido o ya existe en ese curso.</div>`; return; }
-        usados.add(x.alias);
-      }
-      fl.querySelectorAll('input, button').forEach((el) => { el.disabled = true; });
-      const resultado = [];
-      for (let i = 0; i < filas.length; i++) {
-        const x = filas[i]; const pin = pinAzar();
-        prog.innerHTML = `<div class="ok-caja">Creando ${i + 1} de ${filas.length}: ${esc(x.alias)}…</div>`;
-        const fallo = await crearAcceso(x.alias, pin, L.granja, x.nombre);
-        resultado.push({ ...x, pin, error: fallo });
-        if (fallo && /Demasiados|rate limit/i.test(fallo)) {
-          for (const y of filas.slice(i + 1)) resultado.push({ ...y, pin: '', error: 'No creado: espera unos minutos y vuelve a añadirlo' });
-          break;
-        }
-        await espera(1200);
-      }
-      S.borrador.lote = null; S.borrador.resultado = resultado;
-      await cargarPerfiles(); vistaAdmin('alumnos');
-    });
-    const cl = $app.querySelector('[data-accion="cancelar-lote"]');
-    if (cl) cl.addEventListener('click', () => { S.borrador.lote = null; vistaAdmin('alumnos'); });
-    const cp = $app.querySelector('[data-accion="copiar-lista"]');
-    if (cp) cp.addEventListener('click', async () => {
-      const texto = ['Nombre\tAlias\tPIN', ...S.borrador.resultado.filter((r) => !r.error).map((r) => `${r.nombre || ''}\t${r.alias}\t${r.pin}`)].join('\n');
-      try { await navigator.clipboard.writeText(texto); toast('Lista copiada: pégala en un Excel o documento'); } catch (_) { toast('No se pudo copiar. Usa Imprimir.'); }
-    });
-    const im = $app.querySelector('[data-accion="imprimir"]');
-    if (im) im.addEventListener('click', () => window.print());
-    const ce = $app.querySelector('[data-accion="cerrar-lista"]');
-    if (ce) ce.addEventListener('click', () => { S.borrador.resultado = null; vistaAdmin('alumnos'); });
-    $app.querySelectorAll('[data-pin]').forEach((b) => b.addEventListener('click', async () => {
-      const pin = pinAzar();
-      const { error } = await sb.rpc('restablecer_pin', { p_user: b.dataset.pin, p_pin: pin });
-      if (error) return vistaAdmin('alumnos', `<div class="error-caja" role="alert">${esc(traducirError(error))}</div>`);
-      vistaAdmin('alumnos', `<div class="ok-caja" role="status">Nuevo PIN para <strong>${esc(b.dataset.alias)}</strong>: <strong>${pin}</strong>. Apúntalo ahora.</div>`);
-    }));
-    $app.querySelectorAll('[data-nombre]').forEach((b) => b.addEventListener('click', () => {
-      S.borrador.editNombre = S.borrador.editNombre === b.dataset.nombre ? null : b.dataset.nombre; vistaAdmin('alumnos');
-      const i = $app.querySelector('[data-form-nombre] input'); if (i) i.focus();
-    }));
-    $app.querySelectorAll('[data-form-nombre]').forEach((f) => f.addEventListener('submit', async (ev) => {
-      ev.preventDefault();
-      const nombre = String(new FormData(f).get('nombre') || '').trim().replace(/\s+/g, ' ').slice(0, 40) || null;
-      const { error } = await sb.from('perfiles').update({ nombre }).eq('user_id', f.dataset.formNombre);
-      if (error) return vistaAdmin('alumnos', `<div class="error-caja" role="alert">${esc(traducirError(error))}</div>`);
-      S.borrador.editNombre = null; await cargarPerfiles(); await refrescar(); location.hash = '#/admin/alumnos'; vistaAdmin('alumnos');
-    }));
-    $app.querySelectorAll('[data-activo]').forEach((b) => b.addEventListener('click', async () => {
-      const { error } = await sb.from('perfiles').update({ activo: b.dataset.valor === '1' }).eq('user_id', b.dataset.activo);
-      if (error) return toast(traducirError(error));
-      await cargarPerfiles(); vistaAdmin('alumnos');
-    }));
-    const fin = $app.querySelector('[data-accion="fin-curso"]');
-    if (fin) fin.addEventListener('click', async () => {
-      if (fin.dataset.confirmar !== '1') { fin.dataset.confirmar = '1'; fin.textContent = '¿Seguro? Pulsa otra vez para desactivar a todos y borrar sus nombres'; return; }
-      const { data, error } = await sb.rpc('cerrar_curso');
-      if (error) return vistaAdmin('alumnos', `<div class="error-caja" role="alert">${esc(/cerrar_curso/.test(error.message) ? 'Falta ejecutar en Supabase el archivo 04_nombres_alumnos.sql.' : traducirError(error))}</div>`);
-      await cargarPerfiles(); await refrescar(); location.hash = '#/admin/alumnos';
-      vistaAdmin('alumnos', `<div class="ok-caja" role="status">Curso cerrado: ${data ?? 0} alumnos desactivados y sus nombres borrados.</div>`);
-    });
   }
 
   function vistaNoEncontrado(texto) {
@@ -1990,10 +1854,13 @@
     const [ruta, a, b, c] = location.hash.replace(/^#\/?/, '').split('/');
     switch (ruta || 'inicio') {
       case 'inicio': return vistaInicio();
-      case 'cerdas': return vistaCerdas();
+      case 'animales': return vistaAnimales(a || 'cerdas');
+      case 'reproduccion': return vistaReproduccion();
+      case 'copia': return vistaCopia();
+      case 'cerdas': return vistaAnimales('cerdas');
       case 'cerda': return vistaFicha(a);
       case 'registrar': return vistaRegistrar(a, b, c);
-      case 'verracos': return vistaVerracos();
+      case 'verracos': return vistaAnimales('verracos');
       case 'verraco': return vistaVerraco(a);
       case 'plano': return a ? vistaZona(a) : vistaPlano();
       case 'recuento': return vistaRecuento(a, b);
@@ -2009,10 +1876,12 @@
         return vistaSanidad(a || 'calendario');
       case 'medicamento': location.replace(`../#/medicamento/${a}/porc`); return; // una sola ficha de producto (CIFEAFARM)
       case 'correcciones': return vistaCorrecciones(a || 'pendientes');
-      case 'cuenta': return vistaCuenta();
+      case 'cuenta': location.replace('../#/cuenta'); return; // Cuenta y Gestión son comunes (CIFEAFARM)
       case 'admin':
         if (a === 'cerda' || a === 'verraco') return vistaAnimal(a, b);
-        return vistaAdmin(a || 'censo');
+        if (a === 'alumnos') { location.replace('../#/gestion/personas'); return; }
+        if (a === 'granja') { location.replace('#/copia'); return; }
+        return vistaAnimales('cerdas');
       default: return vistaNoEncontrado();
     }
   }
@@ -2023,13 +1892,14 @@
     if (!b) return;
     if (b.dataset.accion === 'refrescar') refrescar(true);
     if (b.dataset.accion === 'salir') {
+      try { sessionStorage.removeItem('cife-entrada'); } catch (_) { /* sin almacenamiento */ }
       await sb.auth.signOut();
       Object.assign(S, { sesion: null, perfil: null, perfiles: null, eventos: [], porCerda: {}, borrador: {} });
       location.replace('../');
     }
   });
 
-  window.addEventListener('hashchange', () => { if (S.perfiles && !location.hash.startsWith('#/admin')) S.perfiles = null; render(); });
+  window.addEventListener('hashchange', () => render());
 
   // Hora de consulta en vivo y recarga al volver a la app
   setInterval(() => { const h = document.getElementById('hora-consulta'); if (h) h.textContent = fechaHora(new Date()); }, 20000);
@@ -2037,6 +1907,11 @@
     if (document.visibilityState === 'visible' && S.perfil && (!S.cargado || Date.now() - S.cargado > 120000) && !location.hash.startsWith('#/registrar')) refrescar();
   });
 
+  // Cada vez que alguien abre la app se anota una entrada (una por sesión del navegador)
+  function anotarEntrada(modulo) {
+    try { if (!S.perfil || sessionStorage.getItem('cife-entrada')) return; sessionStorage.setItem('cife-entrada', '1'); } catch (_) { return; }
+    sb.rpc('anotar_entrada', { modulo }).then(() => {}, () => {});
+  }
   async function iniciar() {
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.register('../sw.js', { scope: '../', updateViaCache: 'none' }).then((r) => r.update()).catch(() => {});
@@ -2047,7 +1922,7 @@
     try {
       const { data } = await sb.auth.getSession();
       S.sesion = data.session;
-      if (S.sesion) await cargarTodo();
+      if (S.sesion) { await cargarTodo(); anotarEntrada('cifeaporc'); }
     } catch (e) {
       if (S.sesion) { pintar(`<main class="acceso"><div class="error-caja" role="alert">${esc(traducirError(e))}</div><button class="btn" type="button" onclick="location.reload()">Reintentar</button></main>`); return; }
     }
