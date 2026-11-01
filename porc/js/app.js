@@ -361,7 +361,7 @@
     const fila = ({ c, e }, det) => `<a class="cerda-fila" href="#/cerda/${c.id}"><div><strong>${esc(c.crotal)}</strong><div class="suave">${det}</div></div><span class="chip ${['inseminada', 'paridera'].includes(e.fase) ? 'nar' : ''}">${faseNombre(e.fase)}</span></a>`;
     const fc = (e) => L.fechasCiclo(e.actual);
     const grupos = [
-      ['Vacías y destetadas', cer.filter((x) => ['vacia', 'destetada'].includes(x.e.fase)), (x) => `${esc(x.e.ubicacion || 'Sin ubicación')}${x.e.ultimoDestete ? ` · destete hace ${L.dias(x.e.ultimoDestete, h)} días` : ''}`],
+      ['Vacías y destetadas', cer.filter((x) => ['vacia', 'destetada'].includes(x.e.fase)), (x) => `${esc(x.e.ubicacion || 'Sin ubicación')}${x.e.ultimoDestete ? ` · destete hace ${L.dias(x.e.ultimoDestete.fecha, h)} días` : ''}`],
       ['Inseminadas', cer.filter((x) => x.e.fase === 'inseminada'), (x) => { const f = fc(x.e); return `IA ${fmt(f.ia)} (día ${L.dias(f.ia, h)}) · ecografía desde el ${corta(f.ecoDesde)}`; }],
       ['Gestantes', cer.filter((x) => x.e.fase === 'gestante'), (x) => { const f = fc(x.e); return `IA ${fmt(f.ia)} · a paridera el ${corta(f.paridera)} · parto previsto ${corta(f.parto)}`; }],
       ['En paridera', cer.filter((x) => x.e.fase === 'paridera'), (x) => { const f = fc(x.e); return `${esc(x.e.ubicacion || '')} · parto previsto ${corta(f.parto)}`; }],
@@ -1848,7 +1848,15 @@
   }
 
   // ---------------------------------------------------------------- enrutado
+  // Si una pantalla falla, se dice en vez de quedarse sin hacer nada
   function render() {
+    try { return renderRuta(); } catch (e) {
+      console.error(e);
+      pintar(`<main class="cuerpo"><div class="error-caja" role="alert"><strong>Esta pantalla ha dado un error.</strong><br>Pulsa Actualizar o vuelve atrás. Si se repite, avisa al profesor con este texto: ${esc(e && e.message ? e.message : String(e))}</div>
+        <a class="btn sec" href="#/inicio">Volver a Hoy</a></main>${navegacion('')}`);
+    }
+  }
+  function renderRuta() {
     if (!S.sesion) return vistaAcceso();
     if (!S.perfil) return vistaSinPerfil();
     const [ruta, a, b, c] = location.hash.replace(/^#\/?/, '').split('/');

@@ -2356,7 +2356,15 @@
   }
 
   // ---------------------------------------------------------------- enrutado
+  // Si una pantalla falla, se dice en vez de quedarse sin hacer nada
   function render() {
+    try { return renderRuta(); } catch (e) {
+      console.error(e);
+      pintar(`<main class="cuerpo"><div class="error-caja" role="alert"><strong>Esta pantalla ha dado un error.</strong><br>Pulsa Actualizar o vuelve atrás. Si se repite, avisa al profesor con este texto: ${esc(e && e.message ? e.message : String(e))}</div>
+        <a class="btn sec" href="#/inicio">Volver a Hoy</a></main>${navegacion('')}`);
+    }
+  }
+  function renderRuta() {
     if (!S.sesion) return vistaAcceso();
     if (!S.perfil) return vistaSinPerfil();
     const [ruta, a, b] = location.hash.replace(/^#\/?/, '').split('/');
