@@ -175,7 +175,8 @@
 
   // ---------------------------------------------------------------- acceso
   // El acceso es el de CIFEAFARM (misma sesión: mismo sitio y mismo proyecto de Supabase).
-  function vistaAcceso() { location.replace('../'); }
+  // Sin sesión: se entra por CIFEAFARM y, si venía de un QR, después vuelve a esa zona o ficha
+  function vistaAcceso() { try { if (/^#\/(cerda|verraco|plano)/.test(location.hash)) sessionStorage.setItem('cife-destino', location.href); } catch (_) { /* sin almacenamiento */ } location.replace('../'); }
 
   function vistaSinPerfil() {
     pintar(`<main class="acceso">

@@ -99,3 +99,11 @@ Trabaja con los animales y la granja: registra, corrige y borra cualquier regist
 4. **Personas** (Gestión → Personas): alta de alumnos (uno a uno o una lista), nombre, nuevo PIN, desactivar y **eliminar**. Eliminar quita a la persona y su acceso; sus registros de la granja se conservan con su alias.
 5. **Hoy** en cada granja: tareas de los protocolos del centro (diarias, quincenales, mensuales, trimestrales y semestrales). Se marcan al hacerlas y queda quién y cuándo. El alumno puede desmarcar la suya durante 24 h; el profesor, siempre.
 6. **Dosis de semen:** caducan con más de 4 días (día 0 = extracción). Las caducadas y agotadas dejan de salir en Reproducción y en la ficha del verraco pasan a «Caducadas o agotadas», donde se pueden eliminar las que no se usaron en ninguna inseminación.
+
+## 14. Códigos QR (0.13.0)
+
+1. CIFEAFARM → Gestión → Datos → **Códigos QR** (profesor o veterinaria).
+2. Elige qué imprimir: zonas de porcino, corralinas, cerdas, verracos, cabras u ovejas. En «Elegir cuáles» puedes quitar los que no quieras.
+3. Pulsa **Imprimir**: salen 4 por hoja A4. Plastifícalos y pégalos en cada zona o corralina (los de animales, en la tarjeta de la jaula o un llavero).
+4. Se escanean con la cámara del móvil. Abre la zona con sus animales o la ficha del animal. Si en ese móvil no se ha entrado antes, pide alias y PIN y después va directamente. Sin cuenta no se ve nada.
+5. No hace falta ejecutar nada en Supabase.

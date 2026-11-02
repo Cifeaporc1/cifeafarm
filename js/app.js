@@ -240,7 +240,15 @@
       S.sesion = data.session;
       try { await cargarTodo(); } catch (e) { vistaAcceso(modo, traducirError(e)); return; }
       try { sessionStorage.removeItem('cife-entrada'); } catch (_) { /* sin almacenamiento */ }
-      anotarEntrada('acceso'); location.hash = '#/granjas'; render();
+      anotarEntrada('acceso');
+      let destino = null; try { destino = sessionStorage.getItem('cife-destino'); sessionStorage.removeItem('cife-destino'); } catch (_) { /* sin almacenamiento */ }
+      if (destino && destino.startsWith(location.origin)) {
+        const d = new URL(destino);
+        if (d.pathname !== location.pathname) { location.href = destino; return; }
+        if (location.hash === d.hash) { render(); return; }
+        location.hash = d.hash; return;
+      }
+      location.hash = '#/granjas'; render();
     });
   }
   function vistaSinPerfil() {
@@ -1965,6 +1973,7 @@
   // ---------------------------------------------------------------- gestión (común a todas las granjas)
   function vistaGestion(sec = 'datos', msg = '') {
     if (!esProf()) return vistaCuenta();
+    if (sec === 'qr') return vistaQR();
     if (!esAdmin() && ['personas', 'cursos'].includes(sec)) sec = 'datos';
     const imp = S.importacion;
     const buenas = imp ? imp.filas.filter((r) => !r.errores.length && !r.repetido) : [];
@@ -1986,6 +1995,7 @@
           <div class="suave">El plan gratuito de Supabase no hace copias automáticas. Descarga una cada mes: el Excel sirve para consultar y el archivo .json para restaurar.</div>
           <div class="botones"><button class="btn sec" type="button" data-copia="xlsx">Excel</button>${esAdmin() ? '<button class="btn sec" type="button" data-copia="json">Archivo .json</button>' : ''}</div>${esAdmin() ? '' : '<div class="suave peq">En tu copia, los alumnos aparecen sin alias. El archivo para restaurar lo descarga el profesor.</div>'}<div id="estado-copia"></div></section>
         <section class="tarjeta"><h2>Copia de seguridad · porcino</h2><div class="suave">Censo e historial completo de la granja de porcino.</div><a class="btn sec" href="porc/#/copia">Ir a la copia de porcino</a></section>
+        <a class="granja-card" href="#/gestion/qr"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M3 3h7v7H3zM14 3h7v7h-7zM3 14h7v7H3zM14 14h3v3h-3zM18 18h3v3h-3zM14 20h2M20 14v2"/></svg><div><strong>Códigos QR</strong><div class="suave">Para pegar en zonas, corralinas o tarjetas: al escanearlos se abre la zona o la ficha del animal</div></div>${ICONOS.flecha}</a>
         <section class="tarjeta"><h2>Animales</h2><div class="suave">Las altas de cabras y ovejas se hacen en CIFEARUMI → Animales → Alta; las de cerdas y verracos, en CIFEAPORC → Animales. El uso de cada corralina se cambia desde el <a href="#/mapa">Mapa</a>, tocando la corralina.</div></section>`;
     if (sec === 'cursos') cuerpo = `
         <section class="tarjeta"><h2>Acceso por curso</h2>
@@ -2024,6 +2034,49 @@
       if (error) return vistaGestion('cursos', errorCaja(traducirError(error)));
       S.perfiles = null; await refrescar(); vistaGestion('cursos', `<div class="ok-caja" role="status">Curso cerrado: ${data ?? 0} alumnos desactivados y sus nombres borrados.</div>`);
     });
+  }
+
+  // ---- Códigos QR: al escanearlos se abre la zona (con sus animales) o la ficha del animal
+  const ZONAS_PORC = [['implantacion', 'Sala de implantación'], ['vacias', 'Parques de vacías'], ['gestacion', 'Parques de gestación'], ['partos', 'Parideras (salas de partos)'], ['verraqueras', 'Verraqueras'], ['lechoneras', 'Lechoneras'], ['cebadero', 'Cebadero']];
+  async function vistaQR() {
+    if (!esProf()) return vistaNoEncontrado('Los códigos QR los imprime el profesor.');
+    const tipo = S.borrador.qrTipo || 'zonas';
+    const base = `${location.origin}${location.pathname.replace(/index\.html$/, '')}`;
+    if (!window.qrcode) { try { await cargarScript('js/vendor/qrcode.js'); } catch (_) { return toast('No se pudo cargar el generador de QR'); } }
+    if (['zonas', 'cerdas', 'verracos'].includes(tipo) && (!S.porcRaw || Date.now() - S.porcRaw.cuando > 120000)) {
+      pintar(`${cabecera({ comun: true, volver: '#/gestion', textoVolver: 'Gestión', titulo: 'Códigos QR' })}<main class="cuerpo"><div class="ok-caja">Leyendo la granja de porcino…</div></main>${navegacion('gestion')}`);
+      try { S.porcAct = await cargarPorcino(); S.porcActCargado = Date.now(); } catch (e) { return toast(traducirError(e)); }
+      if (!location.hash.startsWith('#/gestion/qr')) return;
+    }
+    const P = S.porcRaw || { cerdas: [], verracos: [] };
+    const listas = {
+      zonas: ZONAS_PORC.map(([z, t]) => ({ id: z, titulo: t, sub: 'CIFEAPORC · animales de esta zona', url: `${base}porc/#/plano/${z}` })),
+      corralinas: S.corralinas.slice().sort((a, b) => a.nave.localeCompare(b.nave) || a.numero - b.numero).map((c) => ({ id: String(c.id), titulo: `Corralina ${c.numero}`, sub: `CIFEARUMI · nave ${c.nave}${c.uso ? ` · ${c.uso}` : ''}`, url: `${base}#/corralina/${c.id}` })),
+      cerdas: P.cerdas.filter((x) => !x.fecha_baja).sort((a, b) => String(a.crotal).localeCompare(String(b.crotal), 'es', { numeric: true })).map((x) => ({ id: x.id, titulo: `Cerda ${x.crotal}`, sub: 'CIFEAPORC · ficha de la cerda', url: `${base}porc/#/cerda/${x.id}` })),
+      verracos: P.verracos.filter((x) => !x.fecha_baja).map((x) => ({ id: x.id, titulo: `Verraco ${x.crotal}`, sub: 'CIFEAPORC · ficha del verraco', url: `${base}porc/#/verraco/${x.id}` })),
+      cabras: activos().filter((a) => a.especie === 'caprino').sort(L.ordenNatural).map((a) => ({ id: a.id, titulo: nombreA(a), sub: `CIFEARUMI · ${catNombre(a.categoria)}${a.crotal ? ` · ${a.crotal}` : ''}`, url: `${base}#/animal/${a.id}` })),
+      ovejas: activos().filter((a) => a.especie === 'ovino').sort(L.ordenNatural).map((a) => ({ id: a.id, titulo: nombreA(a), sub: `CIFEARUMI · ${catNombre(a.categoria)}${a.crotal ? ` · ${a.crotal}` : ''}`, url: `${base}#/animal/${a.id}` })),
+    };
+    const TIT = { zonas: 'Zonas de porcino', corralinas: 'Corralinas', cerdas: 'Cerdas', verracos: 'Verracos', cabras: 'Cabras', ovejas: 'Ovejas' };
+    const lista = listas[tipo];
+    const fuera = S.borrador.qrFuera || (S.borrador.qrFuera = new Set());
+    const sel = lista.filter((x) => !fuera.has(x.id));
+    const svg = (url) => { const q = window.qrcode(0, 'M'); q.addData(url); q.make(); return q.createSvgTag({ cellSize: 4, margin: 2, scalable: true }); };
+    pintar(`${cabecera({ comun: true, volver: '#/gestion', textoVolver: 'Gestión', titulo: 'Códigos QR' })}
+      <main class="cuerpo">
+        <div class="suave no-imprimir">Elige qué imprimir. Salen 4 por hoja A4, con su nombre debajo. Al escanearlos con la cámara del móvil se abre la zona con sus animales o la ficha del animal (si no ha entrado antes en la app, primero pide alias y PIN). Plastifícalos para la nave.</div>
+        <div class="pestanas no-imprimir">${Object.entries(TIT).map(([k, t]) => `<button type="button" data-qrtipo="${k}" class="${tipo === k ? 'activo' : ''}">${t} (${listas[k].length})</button>`).join('')}</div>
+        <details class="tarjeta no-imprimir"><summary style="min-height:44px;display:flex;align-items:center">Elegir cuáles (${sel.length} de ${lista.length})</summary>
+          <div class="botones"><button class="btn sec peq" type="button" data-qrtodos="1">Todos</button><button class="btn sec peq" type="button" data-qrtodos="0">Ninguno</button></div>
+          ${lista.map((x) => `<label class="check-todos"><input type="checkbox" data-qrsel="${esc(x.id)}" ${fuera.has(x.id) ? '' : 'checked'}> ${esc(x.titulo)}</label>`).join('')}</details>
+        <button class="btn no-imprimir" type="button" id="b-imprimir" ${sel.length ? '' : 'disabled'}>Imprimir ${sel.length} ${sel.length === 1 ? 'código' : 'códigos'}</button>
+        <div class="qr-hoja">${sel.map((x) => `<div class="qr-tarjeta">${svg(x.url)}<strong>${esc(x.titulo)}</strong><span>${esc(x.sub)}</span></div>`).join('') || '<div class="vacio">No hay nada que imprimir.</div>'}</div>
+      </main>${navegacion('gestion')}`);
+    $app.className = 'imprimir-qr';
+    $app.querySelectorAll('[data-qrtipo]').forEach((b) => b.addEventListener('click', () => { S.borrador.qrTipo = b.dataset.qrtipo; S.borrador.qrFuera = new Set(); vistaQR(); }));
+    $app.querySelectorAll('[data-qrsel]').forEach((c) => c.addEventListener('change', () => { if (c.checked) fuera.delete(c.dataset.qrsel); else fuera.add(c.dataset.qrsel); vistaQR().then(() => { const d = $app.querySelector('details'); if (d) d.open = true; }); }));
+    $app.querySelectorAll('[data-qrtodos]').forEach((b) => b.addEventListener('click', () => { S.borrador.qrFuera = b.dataset.qrtodos === '1' ? new Set() : new Set(lista.map((x) => x.id)); vistaQR().then(() => { const d = $app.querySelector('details'); if (d) d.open = true; }); }));
+    document.getElementById('b-imprimir').addEventListener('click', () => window.print());
   }
 
   // ---- Personas: alumnos, profesores y veterinaria (solo el administrador)
@@ -2365,7 +2418,7 @@
     }
   }
   function renderRuta() {
-    if (!S.sesion) return vistaAcceso();
+    if (!S.sesion) { if (/^#\/(animal|corralina)\//.test(location.hash)) { try { sessionStorage.setItem('cife-destino', location.href); } catch (_) { /* sin almacenamiento */ } } return vistaAcceso(); }
     if (!S.perfil) return vistaSinPerfil();
     const [ruta, a, b] = location.hash.replace(/^#\/?/, '').split('/');
     switch (ruta || 'inicio') {

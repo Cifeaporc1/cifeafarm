@@ -305,3 +305,19 @@ h2 { margin-top: 4px; }
 .tareas-prot .hecha span.t { color: var(--suave); text-decoration: line-through; }
 .tareas-prot h3 { font-size: 15px; margin: 10px 0 2px; color: var(--verde-osc); }
 a.chip { text-decoration: none; color: inherit; }
+/* ---- Códigos QR: en pantalla, cuadrícula; al imprimir, 4 por hoja A4 */
+.qr-hoja { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
+.qr-tarjeta { background: #fff; border: 1px solid var(--borde); border-radius: 12px; padding: 10px; display: flex; flex-direction: column; align-items: center; text-align: center; gap: 4px; break-inside: avoid; }
+.qr-tarjeta svg { width: 100%; max-width: 220px; height: auto; }
+.qr-tarjeta strong { font-size: 18px; }
+.qr-tarjeta span { font-size: 12px; color: var(--suave); }
+@media print {
+  @page { size: A4; margin: 10mm; }
+  #app.imprimir-qr .no-imprimir, #app.imprimir-qr .cab, #app.imprimir-qr .nav { display: none !important; }
+  #app.imprimir-qr { max-width: none; }
+  #app.imprimir-qr .qr-hoja { grid-template-columns: 1fr 1fr; gap: 0; }
+  #app.imprimir-qr .qr-tarjeta { height: 135mm; justify-content: center; border: 1px dashed #999; border-radius: 0; padding: 6mm; }
+  #app.imprimir-qr .qr-tarjeta svg { width: 80mm; max-width: none; }
+  #app.imprimir-qr .qr-tarjeta strong { font-size: 22pt; }
+  #app.imprimir-qr .qr-tarjeta span { font-size: 11pt; color: #333; }
+}
