@@ -29,12 +29,12 @@
   const rolNombre = () => (S.perfil.rol === 'veterinario' ? 'Veterinaria' : S.perfil.rol === 'profesor' ? 'Profesor' : 'Alumno');
   const uid = () => S.sesion && S.sesion.user.id;
   const yo = () => (S.perfil.nombre ? `${S.perfil.nombre} (${S.perfil.alias})` : S.perfil.alias);
-  // La veterinaria no ve a los alumnos: «un alumno de 2.º» en lugar de su alias.
   const esVet = () => S.perfil && S.perfil.rol === 'veterinario';
   const aliasPersonal = () => new Set(Object.values(S.nombres).filter((p) => p.rol !== 'alumno' && p.alias).map((p) => p.alias).concat(S.perfil ? [S.perfil.alias] : []));
-  const verAlias = (alias, cursoN) => (!esVet() || !alias || aliasPersonal().has(alias) ? alias : `un alumno${cursoN ? ` de ${cursoN}.º` : ''}`);
+  // Los alias y nombres de los alumnos solo los ve el administrador; cada uno ve los suyos.
+  const verAlias = (alias, cursoN) => (esAdmin() || !alias || aliasPersonal().has(alias) ? alias : `un alumno${cursoN ? ` de ${cursoN}.º` : ''}`);
   const quienEs = (userId, alias, cursoN) => { const p = S.nombres[userId];
-    if (esVet() && (!p || p.rol === 'alumno')) return verAlias(alias, cursoN || (p && p.granja_id)) || '?';
+    if (!esAdmin() && (!p || p.rol === 'alumno')) return verAlias(alias, cursoN || (p && p.granja_id)) || '?';
     return p && p.nombre ? `${p.nombre} (${p.alias})` : (alias || (p && p.alias) || '?'); };
   const curso = (g) => (g ? `${g}.º` : 'profesor');
   const animal = (id) => S.animales.find((a) => a.id === id);
@@ -1362,7 +1362,7 @@
       <div class="suave peq">${esc(destinoSan(r))}${r.dosis ? ` · ${esc(r.dosis)}` : ''}${r.via ? ` · ${esc(r.via)}` : ''}${r.duracion_dias > 1 ? ` · ${r.duracion_dias} días` : ''}${r.motivo ? ` · ${esc(r.motivo)}` : ''}</div>
       ${chipsSan(r)}
       ${r.leche_hasta || r.carne_hasta ? `<div class="peq ${(r.leche_hasta && r.leche_hasta >= hoy()) || (r.carne_hasta && r.carne_hasta >= hoy()) ? 'rojo' : 'suave'}">${r.leche_hasta ? `Leche no apta hasta ${fmt(r.leche_hasta)}` : ''}${r.leche_hasta && r.carne_hasta ? ' · ' : ''}${r.carne_hasta ? `Carne no apta hasta ${fmt(r.carne_hasta)}` : ''}</div>` : ''}
-      <div class="suave peq">${prev ? `Programado por ${esc(verAlias(r.autor_alias, r.curso) || '?')}` : `Por ${esc(verAlias(r.realizado_por || r.autor_alias) || '?')}`}${r.veterinario ? ` · prescribe ${esc(r.veterinario)}` : ''}${L.repeticion(r) ? ` · se repite cada ${L.textoRep(L.repeticion(r))}` : ''}</div>`;
+      <div class="suave peq">${prev ? `Programado por ${esc(verAlias(r.autor_alias, r.curso) || '?')}` : `Por ${esc(verAlias(r.realizado_por || r.autor_alias) || '?')}`}${r.veterinario ? ` · prescribe ${esc(r.veterinario)}` : ''}${prev && Comun.textoPauta(r) ? ` · ${Comun.textoPauta(r)}` : ''}${L.repeticion(r) ? ` · ${prev && Comun.textoPauta(r) ? 'después ' : ''}se repite cada ${L.textoRep(L.repeticion(r))}` : ''}</div>`;
     return conEnlace ? `<a class="evento enlace" href="${href}">${dentro}</a>` : `<div class="evento">${dentro}</div>`;
   }
   function seccionSanidad(a) {
@@ -1518,6 +1518,7 @@
           </div>
           <div id="b-prod" ${v.tipo === 'analitica' ? 'hidden' : ''}>
           <div class="campo"><label for="medicamento_id">Producto del catálogo</label><select id="medicamento_id" name="medicamento_id">${optMed}</select><span class="ayuda" id="clase-med">${(() => { const m = S.medicamentos.find((z) => z.id === v.medicamento_id); return m && (m.clases || []).length ? m.clases.map(L.nombreClase).join(' · ') : ''; })()}</span></div>
+          <div id="contra-med">${contraMed(S.medicamentos.find((z) => z.id === v.medicamento_id))}</div>
           <div class="campo"><label for="producto">Nombre del producto</label><input id="producto" name="producto" type="text" value="${esc(v.producto || '')}"></div>
           <div class="dos"><div class="campo"><label for="dosis">Dosis</label><input id="dosis" name="dosis" type="text" value="${esc(v.dosis || '')}" placeholder="2 ml / animal"></div>
             <div class="campo"><label for="via">Vía</label><input id="via" name="via" type="text" value="${esc(v.via || '')}" placeholder="SC, IM, oral…"></div></div>
@@ -1531,6 +1532,7 @@
           <div class="dos"><div class="campo"><label for="motivo">Motivo</label><input id="motivo" name="motivo" type="text" value="${esc(v.motivo || '')}" placeholder="Mamitis, cojera, plan sanitario…"></div>
             <div class="campo"><label for="veterinario">Veterinario que lo prescribe</label><input id="veterinario" name="veterinario" type="text" value="${esc(v.veterinario || '')}"></div></div>
           ${modo !== 'editar' ? (() => { const rp = L.repeticion(v) || { n: '', u: 'dias' }; return `<div class="campo"><span class="et">Repetir cada <span class="suave">(opcional)</span></span><div class="dos"><input id="repetir_n" name="repetir_n" type="number" min="1" inputmode="numeric" aria-label="Cada cuántos" value="${esc(rp.n)}" placeholder="Vacío si no se repite"><select id="repetir_unidad" name="repetir_unidad" aria-label="Unidad">${Object.entries(L.UNIDADES_REP).map(([k, t]) => `<option value="${k}" ${rp.u === k ? 'selected' : ''}>${t[1]}</option>`).join('')}</select></div><span class="ayuda">Al guardarlo como hecho, se programa solo el siguiente.</span></div>`; })() : ''}
+          ${modo !== 'editar' ? Comun.htmlPauta(v, esc) : ''}
           <div class="campo"><label for="obs">Observaciones</label><textarea id="obs" name="obs">${esc(v.obs || '')}</textarea></div>
           <button class="btn" type="submit">${realizado && modo !== 'editar' ? 'Guardar como hecho' : modo === 'programar' ? 'Programar' : 'Guardar'}</button>
           ${modo === 'realizar' ? '<a class="btn sec" href="#/sanidad/editar/' + id + '">Solo corregir lo previsto</a>' : ''}
@@ -1540,7 +1542,7 @@
     const f = document.getElementById('f-san');
     f.tipo.addEventListener('change', () => { const an = f.tipo.value === 'analitica'; document.getElementById('b-ana').hidden = !an; document.getElementById('b-prod').hidden = an; });
     document.getElementById('medicamento_id').addEventListener('change', (ev) => {
-      const m = S.medicamentos.find((x) => x.id === ev.target.value); document.getElementById('clase-med').textContent = m && (m.clases || []).length ? m.clases.map(L.nombreClase).join(' · ') : ''; if (!m) return;
+      const m = S.medicamentos.find((x) => x.id === ev.target.value); document.getElementById('contra-med').innerHTML = contraMed(m); document.getElementById('clase-med').textContent = m && (m.clases || []).length ? m.clases.map(L.nombreClase).join(' · ') : ''; if (!m) return;
       f.producto.value = m.nombre; { const esp = (f.especie && f.especie.value) || ((v.animales || []).map(animal).filter(Boolean)[0] || {}).especie || 'caprino'; const d = posologiaDe(m, esp); if (d) f.dosis.value = d; } if (m.via) f.via.value = m.via;
       if (m.espera_leche_rum != null) f.espera_leche.value = m.espera_leche_rum; if (m.espera_carne_rum != null) f.espera_carne.value = m.espera_carne_rum;
       if (m.tipo === 'vacuna' || (m.clases || []).includes('vacuna')) f.tipo.value = 'vacunacion'; if (m.tipo === 'antiparasitario' || (m.clases || []).some((c) => /^antiparasitario/.test(c))) f.tipo.value = 'desparasitacion'; if ((m.clases || []).includes('vitaminas')) f.tipo.value = 'vitaminas';
@@ -1566,7 +1568,9 @@
       if (an) { Object.assign(r, { medicamento_id: null, producto: null, dosis: null, via: null, duracion_dias: 1, espera_leche: null, espera_carne: null }); if ('lote' in r) { r.lote = null; r.caducidad = null; } }
       r.corralina_id = r.ambito === 'corralina' ? (num('corralina_id') || null) : null;
       r.especie = r.ambito === 'especie' ? x.get('especie') : null;
-      const rep = L.filaRep(num('repetir_n'), x.get('repetir_unidad') || 'dias'); const repetir = rep.repetir_n;
+      const rep = L.filaRep(num('repetir_n'), x.get('repetir_unidad') || 'dias');
+      const pauta = modo !== 'editar' ? Comun.leerPauta((k) => x.get(k)) : [];
+      if (pauta.length) rep.pauta = pauta; else if (Array.isArray(v.pauta) && v.pauta.length && modo !== 'editar') rep.pauta = [];
       if (!r.ambito) return msg('Elige a quién se aplica.');
       if (r.ambito === 'corralina' && !r.corralina_id) return msg('Elige la corralina.');
       if (carObl && !r.caracter) return msg('Indica si es obligatorio, recomendado o voluntario.');
@@ -1588,11 +1592,12 @@
       else if (modo === 'programar') res = await sb.from('rum_sanidad').insert({ ...r, estado: 'previsto', ...rep });
       else if (modo === 'realizar') res = await sb.from('rum_sanidad').update({ ...r, estado: 'realizado', ...rep }).eq('id', id);
       else res = await sb.from('rum_sanidad').update(r).eq('id', id);
-      if (res.error) { b.disabled = false; return msg(traducirError(res.error)); }
+      if (res.error) { b.disabled = false; return msg(/pauta/i.test(res.error.message || '') ? 'Para usar la pauta con varias dosis, ejecuta en Supabase el archivo 13_mejoras_noviembre.sql.' : traducirError(res.error)); }
       let pasado = false;
-      if (realizado && repetir && modo !== 'editar' && L.sumarPeriodo(r.fecha, rep.repetir_n, rep.repetir_unidad) < hoy()) pasado = true;
-      else if (realizado && repetir && modo !== 'editar') {
-        const sig = { ...r, estado: 'previsto', fecha: L.sumarPeriodo(r.fecha, rep.repetir_n, rep.repetir_unidad), ...rep, lote: null, caducidad: null, resultado: null, resultado_nota: null, caracter: r.caracter || (fila && fila.caracter) || null, animales: r.ambito === 'animales' ? r.animales : [] };
+      const proxima = realizado && modo !== 'editar' ? Comun.siguienteDosis(r.fecha, pauta, rep, L.sumarPeriodo) : null;
+      if (proxima && proxima.fecha < hoy()) pasado = true;
+      else if (proxima) {
+        const sig = { ...r, estado: 'previsto', fecha: proxima.fecha, ...rep, ...(proxima.pauta.length || pauta.length ? { pauta: proxima.pauta } : {}), lote: null, caducidad: null, resultado: null, resultado_nota: null, caracter: r.caracter || (fila && fila.caracter) || null, animales: r.ambito === 'animales' ? r.animales : [] };
         const r2 = await sb.from('rum_sanidad').insert(sig); if (r2.error) toast(`Guardado, pero no se pudo programar el siguiente: ${traducirError(r2.error)}`);
       }
       S.borrador.grupo = null;
@@ -1602,6 +1607,7 @@
     });
   }
 
+  const contraMed = (m) => (m && m.contraindicaciones ? `<div class="aviso-caja"><strong>Contraindicaciones de ${esc(m.nombre)}:</strong> ${esc(m.contraindicaciones)}</div>` : '');
   // Posología por especie de destino (la antigua «dosificación» queda como respaldo)
   const ESP_POSO = [['caprino', 'Cabras'], ['ovino', 'Ovejas'], ['porcino', 'Cerdos']];
   const posologiaDe = (m, esp) => ((m && m.posologia) || {})[esp] || (m && m.dosis) || '';
@@ -1610,7 +1616,7 @@
   const enlaceFicha = (url, texto = 'Abrir la ficha técnica', cls = 'btn') => (url ? `<a class="${cls}" href="${esc(url)}" target="_blank" rel="noopener noreferrer external">${texto} ↗</a>` : '');
   // ---- Productos repetidos: mismo nombre sin contar mayúsculas, tildes, espacios ni signos
   const claveMed = (t) => String(t || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]/g, '');
-  const CAMPOS_MED = ['materia_activa', 'tipo', 'presentacion', 'dosis', 'via', 'supresion_dias', 'lote', 'caducidad', 'ficha_url', 'notas', 'espera_carne_rum', 'espera_leche_rum'];
+  const CAMPOS_MED = ['materia_activa', 'tipo', 'presentacion', 'dosis', 'via', 'supresion_dias', 'lote', 'caducidad', 'ficha_url', 'notas', 'contraindicaciones', 'espera_carne_rum', 'espera_leche_rum'];
   const datosMed = (m) => CAMPOS_MED.filter((k) => m[k] != null && String(m[k]).trim() !== '').length + ((m.especies || []).length ? 1 : 0) + ((m.clases || []).length ? 1 : 0) + Object.keys(m.posologia || {}).length;
   const ordenMed = (a, b) => datosMed(b) - datosMed(a) || (b.activo !== false) - (a.activo !== false) || String(a.creado).localeCompare(String(b.creado));
   function gruposRepetidos() {
@@ -1692,6 +1698,7 @@
           ${m.dosis && !Object.keys(m.posologia || {}).length ? `<div class="suave peq">Dosificación anotada antes: «${esc(m.dosis)}». Revísala en cada especie.</div>` : ''}</fieldset>
         <div class="dos">${c('lote', 'Lote')}${c('caducidad', 'Caducidad', 'date')}</div>
         ${c('presentacion', 'Presentación', 'text', 'placeholder="Frasco 100 ml…"')}
+        <div class="campo"><label for="m-contraindicaciones">Contraindicaciones</label><textarea id="m-contraindicaciones" name="contraindicaciones" placeholder="Gestación, lactación, especies, interacciones… (copia lo que dice la ficha técnica)">${esc(m.contraindicaciones || '')}</textarea><span class="ayuda">Se avisa al elegir este producto en un tratamiento.</span></div>
         <div class="campo"><label for="m-notas">Notas</label><textarea id="m-notas" name="notas">${esc(m.notas || '')}</textarea></div>
         ${nuevo || !esProf() ? '' : `<label class="check-todos"><input type="checkbox" name="activo" ${m.activo !== false ? 'checked' : ''}> En uso (desmárcalo para retirarlo sin perder el historial)</label>`}
         <button class="btn" type="submit">${nuevo ? 'Añadir' : 'Guardar cambios'}</button></form></main>${navegacion('sanidad')}`);
@@ -1704,13 +1711,14 @@
       const posologia = {}; for (const [k] of ESP_POSO) { const v = t(`poso_${k}`); if (v) posologia[k] = v; }
       const otras = String(x.get('otra') || '').split(',').map((z) => z.trim().toLowerCase()).filter(Boolean);
       const fila = { nombre: t('nombre'), materia_activa: t('materia_activa'), tipo: x.get('tipo'), clases: [...x.getAll('clases'), ...otras], posologia, via: t('via'), espera_leche_rum: n('espera_leche_rum'), espera_carne_rum: n('espera_carne_rum'), supresion_dias: n('supresion_dias'), especies: x.getAll('especies'), presentacion: t('presentacion'), ficha_url: t('ficha_url'), lote: t('lote'), caducidad: x.get('caducidad') || null, notas: t('notas') };
+      if (x.get('contraindicaciones') !== null) fila.contraindicaciones = String(x.get('contraindicaciones') || '').trim() || null;
       if (!nuevo && esProf()) fila.activo = x.get('activo') === 'on';
       if (!fila.nombre) { document.getElementById('msg').innerHTML = errorCaja('Falta el nombre comercial.'); return; }
       if (fila.ficha_url && !/^https?:\/\//i.test(fila.ficha_url)) { document.getElementById('msg').innerHTML = errorCaja('El enlace debe empezar por https://'); return; }
       const igual = S.medicamentos.find((z) => z.id !== m.id && claveMed(z.nombre) === claveMed(fila.nombre));
       if (igual && fm.dataset.repetidoOk !== '1') { fm.dataset.repetidoOk = '1'; document.getElementById('msg').innerHTML = `<div class="aviso-caja" role="alert"><strong>Ya existe «${esc(igual.nombre)}» en el catálogo.</strong> Para no repetirlo, <a href="#/medicamento/${igual.id}${desde ? `/${desde}` : ''}">abre ese producto</a> y complétalo. Si de verdad es otro producto, pulsa otra vez «${nuevo ? 'Añadir' : 'Guardar cambios'}».</div>`; window.scrollTo(0, 0); return; }
       const { error } = nuevo ? await sb.from('medicamentos').insert(fila) : await sb.from('medicamentos').update(fila).eq('id', m.id);
-      if (error) { document.getElementById('msg').innerHTML = errorCaja(/posologia/i.test(error.message || '') ? 'Falta ejecutar en Supabase el archivo 07_posologia.sql.' : traducirError(error)); return; }
+      if (error) { document.getElementById('msg').innerHTML = errorCaja(/contraindicaciones/i.test(error.message || '') ? 'Falta ejecutar en Supabase el archivo 13_mejoras_noviembre.sql.' : /posologia/i.test(error.message || '') ? 'Falta ejecutar en Supabase el archivo 07_posologia.sql.' : traducirError(error)); return; }
       toast(nuevo ? 'Añadido al catálogo' : 'Cambios guardados');
       if (desde === 'porc') { location.href = 'porc/#/sanidad/medicamentos'; return; }
       await refrescar(); location.hash = '#/sanidad/medicamentos';
@@ -1775,7 +1783,7 @@
     const dias = [...new Set(S.manejo.map((m) => m.fecha))].slice(0, 14);
     const tarj = (m) => { const puede = true; // cualquiera corrige; borrar, lo suyo (en el formulario)
       return `<${puede ? `a href="#/manejo/editar/${m.id}"` : 'div'} class="evento ${puede ? 'enlace' : ''}"><div class="entre"><strong>${m.tareas.map((t) => esc(L.TAREAS[t] || t)).join(' · ')}</strong><span class="suave peq">${esc(m.corralinas.map((c) => nombreCorrCorto(c)).join(', ') || 'Toda la granja')}</span></div>
-        ${m.detalle ? `<div>${esc(m.detalle)}</div>` : ''}<div class="suave peq">${m.participantes && !esVet() ? `${esc(m.participantes)} · ` : ''}anotado por ${esc(quienEs(m.autor, m.autor_alias, m.curso))}${esVet() ? '' : ` (${curso(m.curso)})`}</div></${puede ? 'a' : 'div'}>`; };
+        ${m.detalle ? `<div>${esc(m.detalle)}</div>` : ''}<div class="suave peq">${m.participantes && (esAdmin() || m.autor === uid()) ? `${esc(m.participantes)} · ` : ''}anotado por ${esc(quienEs(m.autor, m.autor_alias, m.curso))}${esVet() ? '' : ` (${curso(m.curso)})`}</div></${puede ? 'a' : 'div'}>`; };
     pintar(`${cabecera()}
       <main class="cuerpo">${S.faltaSQL4 && esProf() ? '<div class="aviso-caja"><strong>Para usar el manejo diario</strong>, vuelve a ejecutar en Supabase <code>sql/01_rumiantes.sql</code>.</div>' : ''}
         <h1 style="font-size:22px">Manejo diario</h1>
@@ -1797,7 +1805,7 @@
           <fieldset><legend>Dónde</legend>${naves.map((nv) => `<div class="suave peq" style="font-weight:700">${esc(nv.toUpperCase())}</div><div class="opciones">${S.corralinas.filter((c) => c.nave === nv && c.activa).sort((x, y) => x.numero - y.numero).map((c) => `<label><input type="checkbox" name="corr" value="${c.id}" ${v.corralinas.includes(c.id) ? 'checked' : ''}> ${c.numero}${c.uso ? ` · ${esc(c.uso)}` : ''}</label>`).join('')}</div>`).join('')}
             <span class="ayuda">Sin marcar ninguna = toda la granja.</span></fieldset>
           <div class="campo"><label for="detalle">Detalle (ración, incidencias…)</label><textarea id="detalle" name="detalle" placeholder="Ej.: 1,5 kg de pienso por cabra + paja a voluntad">${esc(v.detalle || '')}</textarea></div>
-          ${esVet() && m ? '' : '<div class="campo">'}<label for="participantes" ${esVet() && m ? 'hidden' : ''}>Quiénes lo han hecho</label><input id="participantes" name="participantes" type="${esVet() && m ? 'hidden' : 'text'}" value="${esc(v.participantes || '')}">${esVet() && m ? '' : '</div>'}
+          ${(!esAdmin() && m && m.autor !== uid()) ? '' : '<div class="campo">'}<label for="participantes" ${(!esAdmin() && m && m.autor !== uid()) ? 'hidden' : ''}>Quiénes lo han hecho</label><input id="participantes" name="participantes" type="${(!esAdmin() && m && m.autor !== uid()) ? 'hidden' : 'text'}" value="${esc(v.participantes || '')}">${(!esAdmin() && m && m.autor !== uid()) ? '' : '</div>'}
           <button class="btn" type="submit">Guardar</button></form>
         ${m && (esProf() || (m.autor === uid() && Date.now() - new Date(m.creado).getTime() < 864e5)) ? '<button class="btn peligro" type="button" id="b-borrar-man">Borrar</button>' : ''}
       </main>${navegacion('inicio')}`);

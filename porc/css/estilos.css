@@ -225,3 +225,6 @@ fieldset[disabled] input, fieldset[disabled] select { background: #EEF1EF; color
 .tareas-prot input { width: 22px; height: 22px; flex: none; margin-top: 1px; }
 .tareas-prot .hecha span.t { color: var(--suave); text-decoration: line-through; }
 .tareas-prot h3 { font-size: 15px; margin: 10px 0 2px; color: var(--verde-osc); }
+.hoja-partos th, .hoja-partos td { white-space: nowrap; font-size: 14px; }
+.hoja-partos tbody th { text-align: left; font-weight: 700; position: sticky; left: 0; background: #fff; }
+.hoja-partos tr.sub th { font-weight: 400; padding-left: 16px; }

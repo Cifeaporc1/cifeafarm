@@ -119,6 +119,35 @@
       ${claves.map(bloque).join('')}</section>`;
   }
 
+  // ---------------- Pauta de un tratamiento: dosis siguientes con sus intervalos
+  // (p. ej. vacuna: 2.ª dosis a los 21 días y después cada año)
+  const UNI = { dias: ['día', 'días'], semanas: ['semana', 'semanas'], meses: ['mes', 'meses'], anios: ['año', 'años'] };
+  const MAX_PAUTA = 4;
+  const txtInt = (x) => `${x.n} ${UNI[x.u] ? UNI[x.u][x.n === 1 ? 0 : 1] : x.u}`;
+  function leerPauta(get) {
+    const out = [];
+    for (let i = 0; i < MAX_PAUTA; i++) { const n = parseInt(get(`pauta_n_${i}`), 10); const u = get(`pauta_u_${i}`) || 'dias'; if (n > 0 && UNI[u]) out.push({ n, u }); }
+    return out;
+  }
+  function htmlPauta(v, esc, id = '') {
+    const p = Array.isArray(v.pauta) ? v.pauta : [];
+    const opt = (sel) => Object.entries(UNI).map(([k, t]) => `<option value="${k}" ${sel === k ? 'selected' : ''}>${t[1]}</option>`).join('');
+    const valor = (i, k) => (v[`pauta_${k}_${i}`] !== undefined ? v[`pauta_${k}_${i}`] : p[i] ? p[i][k] : '');
+    return `<details class="campo" ${p.length || v.pauta_n_0 ? 'open' : ''}><summary style="min-height:44px;display:flex;align-items:center;font-weight:700">Pauta con varias dosis <span class="suave" style="font-weight:400">&nbsp;(opcional)</span></summary>
+      <div class="suave peq">Para vacunas o tratamientos con dosis a distintos intervalos. Cada intervalo se cuenta desde la dosis anterior. Al marcar una dosis como hecha se programa sola la siguiente.</div>
+      ${Array.from({ length: MAX_PAUTA }, (_, i) => `<div class="dos"><div class="campo"><label for="${id}pauta_n_${i}">${i + 2}.ª dosis a los</label><input id="${id}pauta_n_${i}" name="pauta_n_${i}" type="number" min="1" inputmode="numeric" value="${esc(valor(i, 'n'))}"></div>
+        <div class="campo"><label for="${id}pauta_u_${i}">&nbsp;</label><select id="${id}pauta_u_${i}" name="pauta_u_${i}" aria-label="Unidad de la ${i + 2}.ª dosis">${opt(valor(i, 'u') || 'dias')}</select></div></div>`).join('')}
+      <div class="suave peq">Después de la última, si se repite siempre (por ejemplo, cada año), rellena «Repetir cada».</div></details>`;
+  }
+  // Siguiente dosis a programar al hacer una: primero la pauta y, al acabarla, «repetir cada»
+  function siguienteDosis(fecha, pauta, rep, sumarPeriodo) {
+    const p = Array.isArray(pauta) ? pauta : [];
+    if (p.length) return { fecha: sumarPeriodo(fecha, p[0].n, p[0].u), pauta: p.slice(1) };
+    if (rep && rep.repetir_n) return { fecha: sumarPeriodo(fecha, rep.repetir_n, rep.repetir_unidad || 'dias'), pauta: [] };
+    return null;
+  }
+  const textoPauta = (r) => (Array.isArray(r.pauta) && r.pauta.length ? `quedan ${r.pauta.length} ${r.pauta.length === 1 ? 'dosis' : 'dosis'}: a los ${r.pauta.map(txtInt).join(', después a los ')}` : '');
+
   // ---------------- Operaciones repetidas
   const norm = (t) => String(t || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]/g, '');
   function agrupar(lista, clave) {
@@ -162,7 +191,7 @@
     return out.sort((a, b) => String(b.filas[0].fecha).localeCompare(String(a.filas[0].fecha)));
   }
 
-  const api = { PROTOCOLOS, NOMBRE_CADA, periodo, tareasDe, htmlTareas, repetidas };
+  const api = { PROTOCOLOS, NOMBRE_CADA, periodo, tareasDe, htmlTareas, repetidas, leerPauta, htmlPauta, siguienteDosis, textoPauta };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else raiz.Comun = api;
 })(typeof window !== 'undefined' ? window : globalThis);

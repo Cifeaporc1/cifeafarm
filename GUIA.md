@@ -107,3 +107,12 @@ Trabaja con los animales y la granja: registra, corrige y borra cualquier regist
 3. Pulsa **Imprimir**: salen 4 por hoja A4. Plastifícalos y pégalos en cada zona o corralina (los de animales, en la tarjeta de la jaula o un llavero).
 4. Se escanean con la cámara del móvil. Abre la zona con sus animales o la ficha del animal. Si en ese móvil no se ha entrado antes, pide alias y PIN y después va directamente. Sin cuenta no se ve nada.
 5. No hace falta ejecutar nada en Supabase.
+
+## 15. Contraindicaciones, celo tras el destete, nombres, hoja de partos y pautas (0.14.0)
+
+1. Ejecuta una vez en Supabase `sql/13_mejoras_noviembre.sql` (SQL Editor → New query → Run). Es repetible y no borra datos.
+2. **Contraindicaciones:** en la ficha de cada producto (Sanidad → Productos). Cuando alguien elige ese producto en un tratamiento, sale un aviso con ellas.
+3. **Celo tras el destete (porcino):** en Hoy aparece «Vigilar celo» desde el destete hasta el día 6 (urgente del día 3 al 6). Si se pierde, avisa hacia el día 21 del posible celo de repetición.
+4. **Nombres de los alumnos:** solo los ves tú. Los demás (alumnos, otros profesores y veterinaria) ven «un alumno de 2.º». Cada alumno ve lo suyo.
+5. **Hoja de partos:** en la ficha de cada cerda, una columna por ciclo con todos los datos de la ficha de papel.
+6. **Pauta con varias dosis:** al registrar o programar un tratamiento, abre «Pauta con varias dosis» y pon la 2.ª, 3.ª… dosis (cada una contada desde la anterior). Al marcar una dosis como hecha se programa sola la siguiente. Si después se repite siempre, rellena también «Repetir cada».

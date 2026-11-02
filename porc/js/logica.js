@@ -192,6 +192,10 @@
       }
       if (est.fase === 'destetada' && est.ultimoDestete) {
         const d = dias(est.ultimoDestete.fecha, hoy);
+        // Vigilar el celo: suele salir entre el día 4 y el 6 tras el destete; si se pierde, vuelve a los 21 días
+        if (d <= REF.idcMax) add(d >= REF.idcMin ? `Celo esperado: día ${d} tras el destete` : `Vigilar celo: día ${d} tras el destete`,
+          `Suele salir entre el día ${REF.idcMin} y el ${REF.idcMax}. Revisar comportamiento, apetito e inmovilidad${d >= REF.idcMin ? ' · si sale, inseminar hoy' : ''}`, sumarDias(est.ultimoDestete.fecha, REF.idcMin), d >= REF.idcMin - 1 ? 'urgente' : 'proximo');
+        else if (d >= REF.idcMin + 21 - 3 && d <= REF.idcMax + 21 + 1) add(`Posible celo de repetición: día ${d} tras el destete`, 'Se perdió el primer celo: el siguiente suele llegar unos 21 días después', sumarDias(est.ultimoDestete.fecha, REF.idcMin + 21), 'urgente');
         if (d > REF.idcMax) add('Sin cubrir tras el destete', `${d} días (referencia ${REF.idcMin}–${REF.idcMax})`, est.ultimoDestete.fecha, 'urgente');
       }
     }

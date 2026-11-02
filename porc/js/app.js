@@ -31,12 +31,12 @@
   const verracoPorId = (id) => S.verracos.find((v) => v.id === id);
   const nombreVerraco = (d) => { const v = verracoPorId(d && d.verraco); return v ? v.crotal : (d && d.verraco_crotal) || 'no anotado'; };
   // "Juan G. (A07)" si hay nombre; si no, el alias.
-  // La veterinaria no ve a los alumnos: «un alumno de 2.º» en lugar de su alias.
   const esVet = () => S.perfil && S.perfil.rol === 'veterinario';
   const aliasPersonal = () => new Set(Object.values(S.nombres).filter((p) => p.rol !== 'alumno' && p.alias).map((p) => p.alias).concat(S.perfil ? [S.perfil.alias] : []));
-  const verAlias = (alias, cursoN) => (!esVet() || !alias || aliasPersonal().has(alias) ? alias : `un alumno${cursoN ? ` de ${cursoN}.º` : ''}`);
+  // Los alias y nombres de los alumnos solo los ve el administrador; cada uno ve los suyos.
+  const verAlias = (alias, cursoN) => (esAdmin() || !alias || aliasPersonal().has(alias) ? alias : `un alumno${cursoN ? ` de ${cursoN}.º` : ''}`);
   const quienEs = (userId, alias) => { const p = S.nombres[userId];
-    if (esVet() && (!p || p.rol === 'alumno')) return verAlias(alias, p && p.granja_id) || '?';
+    if (!esAdmin() && (!p || p.rol === 'alumno')) return verAlias(alias, p && p.granja_id) || '?';
     return p && p.nombre ? `${p.nombre} (${p.alias})` : (alias || (p && p.alias) || '?'); };
   const yo = () => (S.perfil.nombre ? `${S.perfil.nombre} (${S.perfil.alias})` : S.perfil.alias);
   const faseNombre = (id) => (L.FASES.find((f) => f.id === id) || {}).nombre || id;
@@ -428,6 +428,49 @@
     }
   }
 
+  // Hoja de partos de la cerda (como la ficha de papel del centro): una columna por ciclo
+  function hojaPartos(c, est) {
+    const ciclos = est.ciclos.filter((x) => x.ia || x.parto);
+    if (!ciclos.length) return '';
+    const n0 = (v) => (v === undefined || v === null || v === '' ? '' : +v || 0);
+    const san = (ci, tipos) => {
+      if (!ci.parto) return '';
+      const fin = ci.destete ? ci.destete.fecha : '9999';
+      const r = S.sanidad.filter((x) => x.cerda_id === c.id && x.estado === 'realizado' && tipos.includes(x.tipo) && x.fecha >= ci.parto.fecha && x.fecha <= fin);
+      return r.map((x) => `${corta(x.fecha)}${x.n_animales ? ` (${x.n_animales})` : ''}`).join('<br>');
+    };
+    const filas = [
+      ['Inseminación', (ci) => (ci.ia ? fmt(ci.ia.fecha) : '')],
+      ['Macho', (ci) => (ci.ia ? esc(nombreVerraco(ci.ia.datos)) : '')],
+      ['Inseminador', (ci) => (ci.ia ? esc(quienEs(ci.ia.autor, ci.ia.autor_alias)) : '')],
+      ['Ecografía', (ci) => ci.ecos.map((e) => `${corta(e.fecha)} ${e.datos.resultado === 'positiva' ? '+' : e.datos.resultado === 'negativa' ? '−' : '?'}`).join('<br>')],
+      ['Sala de partos', (ci) => (ci.paridera ? `${corta(ci.paridera.fecha)}${ci.paridera.datos && ci.paridera.datos.sala ? `<br>sala ${esc(ci.paridera.datos.sala)}${ci.paridera.datos.plaza ? `-${esc(ci.paridera.datos.plaza)}` : ''}` : ''}` : '')],
+      ['Parto probable', (ci) => (ci.ia ? fmt(L.fechasCiclo(ci).parto) : '')],
+      ['N.º de parto', (ci) => (ci.numParto ? `<strong>${ci.numParto}.º</strong>` : '')],
+      ['Parto', (ci) => (ci.parto ? fmt(ci.parto.fecha) : ci.aborto ? `<span class="rojo">Aborto ${corta(ci.aborto.fecha)}</span>` : ci.cierre === 'repeticion' ? '<span class="suave">Repitió</span>' : ci.cierre === 'eco_negativa' ? '<span class="suave">Eco negativa</span>' : '')],
+      ['Vivos · hembras', (ci) => (ci.parto ? n0(ci.parto.datos.vivos_h) : ''), 'sub'],
+      ['Vivos · machos', (ci) => (ci.parto ? n0(ci.parto.datos.vivos_m) : ''), 'sub'],
+      ['Muertos · hembras', (ci) => (ci.parto ? n0(ci.parto.datos.muertos_h) : ''), 'sub'],
+      ['Muertos · machos', (ci) => (ci.parto ? n0(ci.parto.datos.muertos_m) : ''), 'sub'],
+      ['Momificados', (ci) => (ci.parto ? n0(ci.parto.datos.momificados) : ''), 'sub'],
+      ['Adopciones', (ci) => ci.adopciones.map((e) => { const d = e.datos || {}; return [+d.recibe_num ? `+${+d.recibe_num}` : '', +d.cede_num ? `−${+d.cede_num}` : ''].filter(Boolean).join(' '); }).filter(Boolean).join('<br>')],
+      ['Bajas de lechones', (ci) => { const n = ci.bajas.reduce((a, e) => a + (+(e.datos || {}).numero || 0), 0); return n ? String(n) : ''; }],
+      ['Raboteo', (ci) => san(ci, ['raboteo'])],
+      ['Hierro y colmillos', (ci) => san(ci, ['hierro', 'colmillos'])],
+      ['Castración', (ci) => san(ci, ['castracion'])],
+      ['Destete', (ci) => (ci.destete ? fmt(ci.destete.fecha) : '')],
+      ['Destetados · hembras', (ci) => (ci.destete ? n0(ci.destete.datos.destetados_h) : ''), 'sub'],
+      ['Destetados · machos', (ci) => (ci.destete ? n0(ci.destete.datos.destetados_m) : ''), 'sub'],
+      ['Días de gestación', (ci) => L.indicesCiclo(ci).gestacion ?? ''],
+      ['Días de lactación', (ci) => L.indicesCiclo(ci).lactacion ?? ''],
+    ];
+    return `<section class="tarjeta"><h2>Hoja de partos</h2>
+      <div class="suave peq">Una columna por ciclo, del más antiguo al más reciente. Desliza de lado si no cabe.</div>
+      <div class="tabla-scroll"><table class="tabla hoja-partos"><thead><tr><th>Crotal ${esc(c.crotal)}</th>${ciclos.map((ci, i) => `<th>Ciclo ${i + 1}</th>`).join('')}</tr></thead><tbody>
+        ${filas.map(([t, fn, cls]) => `<tr class="${cls || ''}"><th>${t}</th>${ciclos.map((ci) => `<td>${fn(ci) === '' ? '<span class="suave">—</span>' : fn(ci)}</td>`).join('')}</tr>`).join('')}
+      </tbody></table></div></section>`;
+  }
+
   function vistaFicha(id) {
     const c = cerdaPorId(id);
     if (!c) return vistaNoEncontrado();
@@ -495,6 +538,7 @@
           ${partos ? `<table class="tabla"><thead><tr><th>N.º</th><th>Fecha</th><th>Vivos / muertos / momias</th><th>Destet.</th><th>Gest.</th><th>Lact.</th></tr></thead><tbody>${partos}</tbody></table>
             <div class="suave peq">Referencia: ${L.REF.destetadosMin}–${L.REF.destetadosMax} destetados por camada · gestación ${L.REF.gestacion} d · lactación ${L.REF.lactacion} d${repeticiones ? ` · ${repeticiones} ${repeticiones === 1 ? 'repetición' : 'repeticiones'}` : ''}${abortos ? ` · ${abortos} ${abortos === 1 ? 'aborto' : 'abortos'}` : ''}</div>`
             : '<div class="suave">Sin partos registrados.</div>'}</section>
+        ${hojaPartos(c, est)}
         ${seccionSanidad((r) => r.cerda_id === id, `#/sanidad/nuevo/cerda/${id}`)}
         <section class="tarjeta"><h2>Historial</h2>${historial || '<div class="suave">Sin eventos registrados.</div>'}</section>
         <section class="tarjeta"><h2>Datos fijos</h2><div class="filas">
@@ -1180,7 +1224,7 @@
       <div>${esc(destinoSan(r))}${r.producto ? ` · ${esc(r.producto)}` : ''}${r.dosis ? ` · ${esc(r.dosis)}` : ''}${r.via ? ` · ${esc(r.via)}` : ''}</div>
       ${r.motivo ? `<div class="suave">Motivo: ${esc(r.motivo)}</div>` : ''}${r.obs ? `<div class="suave">${esc(r.obs)}</div>` : ''}
       ${r.supresion_hasta && r.estado === 'realizado' ? `<div class="suave">Supresión hasta el ${fmt(r.supresion_hasta)}</div>` : ''}
-      <div class="suave peq">${r.estado === 'realizado' ? `Realizado por ${esc(verAlias(r.realizado_por) || quienEs(r.autor, r.autor_alias))}` : `Programado por ${esc(quienEs(r.autor, r.autor_alias))}`}${L.repeticion(r) ? ` · se repite cada ${L.textoRep(L.repeticion(r))}` : ''}${med && med.ficha_url ? ` · <a href="${esc(med.ficha_url)}" target="_blank" rel="noopener noreferrer external">Ficha técnica ↗</a>` : ''}</div>
+      <div class="suave peq">${r.estado === 'realizado' ? `Realizado por ${esc(verAlias(r.realizado_por) || quienEs(r.autor, r.autor_alias))}` : `Programado por ${esc(quienEs(r.autor, r.autor_alias))}`}${r.estado === 'previsto' && Comun.textoPauta(r) ? ` · ${Comun.textoPauta(r)}` : ''}${L.repeticion(r) ? ` · ${r.estado === 'previsto' && Comun.textoPauta(r) ? 'después ' : ''}se repite cada ${L.textoRep(L.repeticion(r))}` : ''}${med && med.ficha_url ? ` · <a href="${esc(med.ficha_url)}" target="_blank" rel="noopener noreferrer external">Ficha técnica ↗</a>` : ''}</div>
       ${!conAcciones ? '' : r.estado === 'cancelado' ? `<div class="acciones"><a class="btn sec peq" href="#/sanidad/cancelar/${r.id}">Ver o deshacer la cancelación</a>${puedeEditarSan(r) ? `<button class="btn peligro peq" type="button" data-borrar-san="${r.id}">Borrar</button>` : ''}</div>`
       : `<div class="acciones">${r.estado === 'previsto' ? `<a class="btn peq" href="#/sanidad/realizar/${r.id}">Marcar como hecho</a><a class="btn sec peq" href="#/sanidad/cancelar/${r.id}">Cancelar</a>` : ''}
         <a class="btn sec peq" href="#/sanidad/editar/${r.id}">Corregir</a>${puedeEditarSan(r) ? `<button class="btn peligro peq" type="button" data-borrar-san="${r.id}">Borrar</button>` : ''}</div>`}
@@ -1365,6 +1409,7 @@
             ${T.edad ? campo('edad', 'Edad de los lechones (días)', inp('edad', 'number', 'inputmode="numeric" min="0"')) : ''}
             ${L.usaProducto(v.tipo) ? `<fieldset><legend>Producto</legend>
               ${campo('medicamento_id', 'Del catálogo', `<select id="s-medicamento_id" name="medicamento_id"><option value="">Otro (escribir abajo)</option>${meds.map((m) => opt(m.id, `${m.nombre}${m.materia_activa ? ` (${m.materia_activa})` : ''}`, v.medicamento_id)).join('')}</select>${meds.length ? '' : '<span class="ayuda">El catálogo está vacío: el profesor puede añadir productos en Sanidad → Medicamentos.</span>'}`)}
+              ${(() => { const m = v.medicamento_id && medPorId(v.medicamento_id); return m && m.contraindicaciones ? `<div class="aviso-caja"><strong>Contraindicaciones:</strong> ${esc(m.contraindicaciones)}</div>` : ''; })()}
               ${v.medicamento_id ? (() => { const m = medPorId(v.medicamento_id); return m ? `<div class="suave peq">${esc([m.materia_activa, m.presentacion, m.supresion_dias != null ? `supresión ${m.supresion_dias} días` : null].filter(Boolean).join(' · '))}${m.ficha_url ? ` · <a href="${esc(m.ficha_url)}" target="_blank" rel="noopener noreferrer external">Ficha técnica ↗</a>` : ''}</div>` : ''; })() : campo('producto', 'Nombre del producto', inp('producto'))}
               <div class="dos">${campo('dosis', 'Dosis', inp('dosis', 'text', 'placeholder="p. ej. 2 ml"'))}${campo('via', 'Vía / modo de aplicación', inp('via', 'text', 'placeholder="IM, oral, pulverizado…"'))}</div>
               ${v.estado === 'realizado' ? `<div class="dos">${campo('lote', 'Lote', inp('lote'))}${campo('caducidad', 'Caducidad', inp('caducidad', 'date'))}</div>` : ''}
@@ -1378,6 +1423,7 @@
             ${v.estado === 'previsto' || v.caracter ? `<div class="campo"><span class="et" id="et-car">Carácter${v.estado === 'previsto' ? '' : ' <span class="suave">(opcional)</span>'}</span><div class="opciones" role="radiogroup" aria-labelledby="et-car">${Object.entries(L.CARACTER).map(([k, t]) => `<label><input type="radio" name="caracter" value="${k}" ${v.caracter === k ? 'checked' : ''}> ${t}</label>`).join('')}</div></div>` : ''}
             ${T.motivo || v.tipo === 'otro' ? campo('motivo', v.tipo === 'raboteo' ? 'Motivo (caudofagia detectada)' : 'Motivo', inp('motivo'), v.estado === 'previsto' ? ' <span class="suave">(opcional)</span>' : '') : ''}
             ${campo('repetir_n', 'Repetir cada', `<div class="dos">${inp('repetir_n', 'number', 'inputmode="numeric" min="1" placeholder="Vacío si no se repite"')}<select id="s-repetir_unidad" name="repetir_unidad" aria-label="Unidad">${Object.entries(L.UNIDADES_REP).map(([k, t]) => opt(k, t[1], v.repetir_unidad || 'dias')).join('')}</select></div>`, ' <span class="suave">(opcional)</span>')}
+            ${Comun.htmlPauta(v, esc, 's-')}
             ${campo('obs', 'Observaciones', `<textarea id="s-obs" name="obs">${esc(v.obs || '')}</textarea>`, ' <span class="suave">(opcional)</span>')}
           ` : '<div class="suave">Elige qué se hace para ver el resto de campos.</div>'}
           <div id="mensajes" aria-live="polite"></div>
@@ -1421,6 +1467,7 @@
       supresion_hasta: v.estado === 'realizado' && m && m.supresion_dias != null && m.supresion_dias > 0 ? L.sumarDias(v.fecha, m.supresion_dias) : null,
       motivo: [v.motivo, T.edad && v.edad ? `${v.edad} días de edad` : ''].filter(Boolean).join(' · ') || null,
       obs: v.obs || null, ...L.filaRep(num(v.repetir_n), v.repetir_unidad || 'dias'),
+      ...(() => { const pt = Comun.leerPauta((k) => v[k]); return pt.length || (reg && Array.isArray(reg.pauta) && reg.pauta.length) ? { pauta: pt } : {}; })(),
       caracter: L.CARACTER[v.caracter] ? v.caracter : null,
       analisis: v.tipo === 'analitica' ? v.analisis || null : null,
       muestra: v.tipo === 'analitica' ? v.muestra || null : null,
@@ -1434,13 +1481,14 @@
     else ({ error } = await sb.from('sanidad').insert({ ...fila, granja_id: S.granja }));
     // Si se ha hecho y se repite, se programa el siguiente
     let siguiente = null;
-    const pasado = fila.estado === 'realizado' && fila.repetir_n && L.sumarPeriodo(fila.fecha, fila.repetir_n, fila.repetir_unidad) < hoy();
-    if (!error && !pasado && fila.estado === 'realizado' && fila.repetir_n && (!reg || reg.estado === 'previsto' || modo !== 'editar')) {
-      siguiente = L.sumarPeriodo(fila.fecha, fila.repetir_n, fila.repetir_unidad);
-      const prox = { ...fila, estado: 'previsto', fecha: siguiente, lote: null, caducidad: null, supresion_hasta: null, resultado: null, resultado_nota: null, granja_id: S.granja };
+    const proxima = fila.estado === 'realizado' && (!reg || reg.estado === 'previsto' || modo !== 'editar') ? Comun.siguienteDosis(fila.fecha, fila.pauta, fila, L.sumarPeriodo) : null;
+    const pasado = !!proxima && proxima.fecha < hoy();
+    if (!error && proxima && !pasado) {
+      siguiente = proxima.fecha;
+      const prox = { ...fila, ...(fila.pauta ? { pauta: proxima.pauta } : {}), estado: 'previsto', fecha: siguiente, lote: null, caducidad: null, supresion_hasta: null, resultado: null, resultado_nota: null, granja_id: S.granja };
       ({ error } = await sb.from('sanidad').insert(prox));
     }
-    if (error) { boton.disabled = false; boton.textContent = 'Guardar'; msj.innerHTML = `<div class="error-caja" role="alert">${esc(traducirError(error))}</div>`; return; }
+    if (error) { boton.disabled = false; boton.textContent = 'Guardar'; msj.innerHTML = `<div class="error-caja" role="alert">${esc(/pauta/i.test(error.message || '') ? 'Para usar la pauta con varias dosis, ejecuta en Supabase el archivo 13_mejoras_noviembre.sql.' : traducirError(error))}</div>`; return; }
     const pre = S.borrador.pre || {};
     S.borrador = { filtro: S.borrador.filtro, mes: S.borrador.mes };
     toast(siguiente ? `Guardado. Siguiente programado para el ${fmt(siguiente)}` : pasado && modo !== 'editar' ? 'Guardado. No se programa la repetición porque su fecha ya ha pasado.' : 'Guardado');
@@ -1772,7 +1820,7 @@
     boton.disabled = true; estado.innerHTML = '<div class="ok-caja">Preparando la copia…</div>';
     try {
       const T = await leerTodo();
-      if (esVet()) {
+      if (!esAdmin()) {
         T.perfiles = T.perfiles.filter((p) => p.rol !== 'alumno');
         for (const filas of Object.values(T)) if (Array.isArray(filas)) for (const r of filas) for (const k of ['autor_alias', 'realizado_por', 'alta_por', 'baja_por', 'modificado_por']) if (r && r[k]) r[k] = verAlias(r[k], k === 'autor_alias' ? r.granja_id : null);
       }
@@ -1823,9 +1871,9 @@
 
   function adminGranja() {
     return `<section class="tarjeta"><h2>Copia de seguridad</h2>
-        <div class="suave">${esVet() ? 'Descarga los datos de la granja de porcino: censo e historial completo (los alumnos aparecen sin alias).' : 'Descarga todos los datos de la granja de porcino: censo, historial completo y alumnos (sin PIN).'} Guárdala en tu ordenador o en OneDrive. Recomendado: al final de cada mes y de cada trimestre.</div>
+        <div class="suave">${!esAdmin() ? 'Descarga los datos de la granja de porcino: censo e historial completo (los alumnos aparecen sin alias).' : 'Descarga todos los datos de la granja de porcino: censo, historial completo y alumnos (sin PIN).'} Guárdala en tu ordenador o en OneDrive. Recomendado: al final de cada mes y de cada trimestre.</div>
         ${S.ultimaCopia ? `<div class="ok-caja">Última copia descargada: ${fechaHora(S.ultimaCopia)}</div>` : ''}
-        <div class="botones"><button class="btn" type="button" data-accion="copia-excel">Descargar Excel</button>${esVet() ? '' : '<button class="btn sec" type="button" data-accion="copia-json">Archivo para restaurar</button>'}</div>
+        <div class="botones"><button class="btn" type="button" data-accion="copia-excel">Descargar Excel</button>${!esAdmin() ? '' : '<button class="btn sec" type="button" data-accion="copia-json">Archivo para restaurar</button>'}</div>
         <div class="suave peq">El Excel sirve para consultar y trabajar con los datos. El «archivo para restaurar» (.json) contiene lo mismo en un formato que permite volver a cargarlo si algún día se pierde la base de datos.</div>
         <div id="estado-copia" aria-live="polite"></div></section>
       <div class="foto"><img src="img/granja.jpg" alt="Vista aérea de la granja porcina"></div>
