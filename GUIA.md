@@ -116,3 +116,10 @@ Trabaja con los animales y la granja: registra, corrige y borra cualquier regist
 4. **Nombres de los alumnos:** solo los ves tú. Los demás (alumnos, otros profesores y veterinaria) ven «un alumno de 2.º». Cada alumno ve lo suyo.
 5. **Hoja de partos:** en la ficha de cada cerda, una columna por ciclo con todos los datos de la ficha de papel.
 6. **Pauta con varias dosis:** al registrar o programar un tratamiento, abre «Pauta con varias dosis» y pon la 2.ª, 3.ª… dosis (cada una contada desde la anterior). Al marcar una dosis como hecha se programa sola la siguiente. Si después se repite siempre, rellena también «Repetir cada».
+
+## 16. Uso de CIFEAFARM en DIACLASHOM (informe de uso)
+
+1. Ejecuta una vez en el Supabase de **CIFEAFARM** `sql/14_informe_uso.sql` (SQL Editor → New query → Run). Es repetible.
+2. En **DIACLASHOM** → Más → **Uso de CIFEAFARM**: escribe el correo y la contraseña con los que entras como profesor en CIFEAFARM y pulsa «Guardar y probar». Se guardan cifrados en DIACLASHOM.
+3. En cada curso, revisa las fechas (por defecto, la evaluación del CE) y pulsa **Traer datos de CIFEAFARM**. La primera vez empareja cada alias de CIFEAFARM con la clave del alumno por orden: revísalo en la columna «Alias en CIFEAFARM».
+4. Pulsa **Crear la calificación con estas propuestas**. Se abre la calificación «Uso de CIFEAFARM» con la propuesta de cada alumno y el resumen en el comentario: ajusta lo que quieras. Cuenta como una nota más del CE.
