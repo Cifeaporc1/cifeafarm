@@ -163,8 +163,9 @@
       if (est.fase === 'inseminada' && cur && cur.ia && !sinEco) {
         const ultimaEco = cur.ecos[cur.ecos.length - 1];
         if (ultimaEco && ultimaEco.datos.resultado === 'dudosa') {
-          const toca = sumarDias(ultimaEco.fecha, 1);
-          if (hoy >= toca) add('Repetir ecografía', `Dudosa el ${ultimaEco.fecha.split('-').reverse().join('/')}`, toca, 'urgente');
+          // El aviso sigue hasta que se registre una ecografía positiva o negativa
+          const toca = sumarDias(ultimaEco.fecha, 1); const dd = dias(ultimaEco.fecha, hoy);
+          add('Repetir ecografía', dd <= 0 ? 'Dudosa hoy · repetir mañana' : `Dudosa el ${ultimaEco.fecha.split('-').reverse().join('/')} (hace ${dd} ${dd === 1 ? 'día' : 'días'}) · día ${dias(cur.ia.fecha, hoy)} tras la IA`, toca, dd >= 1 ? 'urgente' : 'proximo');
         } else if (hoy >= f.ecoDesde) {
           const d = dias(cur.ia.fecha, hoy);
           add('Ecografía pendiente', `Día ${d} tras la IA (recomendado día ${REF.ecoIdeal})`, f.ecoDesde, d >= REF.ecoIdeal ? 'urgente' : 'proximo');
