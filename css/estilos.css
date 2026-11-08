@@ -321,3 +321,10 @@ a.chip { text-decoration: none; color: inherit; }
   #app.imprimir-qr .qr-tarjeta strong { font-size: 22pt; }
   #app.imprimir-qr .qr-tarjeta span { font-size: 11pt; color: #333; }
 }
+/* ---- Resultados y comparar */
+.grafica { width: 100%; height: auto; }
+.grafica .g-etq, .grafica .g-val { font-size: 13px; fill: var(--texto, #1b2a1f); }
+.grafica .g-barra { fill: var(--verde, #2f6b3a); }
+.grafica .g-poca { fill: #b9c4bb; }
+.an-kpis { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); }
+.an-kpis .dato .val { font-size: 22px; }

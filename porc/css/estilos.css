@@ -228,3 +228,10 @@ fieldset[disabled] input, fieldset[disabled] select { background: #EEF1EF; color
 .hoja-partos th, .hoja-partos td { white-space: nowrap; font-size: 14px; }
 .hoja-partos tbody th { text-align: left; font-weight: 700; position: sticky; left: 0; background: #fff; }
 .hoja-partos tr.sub th { font-weight: 400; padding-left: 16px; }
+/* ---- Resultados y comparar */
+.grafica { width: 100%; height: auto; }
+.grafica .g-etq, .grafica .g-val { font-size: 13px; fill: var(--texto, #1b2a1f); }
+.grafica .g-barra { fill: var(--verde, #2f6b3a); }
+.grafica .g-poca { fill: #b9c4bb; }
+.an-kpis { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); }
+.an-kpis .dato .val { font-size: 22px; }

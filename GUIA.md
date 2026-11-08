@@ -123,3 +123,14 @@ Trabaja con los animales y la granja: registra, corrige y borra cualquier regist
 2. En **DIACLASHOM** → Más → **Uso de CIFEAFARM**: escribe el correo y la contraseña con los que entras como profesor en CIFEAFARM y pulsa «Guardar y probar». Se guardan cifrados en DIACLASHOM.
 3. En cada curso, revisa las fechas (por defecto, la evaluación del CE) y pulsa **Traer datos de CIFEAFARM**. La primera vez empareja cada alias de CIFEAFARM con la clave del alumno por orden: revísalo en la columna «Alias en CIFEAFARM».
 4. Pulsa **Crear la calificación con estas propuestas**. Se abre la calificación «Uso de CIFEAFARM» con la propuesta de cada alumno y el resumen en el comentario: ajusta lo que quieras. Cuenta como una nota más del CE.
+
+## 17. Resultados y comparar (0.15.0)
+
+No hay que ejecutar nada en Supabase.
+1. En cada granja, **Reproducción → Resultados y gráficas**: cifras principales y gráficas ya preparadas. Arriba eliges las fechas (por defecto, el último año; «Todo» quita el límite).
+2. **Comparar**: abre «Qué comparar», marca lo que quieras (por ejemplo inseminaciones, nacidos vivos y volumen del eyaculado) y elige «Agrupar por» (verraco, número de parto, mes…). Sale una tabla y una gráfica por cada cosa.
+3. **Copiar para analizar con IA**: copia la tabla, lo que significa cada columna y los datos uno a uno. Pégalo en Claude y pide el análisis. No lleva nombres de alumnos.
+4. **Descargar Excel**: hoja «Resumen», hoja «Qué es cada columna» y una hoja con los datos uno a uno de cada tipo.
+5. Barra gris y asterisco (*): media o porcentaje calculado con menos de 5 datos; no saques conclusiones de esa cifra.
+6. En rumiantes, el «número de parto» solo cuenta los partos apuntados en la app (los anteriores no se conocen).
+

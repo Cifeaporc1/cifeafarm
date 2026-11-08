@@ -191,7 +191,162 @@
     return out.sort((a, b) => String(b.filas[0].fecha).localeCompare(String(a.filas[0].fecha)));
   }
 
-  const api = { PROTOCOLOS, NOMBRE_CADA, periodo, tareasDe, htmlTareas, repetidas, leerPauta, htmlPauta, siguienteDosis, textoPauta };
+  // =====================================================================
+  // RESULTADOS Y COMPARAR (lo usan todas las granjas)
+  // Cada granja da sus «fuentes» (filas de datos con fecha) y su catálogo:
+  //   medidas: { id, nombre, unidad, fuente, tipo, valor(fila) | num(fila)+den(fila), desc, dec }
+  //     tipo: 'cuenta' (filas con valor ≠ null) · 'media' · 'pct' (media de 0/1 × 100) · 'ratio' (100 × Σnum / Σden)
+  //   grupos:  { id, nombre, clave(fila) → { k, etq, orden } | null }
+  // =====================================================================
+  const POCOS = 5; // con menos datos, la cifra es poco fiable
+  const MESES_C = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
+  const GRUPOS_FECHA = [
+    { id: 'todo', nombre: 'Todo junto', clave: () => ({ k: 'todo', etq: 'Total', orden: 0 }) },
+    { id: 'mes', nombre: 'Mes', clave: (f) => (f.fecha ? { k: f.fecha.slice(0, 7), etq: `${MESES_C[+f.fecha.slice(5, 7) - 1]} ${f.fecha.slice(2, 4)}`, orden: f.fecha.slice(0, 7) } : null) },
+    { id: 'trimestre', nombre: 'Trimestre', clave: (f) => { if (!f.fecha) return null; const t = Math.ceil(+f.fecha.slice(5, 7) / 3); return { k: `${f.fecha.slice(0, 4)}T${t}`, etq: `${t}.º trim. ${f.fecha.slice(0, 4)}`, orden: `${f.fecha.slice(0, 4)}${t}` }; } },
+    { id: 'anio', nombre: 'Año', clave: (f) => (f.fecha ? { k: f.fecha.slice(0, 4), etq: f.fecha.slice(0, 4), orden: f.fecha.slice(0, 4) } : null) },
+  ];
+  function calcular(fuentes, medidas, grupo, desde, hasta) {
+    const enFechas = (f) => (!desde || (f.fecha && f.fecha >= desde)) && (!hasta || (f.fecha && f.fecha <= hasta));
+    const filas = {}; for (const [k, l] of Object.entries(fuentes)) filas[k] = (l || []).filter(enFechas);
+    const gr = {};
+    for (const m of medidas) {
+      for (const f of filas[m.fuente] || []) {
+        const c = grupo.clave(f); if (!c) continue;
+        const g = (gr[c.k] = gr[c.k] || { k: c.k, etq: c.etq, orden: c.orden, acc: {} });
+        const a = (g.acc[m.id] = g.acc[m.id] || { s: 0, n: 0, num: 0, den: 0 });
+        if (m.tipo === 'ratio') { const nu = m.num(f), de = m.den(f); if (nu == null || de == null || !(de > 0)) continue; a.num += nu; a.den += de; a.n += 1; continue; }
+        const v = m.valor(f); if (v == null || Number.isNaN(v)) continue; a.s += v; a.n += 1;
+      }
+    }
+    const lista = Object.values(gr).sort((x, y) => (typeof x.orden === 'number' && typeof y.orden === 'number' ? x.orden - y.orden : String(x.orden).localeCompare(String(y.orden), 'es', { numeric: true })));
+    for (const g of lista) {
+      g.vals = {};
+      for (const m of medidas) {
+        const a = g.acc[m.id]; if (!a || !a.n) { g.vals[m.id] = { v: null, n: 0 }; continue; }
+        const v = m.tipo === 'cuenta' ? a.n : m.tipo === 'suma' ? a.s : m.tipo === 'media' ? a.s / a.n : m.tipo === 'pct' ? (100 * a.s) / a.n : (100 * a.num) / a.den;
+        g.vals[m.id] = { v, n: a.n };
+      }
+    }
+    return lista.filter((g) => medidas.some((m) => g.vals[m.id].n));
+  }
+  const fmtNum = (v, m) => (v == null ? '—' : `${(m.tipo === 'cuenta' || m.tipo === 'suma' ? Math.round(v) : v.toFixed(m.dec ?? 1)).toString().replace('.', ',')}${m.tipo === 'pct' || m.tipo === 'ratio' ? ' %' : ''}`);
+  // Un recuento no es «poco fiable» por ser pequeño; una media o un % con pocos datos, sí
+  const poca = (m, n) => n > 0 && n < POCOS && !['cuenta', 'suma'].includes(m.tipo);
+  // Gráfica de barras horizontales en SVG (se lee bien en el móvil)
+  function svgBarras(lista, m, esc) {
+    const items = lista.filter((g) => g.vals[m.id].v != null);
+    if (!items.length) return '<div class="suave peq">Sin datos.</div>';
+    const max = Math.max(...items.map((g) => g.vals[m.id].v), m.tipo === 'pct' || m.tipo === 'ratio' ? 100 : 0) || 1;
+    const fila = 26, izq = 86, ancho = 200, h = items.length * fila + 6;
+    return `<svg class="grafica" viewBox="0 0 ${izq + ancho + 64} ${h}" role="img" aria-label="${esc(m.nombre)}">${items.map((g, i) => {
+      const { v, n } = g.vals[m.id]; const w = Math.max(2, (v / max) * ancho); const y = i * fila + 3;
+      return `<text x="${izq - 6}" y="${y + 16}" text-anchor="end" class="g-etq">${esc(String(g.etq).slice(0, 12))}</text>
+        <rect x="${izq}" y="${y + 3}" width="${w}" height="${fila - 8}" rx="3" class="${poca(m, n) ? 'g-poca' : 'g-barra'}"/>
+        <text x="${izq + w + 5}" y="${y + 16}" class="g-val">${esc(fmtNum(v, m))}${poca(m, n) ? '*' : ''}</text>`; }).join('')}</svg>`;
+  }
+  function htmlTabla(lista, medidas, grupo, esc) {
+    return `<div class="tabla-scroll"><table class="tabla"><thead><tr><th>${esc(grupo.nombre)}</th>${medidas.map((m) => `<th>${esc(m.nombre)}${m.unidad ? ` <span class="suave">(${esc(m.unidad)})</span>` : ''}</th>`).join('')}</tr></thead><tbody>
+      ${lista.map((g) => `<tr><th>${esc(g.etq)}</th>${medidas.map((m) => { const { v, n } = g.vals[m.id]; return `<td class="${poca(m, n) ? 'suave' : ''}">${fmtNum(v, m)}${poca(m, n) ? '*' : ''}${n && !['cuenta', 'suma'].includes(m.tipo) ? ` <span class="suave peq">n=${n}</span>` : ''}</td>`; }).join('')}</tr>`).join('')}
+      </tbody></table></div>`;
+  }
+  // Texto para pegar en una IA (Claude): contexto, cómo se calcula cada cosa y la tabla
+  function textoIA(o) {
+    const f = (d) => (d ? d.split('-').reverse().join('/') : '…');
+    const lineas = [`Datos de ${o.granja}, ${o.desde ? `del ${f(o.desde)} al` : 'desde el primer registro hasta el'} ${o.hasta ? f(o.hasta) : 'día de hoy'}. Agrupado por: ${o.grupo.nombre}.`, '', 'Qué significa cada columna:',
+      ...o.medidas.map((m) => `- ${m.nombre}${m.unidad ? ` (${m.unidad})` : ''}: ${m.desc}`), '- n: número de datos con los que se calcula cada cifra. En medias y porcentajes, con n < 5 la cifra es poco fiable.', '',
+      `| ${o.grupo.nombre} | ${o.medidas.map((m) => `${m.nombre} | n`).join(' | ')} |`, `|${' --- |'.repeat(1 + 2 * o.medidas.length)}`,
+      ...o.lista.map((g) => `| ${g.etq} | ${o.medidas.map((m) => `${fmtNum(g.vals[m.id].v, m)} | ${g.vals[m.id].n}`).join(' | ')} |`)];
+    if (o.filas && o.filas.length) {
+      const cols = Object.keys(o.filas[0]);
+      lineas.push('', 'Datos uno a uno:', `| ${cols.join(' | ')} |`, `|${' --- |'.repeat(cols.length)}`, ...o.filas.map((r) => `| ${cols.map((c) => (r[c] ?? '')).join(' | ')} |`));
+    }
+    lineas.push('', 'Analiza estos datos: qué diferencias son importantes, cuáles pueden deberse al azar por tener pocos datos y qué recomendarías revisar en el manejo.');
+    return lineas.join('\n');
+  }
+
+  // ---- Pantallas de Resultados y Comparar (comunes). cat: catálogo de la granja; st: estado (fechas, elección)
+  const filtrosFechas = (st, esc) => `<div class="dos"><div class="campo"><label for="an-desde">Desde</label><input id="an-desde" type="date" value="${esc(st.desde || '')}"></div>
+    <div class="campo"><label for="an-hasta">Hasta</label><input id="an-hasta" type="date" value="${esc(st.hasta || '')}"></div></div>
+    <div class="opciones peq">${[['12', 'Último año'], ['6', '6 meses'], ['24', '2 años'], ['0', 'Todo']].map(([k, t]) => `<button type="button" class="chip" data-an-rango="${k}">${t}</button>`).join('')}</div>`;
+  const grupoDe = (cat, id) => cat.grupos.find((g) => g.id === id) || cat.grupos[0];
+  const medidaDe = (cat, id) => cat.medidas.find((m) => m.id === id);
+  function htmlResultados(cat, st, esc) {
+    const todo = grupoDe(cat, 'todo');
+    const kp = cat.kpis.map((id) => medidaDe(cat, id)).filter(Boolean);
+    const tot = calcular(cat.fuentes, kp, todo, st.desde, st.hasta)[0];
+    return `${filtrosFechas(st, esc)}
+      <div class="totales an-kpis">${kp.map((m) => { const x = tot ? tot.vals[m.id] : { v: null, n: 0 }; return `<div class="dato"><span class="et">${esc(m.nombre)}</span><span class="val">${fmtNum(x.v, m)}${m.unidad && !['%'].includes(m.unidad) && m.tipo !== 'pct' ? ` <span class="peq">${esc(m.unidad)}</span>` : ''}</span>${['cuenta', 'suma'].includes(m.tipo) ? '' : `<span class="suave peq">n=${x.n}${poca(m, x.n) ? ' · poco fiable' : ''}</span>`}</div>`; }).join('')}</div>
+      <a class="btn" href="${cat.hrefComparar}">Comparar y analizar con IA</a>
+      ${cat.graficas.map((gx) => { const m = medidaDe(cat, gx.medida), g = grupoDe(cat, gx.grupo); const l = calcular(cat.fuentes, [m], g, st.desde, st.hasta);
+        return `<section class="tarjeta"><h2>${esc(gx.titulo)}</h2>${svgBarras(l, m, esc)}<div class="suave peq">${esc(m.desc)}</div></section>`; }).join('')}
+      <div class="suave peq">* Media o porcentaje con menos de ${POCOS} datos: la cifra es poco fiable. «n» es el número de datos con los que se calcula.</div>`;
+  }
+  function htmlComparar(cat, st, esc) {
+    const sel = (st.medidas || []).map((id) => medidaDe(cat, id)).filter(Boolean);
+    const g = grupoDe(cat, st.grupo);
+    const lista = sel.length ? calcular(cat.fuentes, sel, g, st.desde, st.hasta) : [];
+    const porFuente = {}; for (const m of cat.medidas) (porFuente[m.fuente] = porFuente[m.fuente] || []).push(m);
+    return `${filtrosFechas(st, esc)}
+      <details class="tarjeta" ${sel.length ? '' : 'open'}><summary style="min-height:44px;display:flex;align-items:center;font-weight:700">Qué comparar (${sel.length})</summary>
+        ${Object.entries(porFuente).map(([f, ms]) => `<h3 class="peq" style="margin:8px 0 2px">${esc(cat.nombresFuente[f] || f)}</h3>${ms.map((m) => `<label class="check-todos"><input type="checkbox" data-an-medida="${m.id}" ${sel.includes(m) ? 'checked' : ''}> ${esc(m.nombre)}</label>`).join('')}`).join('')}</details>
+      <div class="campo"><label for="an-grupo">Agrupar por</label><select id="an-grupo">${cat.grupos.map((x) => `<option value="${x.id}" ${x === g ? 'selected' : ''}>${esc(x.nombre)}</option>`).join('')}</select></div>
+      ${sel.length ? `<section class="tarjeta"><h2>Tabla</h2>${lista.length ? htmlTabla(lista, sel, g, esc) : '<div class="suave">No hay datos en estas fechas.</div>'}</section>
+        <div class="botones"><button class="btn" type="button" id="an-copiar">Copiar para analizar con IA</button><button class="btn sec" type="button" id="an-excel">Descargar Excel</button></div>
+        <div class="suave peq">«Copiar» pone en el portapapeles la tabla, lo que significa cada columna y los datos uno a uno, listos para pegar en Claude. No incluye nombres de alumnos.</div>
+        <div id="an-texto"></div>
+        ${sel.map((m) => `<section class="tarjeta"><h2>${esc(m.nombre)}${m.unidad ? ` <span class="suave">(${esc(m.unidad)})</span>` : ''}</h2>${svgBarras(lista, m, esc)}<div class="suave peq">${esc(m.desc)}</div></section>`).join('')}
+        <div class="suave peq">* Media o porcentaje con menos de ${POCOS} datos: la cifra es poco fiable.</div>`
+      : '<div class="vacio">Marca arriba lo que quieres comparar.</div>'}`;
+  }
+  // Eventos de las dos pantallas. o: { repintar(), toast(t), cargarXLSX() }
+  function enlazarAnalisis(raiz, cat, st, o) {
+    const q = (s) => raiz.querySelector(s);
+    const hoyIso = new Date(Date.now() - new Date().getTimezoneOffset() * 6e4).toISOString().slice(0, 10);
+    raiz.querySelectorAll('[data-an-rango]').forEach((b) => b.addEventListener('click', () => {
+      const m = +b.dataset.anRango; st.hasta = hoyIso;
+      if (!m) st.desde = ''; else { const d = new Date(); d.setMonth(d.getMonth() - m); st.desde = d.toISOString().slice(0, 10); }
+      o.repintar();
+    }));
+    ['desde', 'hasta'].forEach((k) => { const i = q(`#an-${k}`); if (i) i.addEventListener('change', () => { st[k] = i.value; o.repintar(); }); });
+    raiz.querySelectorAll('[data-an-medida]').forEach((c) => c.addEventListener('change', () => {
+      st.medidas = (st.medidas || []).filter((x) => x !== c.dataset.anMedida); if (c.checked) st.medidas.push(c.dataset.anMedida); o.repintar();
+      const d = raiz.querySelector('details'); if (d) d.open = true;
+    }));
+    const gs = q('#an-grupo'); if (gs) gs.addEventListener('change', () => { st.grupo = gs.value; o.repintar(); });
+    const datosActuales = () => {
+      const sel = st.medidas.map((id) => medidaDe(cat, id)).filter(Boolean); const g = grupoDe(cat, st.grupo);
+      const lista = calcular(cat.fuentes, sel, g, st.desde, st.hasta);
+      const fuentes = [...new Set(sel.map((m) => m.fuente))];
+      const enF = (f) => (!st.desde || (f.fecha && f.fecha >= st.desde)) && (!st.hasta || (f.fecha && f.fecha <= st.hasta));
+      const brutos = fuentes.map((f) => ({ f, filas: (cat.fuentes[f] || []).filter(enF).map((r) => cat.legible(f, r)) }));
+      return { sel, g, lista, brutos };
+    };
+    const bc = q('#an-copiar');
+    if (bc) bc.addEventListener('click', async () => {
+      const { sel, g, lista, brutos } = datosActuales();
+      const texto = textoIA({ granja: cat.granja, desde: st.desde, hasta: st.hasta, grupo: g, medidas: sel, lista, filas: brutos.length === 1 ? brutos[0].filas : null })
+        + (brutos.length > 1 ? `\n\n${brutos.map((b) => { const c = b.filas.length ? Object.keys(b.filas[0]) : []; return `${cat.nombresFuente[b.f]} (uno a uno):\n| ${c.join(' | ')} |\n|${' --- |'.repeat(c.length)}\n${b.filas.map((r) => `| ${c.map((k) => r[k] ?? '').join(' | ')} |`).join('\n')}`; }).join('\n\n')}` : '');
+      try { await navigator.clipboard.writeText(texto); o.toast('Copiado: pégalo en Claude y pide el análisis'); }
+      catch (_) { q('#an-texto').innerHTML = `<div class="campo"><label for="an-ta">Selecciona todo y cópialo</label><textarea id="an-ta" rows="8" readonly>${texto.replace(/</g, '&lt;')}</textarea></div>`; q('#an-ta').select(); }
+    });
+    const be = q('#an-excel');
+    if (be) be.addEventListener('click', async () => {
+      be.disabled = true;
+      try {
+        await o.cargarXLSX(); const X = window.XLSX; const libro = X.utils.book_new();
+        const { sel, g, lista, brutos } = datosActuales();
+        const resumen = lista.map((x) => { const r = { [g.nombre]: x.etq }; for (const m of sel) { const v = x.vals[m.id]; r[m.nombre] = v.v == null ? '' : Math.round(v.v * 100) / 100; r[`${m.nombre} (n)`] = v.n; } return r; });
+        X.utils.book_append_sheet(libro, X.utils.json_to_sheet(resumen.length ? resumen : [{}]), 'Resumen');
+        X.utils.book_append_sheet(libro, X.utils.json_to_sheet(sel.map((m) => ({ Medida: m.nombre, Unidad: m.unidad || '', 'Cómo se calcula': m.desc }))), 'Qué es cada columna');
+        for (const b of brutos) X.utils.book_append_sheet(libro, X.utils.json_to_sheet(b.filas.length ? b.filas : [{}]), String(cat.nombresFuente[b.f] || b.f).slice(0, 30));
+        X.writeFile(libro, `${cat.archivo}-${hoyIso}.xlsx`);
+      } catch (e) { o.toast('No se pudo crear el Excel'); }
+      be.disabled = false;
+    });
+  }
+
+  const api = { PROTOCOLOS, NOMBRE_CADA, periodo, tareasDe, htmlTareas, repetidas, leerPauta, htmlPauta, siguienteDosis, textoPauta, POCOS, GRUPOS_FECHA, calcular, fmtNum, svgBarras, htmlTabla, textoIA, htmlResultados, htmlComparar, enlazarAnalisis };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else raiz.Comun = api;
 })(typeof window !== 'undefined' ? window : globalThis);

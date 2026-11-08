@@ -1083,11 +1083,78 @@
     pintar(`${cabecera()}
       <main class="cuerpo">${faltaSQLCaja()}${faltaSQL2Caja()}
         <h1 style="font-size:22px">Reproducción</h1>
+        <div class="botones"><a class="btn" href="#/resultados">Resultados y gráficas</a><a class="btn sec" href="#/comparar">Comparar</a></div>
         <div class="pestanas">${pest.map(([k, x]) => `<a href="#/reproduccion/${k}" class="${tab === k ? 'activo' : ''}">${x}</a>`).join('')}</div>
         ${cuerpo}
       </main>${navegacion('repro')}`);
     $app.querySelectorAll('[data-esp]').forEach((x) => x.addEventListener('click', () => { S.borrador.espRepro = x.dataset.esp; vistaRepro(tab); }));
     const fa = document.getElementById('f-anio'); if (fa) fa.addEventListener('change', () => { S.borrador.anioParidera = fa.value; vistaRepro(tab); });
+  }
+
+  // ---------------------------------------------------------------- resultados y comparar (motor común en comun.js)
+  function catalogoAnalisis() {
+    const nomLote = (id) => { const l = S.lotes.find((x) => x.id === id); return l ? l.nombre : null; };
+    const machosLote = (id) => { const l = S.lotes.find((x) => x.id === id); return l && l.machos.length ? l.machos.map((m) => nombreA(animal(m))).join(' + ') : null; };
+    const espN = (a) => (a && L.ESPECIES[a.especie] ? L.ESPECIES[a.especie].nombre : null);
+    const evs = S.eventos.slice().sort(L.porFecha);
+    const nPartos = {}, partosDe = {};
+    const partos = [];
+    for (const e of evs.filter((x) => x.tipo === 'parto')) {
+      const m = animal(e.animal_id); const d = e.datos || {}; nPartos[e.animal_id] = (nPartos[e.animal_id] || 0) + 1;
+      (partosDe[e.animal_id] = partosDe[e.animal_id] || []).push(e.fecha);
+      const viv = +d.vivas || 0, mu = +d.muertas || 0;
+      partos.push({ fecha: e.fecha, especie: espN(m), madre: nombreA(m), lote: nomLote(d.lote), macho: machosLote(d.lote), numParto: nPartos[e.animal_id],
+        vivas: viv, muertas: mu, total: viv + mu, tipo: TIPO_PARTO[d.tipo || 'normal'] || d.tipo, dificil: ['asistido', 'distocico'].includes(d.tipo) ? 1 : 0 });
+    }
+    const ecos = evs.filter((x) => x.tipo === 'eco' && ['gestante', 'vacia'].includes((x.datos || {}).resultado)).map((e) => { const m = animal(e.animal_id); const d = e.datos;
+      return { fecha: e.fecha, especie: espN(m), madre: nombreA(m), lote: nomLote(d.lote), macho: machosLote(d.lote), gestante: d.resultado === 'gestante' ? 1 : 0, fetos: d.resultado === 'gestante' && d.fetos ? +d.fetos : null }; });
+    const lechero = evs.filter((x) => x.tipo === 'lechero' && x.datos && x.datos.litros != null).map((e) => { const m = animal(e.animal_id);
+      const pp = (partosDe[e.animal_id] || []).filter((f) => f <= e.fecha).pop(); const dl = pp ? L.dias(pp, e.fecha) : null;
+      return { fecha: e.fecha, especie: espN(m), madre: nombreA(m), litros: +e.datos.litros, diasLact: dl }; });
+    const condicion = evs.filter((x) => x.tipo === 'condicion' && x.datos && x.datos.cc != null).map((e) => { const m = animal(e.animal_id); return { fecha: e.fecha, especie: espN(m), madre: nombreA(m), cc: +e.datos.cc, famacha: e.datos.famacha != null ? +e.datos.famacha : null }; });
+    const crias = S.animales.filter((a) => a.peso_nacimiento && a.fecha_nacimiento).map((a) => ({ fecha: a.fecha_nacimiento, especie: espN(a), madre: a.madre_id ? nombreA(animal(a.madre_id)) : (a.madre_txt || null), cria: nombreA(a), sexo: a.sexo || null, peso: +a.peso_nacimiento }));
+    const num = (k) => (f) => (f[k] == null ? null : +f[k]);
+    const medidas = [
+      { id: 'partos', fuente: 'partos', nombre: 'Partos', tipo: 'cuenta', valor: () => 1, desc: 'Número de partos registrados.' },
+      { id: 'prolif', fuente: 'partos', nombre: 'Prolificidad', unidad: 'crías por parto', tipo: 'media', dec: 2, valor: num('total'), desc: 'Crías nacidas (vivas + muertas) por parto.' },
+      { id: 'vivas', fuente: 'partos', nombre: 'Nacidas vivas', unidad: 'por parto', tipo: 'media', dec: 2, valor: num('vivas'), desc: 'Media de crías nacidas vivas por parto.' },
+      { id: 'vivasTot', fuente: 'partos', nombre: 'Nacidas vivas (total)', tipo: 'suma', valor: num('vivas'), desc: 'Suma de todas las crías nacidas vivas.' },
+      { id: 'mortal', fuente: 'partos', nombre: 'Mortalidad al nacer', tipo: 'ratio', num: num('muertas'), den: num('total'), desc: '% de crías nacidas muertas sobre las nacidas.' },
+      { id: 'dificil', fuente: 'partos', nombre: 'Partos asistidos o distócicos', tipo: 'pct', valor: num('dificil'), desc: '% de partos que necesitaron ayuda.' },
+      { id: 'fert', fuente: 'ecos', nombre: 'Fertilidad (ecografía)', tipo: 'pct', valor: num('gestante'), desc: '% de hembras gestantes en la ecografía.' },
+      { id: 'fetos', fuente: 'ecos', nombre: 'Fetos por gestante', tipo: 'media', dec: 2, valor: num('fetos'), desc: 'Fetos de media en las ecografías positivas en las que se contaron.' },
+      { id: 'litros', fuente: 'lechero', nombre: 'Leche por control', unidad: 'litros', tipo: 'media', dec: 2, valor: num('litros'), desc: 'Litros medios por cabra en cada control lechero.' },
+      { id: 'controles', fuente: 'lechero', nombre: 'Controles lecheros', tipo: 'cuenta', valor: () => 1, desc: 'Número de controles lecheros registrados.' },
+      { id: 'peso', fuente: 'crias', nombre: 'Peso al nacer', unidad: 'kg', tipo: 'media', dec: 2, valor: num('peso'), desc: 'Peso medio de las crías al nacer.' },
+      { id: 'cc', fuente: 'condicion', nombre: 'Condición corporal', unidad: '1–5', tipo: 'media', dec: 2, valor: num('cc'), desc: 'Condición corporal media.' },
+      { id: 'famacha', fuente: 'condicion', nombre: 'FAMACHA', unidad: '1–5', tipo: 'media', dec: 2, valor: num('famacha'), desc: 'Puntuación FAMACHA media (más alta = más anemia).' },
+    ];
+    const g = (id, nombre, k) => ({ id, nombre, clave: (f) => (f[k] ? { k: String(f[k]), etq: String(f[k]), orden: String(f[k]) } : null) });
+    const grupos = [Comun.GRUPOS_FECHA[0], g('especie', 'Especie', 'especie'), g('lote', 'Lote de cubrición', 'lote'), g('macho', 'Macho del lote', 'macho'), g('madre', 'Madre', 'madre'),
+      { id: 'numParto', nombre: 'Número de parto', clave: (f) => (f.numParto ? { k: String(Math.min(f.numParto, 6)), etq: f.numParto >= 6 ? '6.º o más' : `${f.numParto}.º`, orden: Math.min(f.numParto, 6) } : null) },
+      { id: 'mesLact', nombre: 'Mes de lactación', clave: (f) => (f.diasLact != null ? { k: String(Math.min(10, Math.floor(f.diasLact / 30) + 1)), etq: f.diasLact >= 270 ? '10.º o más' : `${Math.floor(f.diasLact / 30) + 1}.º mes`, orden: Math.min(10, Math.floor(f.diasLact / 30) + 1) } : null) },
+      g('sexo', 'Sexo de la cría', 'sexo'), ...Comun.GRUPOS_FECHA.slice(1)];
+    const legible = (f, r) => {
+      if (f === 'partos') return { Fecha: r.fecha, Especie: r.especie || '', Madre: r.madre, 'N.º de parto (en la app)': r.numParto, Lote: r.lote || '', Macho: r.macho || '', Vivas: r.vivas, Muertas: r.muertas, 'Tipo de parto': r.tipo || '' };
+      if (f === 'ecos') return { Fecha: r.fecha, Especie: r.especie || '', Hembra: r.madre, Lote: r.lote || '', Macho: r.macho || '', Resultado: r.gestante ? 'gestante' : 'vacía', Fetos: r.fetos ?? '' };
+      if (f === 'lechero') return { Fecha: r.fecha, Cabra: r.madre, Litros: r.litros, 'Días desde el parto': r.diasLact ?? '' };
+      if (f === 'condicion') return { Fecha: r.fecha, Especie: r.especie || '', Animal: r.madre, CC: r.cc, FAMACHA: r.famacha ?? '' };
+      return { Nacimiento: r.fecha, Especie: r.especie || '', Cría: r.cria, Madre: r.madre || '', Sexo: r.sexo || '', 'Peso (kg)': r.peso };
+    };
+    return { granja: 'la granja de rumiantes (cabras y ovejas)', archivo: 'resultados-rumiantes', hrefComparar: '#/comparar', fuentes: { partos, ecos, lechero, crias, condicion }, medidas, grupos, legible,
+      nombresFuente: { partos: 'Partos', ecos: 'Ecografías', lechero: 'Control lechero', crias: 'Crías al nacer', condicion: 'Condición corporal' },
+      kpis: ['partos', 'prolif', 'mortal', 'fert', 'litros', 'peso'],
+      graficas: [{ titulo: 'Partos por mes', medida: 'partos', grupo: 'mes' }, { titulo: 'Prolificidad por especie', medida: 'prolif', grupo: 'especie' },
+        { titulo: 'Fertilidad por lote de cubrición', medida: 'fert', grupo: 'lote' }, { titulo: 'Prolificidad por número de parto', medida: 'prolif', grupo: 'numParto' },
+        { titulo: 'Curva de lactación (litros por mes de lactación)', medida: 'litros', grupo: 'mesLact' }, { titulo: 'Peso al nacer por sexo', medida: 'peso', grupo: 'sexo' }] };
+  }
+  function vistaAnalisis(modo) {
+    if (!S.analisis) { const d = new Date(); d.setFullYear(d.getFullYear() - 1); S.analisis = { desde: new Date(d - d.getTimezoneOffset() * 6e4).toISOString().slice(0, 10), hasta: hoy(), medidas: ['partos', 'prolif', 'fert'], grupo: 'especie' }; }
+    const cat = catalogoAnalisis(), st = S.analisis, y = window.scrollY, comp = modo === 'comparar';
+    pintar(`${cabecera({ volver: comp ? '#/resultados' : '#/reproduccion', textoVolver: comp ? 'Resultados' : 'Reproducción', titulo: comp ? 'Comparar y analizar' : 'Resultados de la granja' })}
+      <main class="cuerpo" id="analisis">${comp ? Comun.htmlComparar(cat, st, esc) : Comun.htmlResultados(cat, st, esc)}</main>${navegacion('repro')}`);
+    window.scrollTo(0, y);
+    Comun.enlazarAnalisis(document.getElementById('analisis'), cat, st, { repintar: () => vistaAnalisis(modo), toast, cargarXLSX });
   }
 
   function vistaLote(id) {
@@ -2445,6 +2512,8 @@
       case 'editar': return vistaFormAnimal(a);
       case 'censo': return vistaCenso();
       case 'reproduccion': return vistaRepro(a || 'lotes');
+      case 'resultados': return vistaAnalisis('resultados');
+      case 'comparar': return vistaAnalisis('comparar');
       case 'lote': return a === 'nuevo' ? vistaLoteNuevo() : vistaLote(a);
       case 'sacar': return vistaSacar(a);
       case 'eco': return vistaEco(a, b);

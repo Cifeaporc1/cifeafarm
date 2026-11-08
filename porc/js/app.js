@@ -373,6 +373,7 @@
     pintar(`${cabecera()}
       <main class="cuerpo">
         <h1 style="font-size:22px">Reproducción</h1>
+        <div class="botones"><a class="btn" href="#/resultados">Resultados y gráficas</a><a class="btn sec" href="#/comparar">Comparar</a></div>
         <div class="opciones">${L.FASES.map((f) => `<span class="chip ${cer.some((x) => x.e.fase === f.id) ? '' : 'gris'}">${f.nombre}: ${cer.filter((x) => x.e.fase === f.id).length}</span>`).join('')}</div>
         <section class="tarjeta"><h2>Dosis de semen disponibles</h2>
           ${dosis.length ? dosis.map(({ x, e }) => `<a class="cerda-fila" href="#/verraco/${x.verraco_id}"><div><strong>${esc((verracoPorId(x.verraco_id) || {}).crotal || '?')}</strong><div class="suave">Extracción del ${corta(x.fecha)} · día ${e.dia} · válida hasta el día ${L.REF.dosisCaduca}</div></div><span class="chip ${e.estado === 'usar' ? 'nar' : ''}">${e.restantes} dosis</span></a>`).join('')
@@ -381,6 +382,82 @@
         <h2 style="font-size:18px">Rueda de gestación</h2>
         ${grupos.map(([t, l, det]) => `<section class="tarjeta"><h2>${t} (${l.length})</h2>${l.map((x) => fila(x, det(x))).join('') || '<div class="suave">Ninguna.</div>'}</section>`).join('')}
       </main>${navegacion('reproduccion')}`);
+  }
+
+  // ---------------------------------------------------------------- resultados y comparar (motor común en comun.js)
+  function catalogoAnalisis() {
+    const crotV = (id) => (id ? ((verracoPorId(id) || {}).crotal || String(id)) : null);
+    const ciclos = [], partos = [];
+    for (const c of S.cerdas) {
+      let previos = 0;
+      for (const ci of estadoDe(c.id).ciclos) {
+        const cm = L.camada(ci), ix = L.indicesCiclo(ci);
+        const base = { cerda: c.crotal, verraco: ci.ia ? crotV(ci.ia.datos && ci.ia.datos.verraco) : null, numParto: previos + 1 };
+        if (ci.ia) {
+          const ecos = ci.ecos.filter((e) => ['positiva', 'negativa'].includes((e.datos || {}).resultado));
+          const ue = ecos[ecos.length - 1];
+          ciclos.push({ ...base, fecha: ci.ia.fecha, eco: ue ? (ue.datos.resultado === 'positiva' ? 1 : 0) : null,
+            parto: ci.parto ? 1 : ci.cierre ? 0 : null, cierre: ci.parto ? 'parto' : ci.cierre === 'aborto' ? 'aborto' : ci.cierre ? 'repetición o vacía' : 'en curso', idc: ix.idc ?? null });
+        }
+        if (ci.parto) {
+          partos.push({ ...base, fecha: ci.parto.fecha, vivos: cm.vivos, muertos: cm.muertos, momias: cm.momias, totales: cm.totales,
+            destetados: cm.destetados, bajasNum: cm.bajasCalculadas, bajasDen: ci.destete ? cm.vivos + cm.entran - cm.salen : null,
+            gest: ix.gestacion ?? null, lact: ix.lactacion ?? null });
+          previos += 1;
+        }
+      }
+    }
+    const extracciones = S.extracciones.map((x) => ({ fecha: x.fecha, verraco: crotV(x.verraco_id), volumen: x.volumen, motilidad: x.motilidad, dosis: x.n_dosis }));
+    const num = (k) => (f) => (f[k] == null || f[k] === '' ? null : +f[k]);
+    const medidas = [
+      { id: 'ia', fuente: 'ciclos', nombre: 'Inseminaciones', tipo: 'cuenta', valor: () => 1, desc: 'Número de cerdas inseminadas (cada ciclo con IA cuenta una vez).' },
+      { id: 'fert', fuente: 'ciclos', nombre: 'Ecografías positivas', tipo: 'pct', valor: num('eco'), desc: '% de ecografías positivas sobre las IA con ecografía positiva o negativa (las dudosas no cuentan).' },
+      { id: 'tasaPartos', fuente: 'ciclos', nombre: 'Tasa de partos', tipo: 'pct', valor: num('parto'), desc: '% de IA que acaban en parto. Solo cuenta los ciclos ya cerrados (parto, aborto, repetición o ecografía negativa).' },
+      { id: 'idc', fuente: 'ciclos', nombre: 'Destete a cubrición', unidad: 'días', tipo: 'media', valor: num('idc'), desc: 'Días medios entre el destete anterior y la IA.' },
+      { id: 'partos', fuente: 'partos', nombre: 'Partos', tipo: 'cuenta', valor: () => 1, desc: 'Número de partos (por la fecha del parto).' },
+      { id: 'vivos', fuente: 'partos', nombre: 'Nacidos vivos', unidad: 'por parto', tipo: 'media', valor: num('vivos'), desc: 'Media de lechones nacidos vivos por parto.' },
+      { id: 'muertos', fuente: 'partos', nombre: 'Nacidos muertos', unidad: 'por parto', tipo: 'media', valor: num('muertos'), desc: 'Media de nacidos muertos por parto.' },
+      { id: 'momias', fuente: 'partos', nombre: 'Momificados', unidad: 'por parto', tipo: 'media', valor: num('momias'), desc: 'Media de momificados por parto.' },
+      { id: 'totales', fuente: 'partos', nombre: 'Nacidos totales', unidad: 'por parto', tipo: 'media', valor: num('totales'), desc: 'Vivos + muertos + momificados, de media por parto.' },
+      { id: 'vivosTot', fuente: 'partos', nombre: 'Nacidos vivos (total)', tipo: 'suma', valor: num('vivos'), desc: 'Suma de todos los lechones nacidos vivos.' },
+      { id: 'destetados', fuente: 'partos', nombre: 'Destetados', unidad: 'por camada', tipo: 'media', valor: num('destetados'), desc: 'Media de lechones destetados por camada (solo camadas ya destetadas).' },
+      { id: 'bajasLact', fuente: 'partos', nombre: 'Bajas en lactación', tipo: 'ratio', num: num('bajasNum'), den: num('bajasDen'), desc: '% de lechones que se pierden entre el parto y el destete (vivos ± adopciones − destetados), solo camadas destetadas.' },
+      { id: 'gest', fuente: 'partos', nombre: 'Duración de la gestación', unidad: 'días', tipo: 'media', valor: num('gest'), desc: 'Días medios entre la IA y el parto.' },
+      { id: 'lact', fuente: 'partos', nombre: 'Duración de la lactación', unidad: 'días', tipo: 'media', valor: num('lact'), desc: 'Días medios entre el parto y el destete.' },
+      { id: 'extr', fuente: 'extracciones', nombre: 'Extracciones', tipo: 'cuenta', valor: () => 1, desc: 'Número de extracciones de semen.' },
+      { id: 'volumen', fuente: 'extracciones', nombre: 'Volumen del eyaculado', unidad: 'c.c.', tipo: 'media', valor: num('volumen'), desc: 'Volumen medio del eyaculado.' },
+      { id: 'motilidad', fuente: 'extracciones', nombre: 'Motilidad', unidad: '%', tipo: 'media', valor: num('motilidad'), desc: 'Motilidad media del semen.' },
+      { id: 'dosis', fuente: 'extracciones', nombre: 'Dosis por extracción', tipo: 'media', valor: num('dosis'), desc: 'Dosis medias obtenidas en cada extracción.' },
+    ];
+    const grupos = [Comun.GRUPOS_FECHA[0],
+      { id: 'verraco', nombre: 'Verraco', clave: (f) => (f.verraco ? { k: f.verraco, etq: f.verraco, orden: f.verraco } : null) },
+      { id: 'cerda', nombre: 'Cerda', clave: (f) => (f.cerda ? { k: f.cerda, etq: f.cerda, orden: f.cerda } : null) },
+      { id: 'numParto', nombre: 'Número de parto', clave: (f) => (f.numParto ? { k: String(Math.min(f.numParto, 7)), etq: f.numParto >= 7 ? '7.º o más' : `${f.numParto}.º`, orden: Math.min(f.numParto, 7) } : null) },
+      ...Comun.GRUPOS_FECHA.slice(1)];
+    const si = (v) => (v == null ? '' : v ? 'sí' : 'no');
+    const legible = (f, r) => (f === 'ciclos' ? { 'Fecha IA': r.fecha, Cerda: r.cerda, Verraco: r.verraco || '', 'N.º de parto': r.numParto, 'Ecografía positiva': si(r.eco), Final: r.cierre, 'Días destete-IA': r.idc ?? '' }
+      : f === 'partos' ? { 'Fecha parto': r.fecha, Cerda: r.cerda, Verraco: r.verraco || '', 'N.º de parto': r.numParto, Vivos: r.vivos, Muertos: r.muertos, Momificados: r.momias, Destetados: r.destetados ?? '', 'Bajas lactación': r.bajasNum ?? '', 'Días gestación': r.gest ?? '', 'Días lactación': r.lact ?? '' }
+        : { Fecha: r.fecha, Verraco: r.verraco || '', 'Volumen (c.c.)': r.volumen ?? '', 'Motilidad (%)': r.motilidad ?? '', Dosis: r.dosis ?? '' });
+    return { granja: 'la granja de porcino (chato murciano)', archivo: 'resultados-porcino', hrefComparar: '#/comparar', fuentes: { ciclos, partos, extracciones }, medidas, grupos, legible,
+      nombresFuente: { ciclos: 'Inseminaciones', partos: 'Partos y camadas', extracciones: 'Extracciones de semen' },
+      kpis: ['ia', 'fert', 'tasaPartos', 'partos', 'vivos', 'destetados', 'bajasLact', 'idc'],
+      graficas: [{ titulo: 'Inseminaciones por mes', medida: 'ia', grupo: 'mes' }, { titulo: 'Partos por mes', medida: 'partos', grupo: 'mes' },
+        { titulo: 'Nacidos vivos por número de parto', medida: 'vivos', grupo: 'numParto' }, { titulo: 'Ecografías positivas por verraco', medida: 'fert', grupo: 'verraco' },
+        { titulo: 'Nacidos vivos por verraco', medida: 'vivos', grupo: 'verraco' }, { titulo: 'Volumen del eyaculado por verraco', medida: 'volumen', grupo: 'verraco' }] };
+  }
+  function estadoAnalisis() {
+    if (!S.analisis) { const d = new Date(); d.setFullYear(d.getFullYear() - 1); S.analisis = { desde: L.hoyISO(d), hasta: hoy(), medidas: ['ia', 'fert', 'partos', 'vivos'], grupo: 'verraco' }; }
+    return S.analisis;
+  }
+  function vistaAnalisis(modo) {
+    const cat = catalogoAnalisis(), st = estadoAnalisis(), y = window.scrollY;
+    const comp = modo === 'comparar';
+    pintar(`${cabecera({ volver: comp ? '#/resultados' : '#/reproduccion', textoVolver: comp ? 'Resultados' : 'Reproducción', titulo: comp ? 'Comparar y analizar' : 'Resultados de la granja' })}
+      <main class="cuerpo" id="analisis">
+      ${comp ? Comun.htmlComparar(cat, st, esc) : Comun.htmlResultados(cat, st, esc)}</main>${navegacion('reproduccion')}`);
+    window.scrollTo(0, y);
+    Comun.enlazarAnalisis(document.getElementById('analisis'), cat, st, { repintar: () => vistaAnalisis(modo), toast,
+      cargarXLSX: () => (window.XLSX ? Promise.resolve() : cargarScript('https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js')) });
   }
 
   // ---------------------------------------------------------------- copia de seguridad de porcino (desde Gestión o Cuenta de CIFEAFARM)
@@ -1913,6 +1990,8 @@
       case 'inicio': return vistaInicio();
       case 'animales': return vistaAnimales(a || 'cerdas');
       case 'reproduccion': return vistaReproduccion();
+      case 'resultados': return vistaAnalisis('resultados');
+      case 'comparar': return vistaAnalisis('comparar');
       case 'copia': return vistaCopia();
       case 'cerdas': return vistaAnimales('cerdas');
       case 'cerda': return vistaFicha(a);
