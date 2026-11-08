@@ -1583,7 +1583,8 @@
             ${realizado ? `<div class="campo"><span class="et">Resultado</span><div class="opciones">${Object.entries(L.RESULTADOS).map(([k, t]) => `<label><input type="radio" name="resultado" value="${k}" ${(v.resultado || 'pendiente') === k ? 'checked' : ''}> ${t}</label>`).join('')}</div></div>
             <div class="campo"><label for="resultado_nota">Detalle del resultado <span class="suave">(opcional)</span></label><input id="resultado_nota" name="resultado_nota" type="text" value="${esc(v.resultado_nota || '')}" placeholder="Valores, animales positivos, nº de informe…"></div>` : ''}
           </div>
-          <div id="b-prod" ${v.tipo === 'analitica' ? 'hidden' : ''}>
+          <div id="b-esq" class="ok-caja" ${v.tipo === 'esquilado' ? '' : 'hidden'}><strong>Esquilado:</strong> solo ovejas. Lo normal es hacerlo a principios de primavera (marzo o abril), cuando han pasado los fríos y antes del calor. Elige «Una especie → Ovejas» o una corralina; si hay cabras en ella, no se apuntan.</div>
+          <div id="b-prod" ${['analitica', 'esquilado'].includes(v.tipo) ? 'hidden' : ''}>
           <div class="campo"><label for="medicamento_id">Producto del catálogo</label><select id="medicamento_id" name="medicamento_id">${optMed}</select><span class="ayuda" id="clase-med">${(() => { const m = S.medicamentos.find((z) => z.id === v.medicamento_id); return m && (m.clases || []).length ? m.clases.map(L.nombreClase).join(' · ') : ''; })()}</span></div>
           <div id="contra-med">${contraMed(S.medicamentos.find((z) => z.id === v.medicamento_id))}</div>
           <div class="campo"><label for="producto">Nombre del producto</label><input id="producto" name="producto" type="text" value="${esc(v.producto || '')}"></div>
@@ -1607,7 +1608,8 @@
         ${puedeBorrar && modo === 'editar' ? '<button class="btn peligro" type="button" id="b-borrar-san">Borrar este registro</button>' : ''}
       </main>${navegacion('sanidad')}`);
     const f = document.getElementById('f-san');
-    f.tipo.addEventListener('change', () => { const an = f.tipo.value === 'analitica'; document.getElementById('b-ana').hidden = !an; document.getElementById('b-prod').hidden = an; });
+    f.tipo.addEventListener('change', () => { const t = f.tipo.value, an = t === 'analitica'; document.getElementById('b-ana').hidden = !an; document.getElementById('b-prod').hidden = an || t === 'esquilado'; document.getElementById('b-esq').hidden = t !== 'esquilado';
+      if (t === 'esquilado') { f.especie.value = 'ovino'; const ra = f.querySelector('input[name=ambito]:checked'); if (!ra || ra.value === 'granja') { f.querySelector('input[name=ambito][value=especie]').checked = true; } } });
     document.getElementById('medicamento_id').addEventListener('change', (ev) => {
       const m = S.medicamentos.find((x) => x.id === ev.target.value); document.getElementById('contra-med').innerHTML = contraMed(m); document.getElementById('clase-med').textContent = m && (m.clases || []).length ? m.clases.map(L.nombreClase).join(' · ') : ''; if (!m) return;
       f.producto.value = m.nombre; { const esp = (f.especie && f.especie.value) || ((v.animales || []).map(animal).filter(Boolean)[0] || {}).especie || 'caprino'; const d = posologiaDe(m, esp); if (d) f.dosis.value = d; } if (m.via) f.via.value = m.via;
@@ -1632,7 +1634,7 @@
       const an = r.tipo === 'analitica';
       Object.assign(r, { analisis: an ? txt('analisis') : null, muestra: an ? txt('muestra') : null, laboratorio: an ? txt('laboratorio') : null,
         resultado: an && realizado ? x.get('resultado') || 'pendiente' : null, resultado_nota: an && realizado ? txt('resultado_nota') : null });
-      if (an) { Object.assign(r, { medicamento_id: null, producto: null, dosis: null, via: null, duracion_dias: 1, espera_leche: null, espera_carne: null }); if ('lote' in r) { r.lote = null; r.caducidad = null; } }
+      if (an || r.tipo === 'esquilado') { Object.assign(r, { medicamento_id: null, producto: null, dosis: null, via: null, duracion_dias: 1, espera_leche: null, espera_carne: null }); if ('lote' in r) { r.lote = null; r.caducidad = null; } }
       r.corralina_id = r.ambito === 'corralina' ? (num('corralina_id') || null) : null;
       r.especie = r.ambito === 'especie' ? x.get('especie') : null;
       const rep = L.filaRep(num('repetir_n'), x.get('repetir_unidad') || 'dias');
@@ -1642,7 +1644,10 @@
       if (r.ambito === 'corralina' && !r.corralina_id) return msg('Elige la corralina.');
       if (carObl && !r.caracter) return msg('Indica si es obligatorio, recomendado o voluntario.');
       if (an && !r.analisis) return msg('Indica qué se analiza.');
-      if (!r.producto && !['pezunas', 'analitica', 'otro'].includes(r.tipo)) return msg('Escribe o elige el producto.');
+      if (!r.producto && !['pezunas', 'analitica', 'esquilado', 'otro'].includes(r.tipo)) return msg('Escribe o elige el producto.');
+      const esq = r.tipo === 'esquilado';
+      if (esq && (r.ambito === 'granja' || (r.ambito === 'especie' && r.especie !== 'ovino'))) return msg('El esquilado es solo de ovejas: elige «Una especie → Ovejas» o una corralina.');
+      if (esq && r.ambito === 'animales' && (v.animales || []).some((idA) => (animal(idA) || {}).especie !== 'ovino')) return msg('El esquilado es solo de ovejas: quita las cabras de la selección.');
       if (!r.fecha) return msg('Falta la fecha.');
       if (realizado && r.fecha > hoy()) return msg('Lo hecho no puede tener fecha futura: prográmalo.');
       // Animales afectados: al hacerlo, los presentes en ese momento.
@@ -1650,6 +1655,7 @@
       const enFecha = presentesEn(r.fecha);
       const presentes = r.ambito === 'animales' ? (v.animales || []) : r.ambito === 'corralina' ? enFecha.filter((a) => (L.ubicacion(a, S.porAnimal[a.id], r.fecha) || null) === r.corralina_id).map((a) => a.id)
         : r.ambito === 'especie' ? enFecha.filter((a) => a.especie === r.especie).map((a) => a.id) : enFecha.map((a) => a.id);
+      if (esq) { const ovejas = presentes.filter((idA) => (animal(idA) || {}).especie === 'ovino'); presentes.length = 0; presentes.push(...ovejas); }
       if (realizado && (modo !== 'editar' || r.ambito !== fila.ambito || r.corralina_id !== fila.corralina_id || r.especie !== fila.especie)) r.animales = presentes;
       if (!realizado) r.animales = r.ambito === 'animales' ? (v.animales || []) : [];
       if (realizado && !(r.animales || fila.animales || []).length) return msg(r.fecha < hoy() ? 'No había animales en ese destino en esa fecha (según los datos de la app).' : 'No hay animales en ese destino.');
@@ -1659,7 +1665,7 @@
       else if (modo === 'programar') res = await sb.from('rum_sanidad').insert({ ...r, estado: 'previsto', ...rep });
       else if (modo === 'realizar') res = await sb.from('rum_sanidad').update({ ...r, estado: 'realizado', ...rep }).eq('id', id);
       else res = await sb.from('rum_sanidad').update(r).eq('id', id);
-      if (res.error) { b.disabled = false; return msg(/pauta/i.test(res.error.message || '') ? 'Para usar la pauta con varias dosis, ejecuta en Supabase el archivo 13_mejoras_noviembre.sql.' : traducirError(res.error)); }
+      if (res.error) { b.disabled = false; return msg(/pauta/i.test(res.error.message || '') ? 'Para usar la pauta con varias dosis, ejecuta en Supabase el archivo 13_mejoras_noviembre.sql.' : esq && /tipo_check|check constraint/i.test(res.error.message || '') ? 'Para apuntar el esquilado, ejecuta antes en Supabase el archivo 15_esquilado.sql.' : traducirError(res.error)); }
       let pasado = false;
       const proxima = realizado && modo !== 'editar' ? Comun.siguienteDosis(r.fecha, pauta, rep, L.sumarPeriodo) : null;
       if (proxima && proxima.fecha < hoy()) pasado = true;

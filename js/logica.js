@@ -251,7 +251,7 @@
   // =====================================================================
   // V3 · Sanidad
   // =====================================================================
-  const TIPOS_SAN = { vacunacion: 'Vacunación', desparasitacion: 'Desparasitación', tratamiento: 'Tratamiento', vitaminas: 'Vitaminas / minerales', pezunas: 'Arreglo de pezuñas', analitica: 'Control analítico', otro: 'Otro' };
+  const TIPOS_SAN = { vacunacion: 'Vacunación', desparasitacion: 'Desparasitación', tratamiento: 'Tratamiento', vitaminas: 'Vitaminas / minerales', pezunas: 'Arreglo de pezuñas', esquilado: 'Esquilado (ovejas)', analitica: 'Control analítico', otro: 'Otro' };
   // Repetición: cada N días, semanas, meses o años (lo antiguo solo tiene repetir_dias)
   const UNIDADES_REP = { dias: ['día', 'días'], semanas: ['semana', 'semanas'], meses: ['mes', 'meses'], anios: ['año', 'años'] };
   function sumarPeriodo(f, n, u) {

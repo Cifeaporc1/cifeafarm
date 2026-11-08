@@ -134,3 +134,9 @@ No hay que ejecutar nada en Supabase.
 5. Barra gris y asterisco (*): media o porcentaje calculado con menos de 5 datos; no saques conclusiones de esa cifra.
 6. En rumiantes, el «número de parto» solo cuenta los partos apuntados en la app (los anteriores no se conocen).
 
+## 18. Esquilado de las ovejas (0.15.1)
+
+1. Ejecuta una vez en Supabase `sql/15_esquilado.sql` (SQL Editor → New query → Run). Es repetible y no borra datos.
+2. **Sanidad → Registrar lo hecho (o Programar) → Qué: Esquilado (ovejas).** Se marca solo «Una especie → Ovejas». No pide producto. Si eliges una corralina con cabras, solo se apuntan las ovejas.
+3. En Hoy, dentro de los protocolos de ovino, en marzo y abril aparece la tarea anual «Esquilado de las ovejas» (lo normal es a principios de primavera). Al marcarla, ya no vuelve a salir hasta el año siguiente.
+

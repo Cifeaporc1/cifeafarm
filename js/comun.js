@@ -37,7 +37,7 @@
           ['cap-pezunas', 'Recorte de pezuñas a todos los animales', TRIM],
           ['cap-lecheria-fondo', 'Limpieza a fondo de la lechería y de la sala de herraje de caballos', SEMES],
           ['cap-focos', 'Limpieza de focos de luz y hierros de las cuadras (excrementos de moscas)', SEMES],
-          ['cap-desparasitar', 'Desparasitación (julio o agosto, sin lactación para no dejar residuos en la leche)', { meses: [7, 8], clave: 'anio' }],
+          ['cap-desparasitar', 'Desparasitación (julio o agosto, sin lactación para no dejar residuos en la leche)', { meses: [7, 8], clave: 'anio', nombre: 'Una vez al año (julio o agosto)' }],
         ] },
         { nombre: 'Ovino', tareas: [
           ['ovi-revision', 'Revisión de animales y retirada de bajas si las hubiere', 'dia'],
@@ -49,6 +49,7 @@
           ['ovi-superfosfato', 'Espolvoreo de superfosfato en las cuadras (después de retirar el estiércol)', 'mes'],
           ['ovi-insecticida', 'Aplicación de insecticida en cuadras y pasillos', 'mes'],
           ['ovi-pezunas', 'Recorte de pezuñas a todos los animales', TRIM],
+          ['ovi-esquilado', 'Esquilado de las ovejas (lo normal es a principios de primavera, antes del calor). Apúntalo también en Sanidad → Esquilado', { meses: [3, 4], clave: 'anio', nombre: 'Una vez al año (marzo o abril)' }],
           ['ovi-focos', 'Limpieza de focos de luz y hierros de las cuadras (excrementos de moscas)', SEMES],
         ] },
       ],
@@ -73,7 +74,7 @@
     },
   };
   const NOMBRE_CADA = (c) => (c === 'dia' ? 'Cada día' : c === 'quincena' ? 'Cada quincena (días 1 y 15)' : c === 'mes' ? 'Cada mes'
-    : c.clave === 'anio' ? 'Una vez al año (julio o agosto)' : c.meses.length === 4 ? 'Cada trimestre (enero, abril, julio y octubre)' : 'Dos veces al año (marzo y septiembre)');
+    : c.nombre ? c.nombre : c.clave === 'anio' ? 'Una vez al año' : c.meses.length === 4 ? 'Cada trimestre (enero, abril, julio y octubre)' : 'Dos veces al año (marzo y septiembre)');
   // Periodo al que corresponde una tarea en una fecha (o null si ese mes no toca)
   function periodo(cada, f) {
     const ym = f.slice(0, 7), mes = Number(f.slice(5, 7)), dia = Number(f.slice(8, 10));
