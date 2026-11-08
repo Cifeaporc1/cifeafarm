@@ -12,7 +12,22 @@
   // Sin agua, sin aire o sin comida, los animales sufren en horas: urgente por defecto
   const URGENTES = ['agua', 'bebedero', 'comedero', 'ventilacion'];
   const GRANJAS = { rumi: 'Rumiantes', porc: 'Porcino', otra: 'Otras zonas' };
-  const ZONAS_PORC = ['Parideras', 'Gestación', 'Cubrición', 'Transición', 'Cebo', 'Verraqueras', 'Sala de extracción', 'Laboratorio de semen', 'Oficina', 'Almacén', 'Exterior'];
+  // Zonas de la granja de porcino y su numeración, igual que en CIFEAPORC.
+  // nom: lo que sale en la lista; z: cómo empieza el texto; u: qué se numera; nums: números
+  const r1 = (n) => Array.from({ length: n }, (_, i) => i + 1);
+  const ZONAS_PORC = [
+    { nom: 'Parques de vacías', z: 'Parques de vacías', u: 'parque', nums: r1(2) },
+    { nom: 'Sala de implantación', z: 'Sala de implantación', u: 'jaula', nums: r1(10) },
+    { nom: 'Parques de gestación', z: 'Parques de gestación', u: 'parque', nums: r1(4) },
+    ...[1, 2, 3].map((s) => ({ nom: `Sala de partos ${s}`, z: `Sala de partos ${s}`, u: 'paridera', nums: r1(6) })),
+    { nom: 'Verraqueras', z: 'Verraquera', u: '', nums: r1(5) },
+    { nom: 'Lechoneras', z: 'Lechonera', u: '', nums: r1(4) },
+    { nom: 'Cebadero', z: 'Cebadero', u: '', nums: r1(24) },
+    { nom: 'Sala de extracción y laboratorio', z: 'Sala de extracción y laboratorio' },
+    { nom: 'Pasillos y toda la nave', z: 'Pasillos y toda la nave' },
+    { nom: 'Exterior y almacén', z: 'Exterior y almacén' }];
+  // Texto que se guarda: «Sala de implantación · jaula 6», «Lechonera 3», «Nave Cría y Ordeño · corralina 2»
+  const textoZona = (zz, k) => (!zz ? '' : k ? (zz.u ? `${zz.z} · ${zz.u} ${k}` : `${zz.z} ${k}`) : zz.z);
   const PRIORIDAD = { urgente: 'Urgente', normal: 'Normal', baja: 'Puede esperar' };
 
   // ---- Lógica pura (se prueba sin navegador)
@@ -279,29 +294,44 @@
       document.querySelectorAll('[data-g]').forEach((b) => b.addEventListener('click', () => { M.filtroR = b.dataset.g; vistaRoturas(); }));
     }
 
-    function vistaNuevaRotura(granja, articuloId) {
+    function vistaNuevaRotura(granja, articuloId, zonaIni) {
       const a = articuloId ? art(articuloId) : null;
-      const zonas = { rumi: ctx.zonasRumi ? ctx.zonasRumi() : [], porc: ZONAS_PORC, otra: M.almacenes.map((x) => x.nombre) };
+      const zonas = { rumi: ctx.zonasRumi ? ctx.zonasRumi() : [], porc: ZONAS_PORC, otra: M.almacenes.map((x) => ({ nom: x.nombre, z: x.nombre })) };
       const g0 = GRANJAS[granja] ? granja : '';
       pantalla({ volver: '#/roturas', textoVolver: 'Roturas', titulo: 'Avisar de una rotura' }, `<div id="msg"></div>
         <form class="formu" id="f-rot" novalidate>
           <div class="campo"><span class="et">Dónde</span><div class="opciones">${Object.entries(GRANJAS).map(([k, x]) => `<label><input type="radio" name="granja" value="${k}" ${g0 === k ? 'checked' : ''}> ${x}</label>`).join('')}</div></div>
-          <div class="campo"><label for="zona">Zona o sala</label><input id="zona" name="zona" type="text" list="l-zonas" value="${a ? esc(nomAlmacen(a.almacen_id)) : ''}" placeholder="Corralina 3, paridera 2, laboratorio…"><datalist id="l-zonas"></datalist></div>
+          <div class="campo" id="c-zona" hidden><label for="zona-sel">Zona o sala</label><select id="zona-sel"></select></div>
+          <div class="campo" id="c-num" hidden><label for="zona-num" id="l-num">Número</label><select id="zona-num"></select><span class="ayuda">Si afecta a toda la zona (un techo, la ventilación…), deja «Toda la zona».</span></div>
+          <div class="campo" id="c-otra" hidden><label for="zona-otra">Escribe la zona</label><input id="zona-otra" type="text" placeholder="Patio, nave de heno…"></div>
           <div class="campo"><label for="elemento">Qué está roto</label><select id="elemento" name="elemento"><option value="">Elige…</option>${Object.entries(ELEMENTOS).map(([k, x]) => `<option value="${k}" ${a && k === 'otro' ? 'selected' : ''}>${x}</option>`).join('')}</select></div>
-          <div class="campo"><label for="descripcion">Qué le pasa</label><textarea id="descripcion" name="descripcion" rows="3" placeholder="El bebedero de la izquierda gotea, falta una rejilla…">${a ? esc(`${a.nombre}${a.marca ? ` (${a.marca}${a.modelo ? ` ${a.modelo}` : ''})` : ''}: `) : ''}</textarea></div>
+          <div class="campo"><label for="descripcion">Qué le pasa</label><textarea id="descripcion" name="descripcion" rows="3" placeholder="El bebedero gotea, falta una rejilla…">${a ? esc(`${a.nombre}${a.marca ? ` (${a.marca}${a.modelo ? ` ${a.modelo}` : ''})` : ''}: `) : ''}</textarea></div>
           <div class="campo"><span class="et">Prioridad</span><div class="opciones">${Object.entries(PRIORIDAD).map(([k, x]) => `<label><input type="radio" name="prioridad" value="${k}" ${k === 'normal' ? 'checked' : ''}> ${x}</label>`).join('')}</div>
             <span class="ayuda" id="ay-urg">Agua, bebederos, comederos y ventilación se marcan urgentes: sin ellos los animales sufren en pocas horas.</span></div>
           ${campoFotos('fotos-rot', 'Fotos de la rotura')}
           <button class="btn" type="submit">Enviar aviso</button></form>`);
       const f = $('#f-rot');
-      const ponZonas = () => { const g = (f.querySelector('input[name=granja]:checked') || {}).value; $('#l-zonas').innerHTML = (zonas[g] || []).map((z) => `<option value="${esc(z)}">`).join(''); };
+      const granjaSel = () => (f.querySelector('input[name=granja]:checked') || {}).value;
+      const zonaSel = () => { const l = zonas[granjaSel()] || []; const i = $('#zona-sel').value; return i === '' || i === 'otra' ? null : l[+i]; };
+      const ponNum = () => { const zz = zonaSel(); const hay = !!(zz && zz.nums && zz.nums.length);
+        $('#c-num').hidden = !hay; $('#c-otra').hidden = $('#zona-sel').value !== 'otra';
+        if (hay) { $('#l-num').textContent = zz.u ? `${zz.u[0].toUpperCase()}${zz.u.slice(1)}` : 'Número'; $('#zona-num').innerHTML = `<option value="">Toda la zona</option>${zz.nums.map((k) => `<option value="${k}">${esc(zz.u ? `${zz.u} ${k}` : `${zz.z} ${k}`)}</option>`).join('')}`; } };
+      const ponZonas = () => { const l = zonas[granjaSel()]; $('#c-zona').hidden = !l;
+        if (l) $('#zona-sel').innerHTML = `<option value="">Elige…</option>${l.map((zz, i) => `<option value="${i}">${esc(zz.nom)}</option>`).join('')}<option value="otra">Otra (escríbela)</option>`;
+        ponNum(); };
       f.querySelectorAll('input[name=granja]').forEach((r) => r.addEventListener('change', ponZonas)); ponZonas();
+      $('#zona-sel').addEventListener('change', ponNum);
+      // Zona que llega ya elegida (desde el almacén o desde el plano): «Sala de implantación · jaula 6»
+      if (a && !g0) { f.querySelector('input[name=granja][value=otra]').checked = true; ponZonas(); const i = zonas.otra.findIndex((zz) => zz.z === nomAlmacen(a.almacen_id)); if (i >= 0) $('#zona-sel').value = String(i); ponNum(); }
+      if (zonaIni && g0) { const l = zonas[g0] || []; const dec = decodeURIComponent(zonaIni);
+        const i = l.findIndex((zz) => dec === zz.z || dec.startsWith(`${zz.z} `)); if (i >= 0) { $('#zona-sel').value = String(i); ponNum(); const m = /(\d+)$/.exec(dec); if (m && dec !== l[i].z) $('#zona-num').value = m[1]; } }
       f.elemento.addEventListener('change', () => { if (URGENTES.includes(f.elemento.value)) f.querySelector('input[name=prioridad][value=urgente]').checked = true; });
       f.addEventListener('submit', async (ev) => {
         ev.preventDefault(); const x = new FormData(f);
-        const r = { granja: x.get('granja'), zona: String(x.get('zona') || '').trim(), elemento: x.get('elemento'), descripcion: String(x.get('descripcion') || '').trim() || null, prioridad: x.get('prioridad') || 'normal' };
+        const zv = $('#zona-sel').value;
+        const r = { granja: x.get('granja'), zona: zv === 'otra' ? $('#zona-otra').value.trim() : textoZona(zonaSel(), $('#c-num').hidden ? '' : $('#zona-num').value), elemento: x.get('elemento'), descripcion: String(x.get('descripcion') || '').trim() || null, prioridad: x.get('prioridad') || 'normal' };
         if (!r.granja) return msg('Elige dónde está: rumiantes, porcino u otras zonas.');
-        if (!r.zona) return msg('Escribe la zona o sala.');
+        if (!r.zona) return msg(zv === 'otra' ? 'Escribe la zona.' : 'Elige la zona o sala.');
         if (!r.elemento) return msg('Elige qué está roto.');
         const b = f.querySelector('button[type=submit]'); b.disabled = true; b.textContent = 'Enviando…';
         const res = await sb.from('roturas').insert(r).select().single();
@@ -392,7 +422,7 @@
     }
 
     // ================================================================ entrada
-    async function vista(ruta, a, b, c) {
+    async function vista(ruta, a, b, c, d) {
       if (!M.listo) {
         pantalla({ volver: '#/granjas', textoVolver: 'CIFEAFARM', titulo: ruta === 'roturas' ? 'Roturas e instalaciones' : 'Almacenes y herramientas' }, '<div class="ok-caja">Cargando…</div>');
         try { await cargar(); } catch (e) { return pantalla({ volver: '#/granjas', textoVolver: 'CIFEAFARM', titulo: 'Error' }, `<div class="aviso-caja">${esc(traducirError(e))}</div>`); }
@@ -405,7 +435,7 @@
         if (a === 'almacenes') return vistaAlmacenes();
         return vistaLista();
       }
-      if (a === 'nueva') return vistaNuevaRotura(b, c);
+      if (a === 'nueva') return vistaNuevaRotura(b, c && c !== '-' ? c : null, d);
       if (a) return vistaRotura(a);
       return vistaRoturas();
     }

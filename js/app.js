@@ -15,7 +15,10 @@
   const $app = document.getElementById('app');
   let ALM = null; // almacenes y roturas (js/almacen.js), se crea al usarlo
   const alm = () => (ALM = ALM || window.Almacen({ sb, S, esc, fmt, hoy, toast, traducirError, pintar, cabecera, navegacion, esProf, esAdmin, verAlias,
-    zonasRumi: () => S.corralinas.filter((c) => c.activa).sort((x, y) => String(x.nave).localeCompare(String(y.nave)) || x.numero - y.numero).map((c) => `Nave ${c.nave} · corralina ${c.numero}`).concat(['Sala de ordeño', 'Lechería', 'Almacén', 'Exterior']) }));
+    // Zonas de rumiantes: cada nave con sus corralinas numeradas (las que haya en la app) y otras salas
+    zonasRumi: () => [...new Set(S.corralinas.filter((c) => c.activa).map((c) => c.nave))].map((nv) => ({ nom: `Nave ${nv}`, z: `Nave ${nv}`, u: 'corralina',
+      nums: S.corralinas.filter((c) => c.activa && c.nave === nv).map((c) => c.numero).sort((x, y) => x - y) }))
+      .concat(['Sala de ordeño', 'Lechería', 'Pasillos y toda la nave', 'Exterior y almacén'].map((z) => ({ nom: z, z }))) }));
 
   // ---------------------------------------------------------------- utilidades
   const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
@@ -2549,7 +2552,7 @@
       case 'gestion': return vistaGestion(a);
       case 'admin': return vistaAdmin(a);
       case 'cuenta': return vistaCuenta();
-      case 'almacen': case 'roturas': return alm().vista(ruta, a, b, location.hash.split('/')[4]);
+      case 'almacen': case 'roturas': return alm().vista(ruta, a, b, location.hash.split('/')[4], location.hash.split('/')[5]);
       default: return vistaNoEncontrado();
     }
   }
