@@ -140,3 +140,14 @@ No hay que ejecutar nada en Supabase.
 2. **Sanidad → Registrar lo hecho (o Programar) → Qué: Esquilado (ovejas).** Se marca solo «Una especie → Ovejas». No pide producto. Si eliges una corralina con cabras, solo se apuntan las ovejas.
 3. En Hoy, dentro de los protocolos de ovino, en marzo y abril aparece la tarea anual «Esquilado de las ovejas» (lo normal es a principios de primavera). Al marcarla, ya no vuelve a salir hasta el año siguiente.
 
+## 19. Almacenes y roturas (0.16.0)
+
+1. Ejecuta una vez en Supabase `sql/16_almacenes_roturas.sql` (SQL Editor → New query → Run). Es repetible y no borra datos. Crea los 9 almacenes, las tablas y la carpeta privada de fotos «cifeafarm-fotos» (se ve en Supabase → Storage).
+2. **CIFEAFARM → Almacenes y herramientas → Añadir artículo.** Elige si es material fungible (se gasta: pon la cantidad y el mínimo), herramienta o máquina (ficha con marca, modelo, compra, precio, garantía, próxima revisión y fotos). El precio solo lo ves tú.
+3. **Cambiar cantidades:** en la ficha de un fungible, «Entra (+) o sale (−)» o la cantidad que hay ahora. Si baja del mínimo o alguien pulsa «Avisar: queda poco», sale arriba en «Queda poco».
+4. **Fotos del estado de una máquina:** en su ficha, «Añadir fotos» con una nota (por ejemplo «tras la revisión»). Se guardan con la fecha, así se ve cómo ha ido cambiando.
+5. **Almacenes:** con el botón «Almacenes» cambias nombres o añades otros.
+6. **Roturas:** cualquiera pulsa «Avisar de una rotura» (en Hoy de cada granja o en CIFEAFARM → Roturas e instalaciones), elige zona y elemento, describe el problema y hace fotos.
+7. Tú (o el profesorado) abres el aviso y añades el material y las herramientas que hacen falta. Si están en el almacén, la app comprueba sola si hay bastante; lo que hay que comprar se marca «conseguido» cuando llegue. Cuando todo está, pasa sola a **Lista para reparar**. Si no necesita material, pulsa «No necesita material».
+8. Al terminar: «Marcar como reparada», con qué se hizo, fotos de después y, si quieres, descontar del almacén el material gastado.
+

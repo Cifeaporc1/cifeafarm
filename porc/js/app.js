@@ -126,6 +126,7 @@
     const nv = await sb.rpc('nombres_visibles');
     S.nombres = {};
     if (!nv.error && Array.isArray(nv.data)) for (const p of nv.data) S.nombres[p.user_id] = p;
+    { const ro = await sb.from('roturas').select('id,granja,zona,elemento,descripcion,prioridad,estado').in('estado', ['abierta', 'reparacion']); S.roturas = ro.error ? [] : ro.data; }
     S.cargado = new Date();
   }
 
@@ -219,6 +220,7 @@
           <span class="suave">${lista.length + avSan.length + avDosis.length} ${lista.length + avSan.length + avDosis.length === 1 ? 'aviso' : 'avisos'}</span></div>
         ${avisoAdminHoy()}
         ${resumenZonas()}
+        ${window.Almacen ? window.Almacen.htmlHoy(S.roturas, 'porc', '../', esc) : ''}
         ${Comun.htmlTareas('porc', h, S.hechas, { esc, puedeDeshacer: (x) => esProf() || (x.autor === S.sesion.user.id && Date.now() - new Date(x.creado).getTime() < 864e5), quien: (x) => verAlias(x.autor_alias, x.curso) || '?', faltaSQL: S.faltaSQL12 })}
         ${esProf() && !esAdmin() && (!S.ultimaCopia || Date.now() - S.ultimaCopia > 30 * 864e5) ? `<a class="tarjeta enlace" href="#/copia" style="border-color:var(--naranja-borde)"><div class="entre"><strong>Haz una copia de seguridad</strong><span class="chip nar">Profesor</span></div><div class="suave">${S.ultimaCopia ? `La última es del ${fechaHora(S.ultimaCopia)}` : 'Aún no has descargado ninguna desde este dispositivo'} · Gestión → Granja</div></a>` : ''}
         ${tarjetasExtra}${tarjetas || (tarjetasExtra ? '' : '<div class="vacio">No hay avisos para hoy.</div>')}

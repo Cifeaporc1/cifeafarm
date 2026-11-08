@@ -13,6 +13,9 @@
     ultimaCopia: (() => { try { const x = localStorage.getItem('farm-ultima-copia'); return x ? new Date(x) : null; } catch (_) { return null; } })(),
   };
   const $app = document.getElementById('app');
+  let ALM = null; // almacenes y roturas (js/almacen.js), se crea al usarlo
+  const alm = () => (ALM = ALM || window.Almacen({ sb, S, esc, fmt, hoy, toast, traducirError, pintar, cabecera, navegacion, esProf, esAdmin, verAlias,
+    zonasRumi: () => S.corralinas.filter((c) => c.activa).sort((x, y) => String(x.nave).localeCompare(String(y.nave)) || x.numero - y.numero).map((c) => `Nave ${c.nave} · corralina ${c.numero}`).concat(['Sala de ordeño', 'Lechería', 'Almacén', 'Exterior']) }));
 
   // ---------------------------------------------------------------- utilidades
   const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
@@ -138,6 +141,8 @@
     const nv = await sb.rpc('nombres_visibles');
     S.nombres = {};
     if (!nv.error && Array.isArray(nv.data)) for (const p of nv.data) S.nombres[p.user_id] = p;
+    { const ro = await sb.from('roturas').select('id,granja,zona,elemento,descripcion,prioridad,estado').in('estado', ['abierta', 'reparacion']); S.roturas = ro.error ? [] : ro.data; }
+    if (ALM) { ALM.recargar(); S.almPedido = false; }
     S.cargado = new Date();
   }
   async function cargarTodo() { await cargarPerfil(); if (S.perfil) await cargarDatos(); }
@@ -297,11 +302,14 @@
             <div class="suave">Porcino de ciclo cerrado, chato murciano</div></div>${ICONOS.flecha}</a></section>
         <section class="tarjeta"><h2>Común a todas las granjas</h2>
           ${esProf() ? tarjetaComun('#/gestion', ICONOS.gestion, 'Gestión', `Importar censo, copias de seguridad${esAdmin() ? ', personas y acceso por curso' : ''}`) : ''}
+          ${tarjetaComun('#/almacen', ICONOS.gestion, 'Almacenes y herramientas', `Material, herramientas y máquinas por almacén${S.almRes && S.almRes.poco ? ` · <strong>queda poco: ${S.almRes.poco}</strong>` : ''}`)}
+          ${tarjetaComun('#/roturas', ICONOS.gestion, 'Roturas e instalaciones', S.almRes && S.almRes.abiertas ? `${S.almRes.abiertas} pendiente${S.almRes.abiertas > 1 ? 's' : ''}${S.almRes.urgentes ? ` · <strong>${S.almRes.urgentes} urgente${S.almRes.urgentes > 1 ? 's' : ''}</strong>` : ''}${S.almRes.listas ? ` · ${S.almRes.listas} lista${S.almRes.listas > 1 ? 's' : ''} para reparar` : ''}` : 'Avisar de algo roto y preparar la reparación')}
           ${tarjetaComun('#/cuenta', ICONOS.cuenta, 'Cuenta', `${esProf() ? 'Contraseña' : 'PIN'}, descargar datos${esProf() ? '' : ', mi actividad'} e instalación`)}</section>
         ${esAdmin() ? bloqueAdmin() : ''}
         <button class="btn sec" type="button" data-accion="salir">Salir</button>
         <div class="suave peq" style="text-align:center">CIFEAFARM · versión ${esc(C.version)}</div>
       </main>${navegacion('granjas')}`);
+    if (!S.almPedido) { S.almPedido = true; alm().resumen(true).then((x) => { S.almRes = x; if (x && location.hash.replace(/^#\/?/, '') .split('/')[0] in { '': 1, granjas: 1 }) render(); }); }
     if (esAdmin() && S.repetidasN === undefined) contarRepetidas().then(() => { if (/^#\/(granjas|admin)?$/.test(location.hash) || location.hash === '#/granjas') render(); });
   }
   function vistaAdmin(sec) {
@@ -405,6 +413,7 @@
         </div>
         ${resumenZonas(act)}
         ${faltaSQL2Caja()}${faltaSQL3Caja()}
+        ${window.Almacen ? window.Almacen.htmlHoy(S.roturas, 'rumi', '', esc) : ''}
         ${(() => { const ret = retiradasHoy(); const leche = activos().filter((a) => ret[a.id] && ret[a.id].leche && a.especie === 'caprino' && esHembraRepro(a)).sort(L.ordenNatural);
           return leche.length ? `<a class="tarjeta enlace alerta" href="#/sanidad/retiradas"><div class="entre"><strong>Leche no apta: ${leche.length} ${leche.length === 1 ? 'cabra' : 'cabras'}</strong><span class="chip rojo">No al tanque</span></div>
             <div>${leche.map((a) => `<strong>${esc(nombreA(a))}</strong> hasta el ${corta(ret[a.id].leche.hasta)}`).join(' · ')}</div></a>` : ''; })()}
@@ -2540,6 +2549,7 @@
       case 'gestion': return vistaGestion(a);
       case 'admin': return vistaAdmin(a);
       case 'cuenta': return vistaCuenta();
+      case 'almacen': case 'roturas': return alm().vista(ruta, a, b, location.hash.split('/')[4]);
       default: return vistaNoEncontrado();
     }
   }
