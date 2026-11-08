@@ -119,7 +119,7 @@
       const poco = M.articulos.filter((a) => pocoStock(a) && a.estado !== 'baja');
       const revisar = M.articulos.filter((a) => a.proxima_revision && a.proxima_revision <= hoy() && a.estado !== 'baja');
       pantalla({ volver: '#/granjas', textoVolver: 'CIFEAFARM', titulo: 'Almacenes y herramientas' }, `
-        ${adm ? '<div class="botones"><a class="btn" href="#/almacen/nuevo">Añadir artículo</a><a class="btn sec" href="#/almacen/almacenes">Almacenes</a></div>'
+        ${adm ? '<div class="botones"><a class="btn" href="#/almacen/nuevo">Añadir artículo</a><a class="btn sec" href="#/almacen/almacenes">Almacenes</a><a class="btn sec" href="#/almacen/inventario">Sacar inventario</a></div>'
           : '<div class="ok-caja">Puedes consultar lo que hay y avisar de que algo se está acabando («Queda poco») o de una avería. Solo el profesor cambia el almacén.</div>'}
         ${poco.length ? `<section class="tarjeta" style="border-color:var(--naranja-borde)"><h2>Queda poco (${poco.length})</h2>${poco.map((a) => `<a class="evento enlace" href="#/almacen/articulo/${a.id}"><div class="entre"><strong>${esc(a.nombre)}</strong><span class="chip nar">${esc(cant(a))}</span></div>
           <div class="suave peq">${esc(nomAlmacen(a.almacen_id))}${a.queda_poco ? ` · avisó ${esc(ctx.verAlias(a.queda_poco_alias, a.queda_poco_curso) || '?')} el ${esc(fmt(String(a.queda_poco_fecha || '').slice(0, 10)))}` : ' · por debajo del mínimo'}</div></a>`).join('')}</section>` : ''}
@@ -265,6 +265,56 @@
         ev.preventDefault(); const nombre = $('#alm-nuevo').value.trim(); if (!nombre) return;
         const r = await sb.from('almacenes').insert({ nombre, orden: M.almacenes.length + 1 }); if (r.error) return msg(/duplicate|unique/i.test(r.error.message) ? 'Ya hay un almacén con ese nombre.' : traducirError(r.error));
         toast('Almacén añadido'); await cargar(); vistaAlmacenes();
+      });
+    }
+
+    // ================================================================ INVENTARIO (solo el administrador)
+    function vistaInventario() {
+      if (!ctx.esAdmin()) return pantalla({ volver: '#/almacen', textoVolver: 'Almacén', titulo: 'Solo el administrador' }, '<div class="vacio">El inventario solo lo saca el administrador.</div>');
+      const o = M.inv = M.inv || { almacen: 'todos', tipo: 'todos', bajas: false, precio: true };
+      const lista = M.articulos.filter((a) => (o.almacen === 'todos' || String(a.almacen_id) === o.almacen) && (o.tipo === 'todos' || a.tipo === o.tipo) && (o.bajas || a.estado !== 'baja'))
+        .sort((x, y) => nomAlmacen(x.almacen_id).localeCompare(nomAlmacen(y.almacen_id)) || x.tipo.localeCompare(y.tipo) || x.nombre.localeCompare(y.nombre));
+      const ahora = new Date(); const cuando = `${fmt(hoy())} a las ${ahora.toTimeString().slice(0, 5)}`;
+      const valor = (a) => (a.precio != null ? Number(a.precio) * (a.tipo === 'fungible' ? 1 : Math.max(1, Number(a.cantidad) || 1)) : null);
+      const porAlm = {}; for (const a of lista) (porAlm[nomAlmacen(a.almacen_id)] = porAlm[nomAlmacen(a.almacen_id)] || []).push(a);
+      const total = lista.filter((a) => a.tipo !== 'fungible').reduce((s, a) => s + (valor(a) || 0), 0);
+      const eur = (v) => (v == null ? '' : `${Number(v).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`);
+      const filas = (as) => as.map((a) => `<tr><td>${esc(a.nombre)}</td><td>${esc({ fungible: 'Fungible', herramienta: 'Herramienta', maquina: 'Máquina' }[a.tipo])}</td><td>${esc(cant(a))}${pocoStock(a) ? ' ⚠' : ''}</td><td>${a.tipo === 'fungible' ? esc(a.minimo ?? '') : esc(ESTADOS[a.estado])}</td>
+        <td>${esc(a.ubicacion || '')}</td><td>${esc([a.marca, a.modelo].filter(Boolean).join(' '))}</td><td>${esc(a.n_serie || '')}</td><td>${a.fecha_compra ? esc(fmt(a.fecha_compra)) : ''}</td>${o.precio ? `<td>${a.tipo === 'fungible' ? '' : eur(a.precio)}</td>` : ''}<td class="inv-check"></td></tr>`).join('');
+      pantalla({ volver: '#/almacen', textoVolver: 'Almacén', titulo: 'Sacar inventario' }, `<div id="msg"></div>
+        <form class="formu tarjeta" id="f-inv" novalidate>
+          <div class="campo"><label for="i-alm">Almacén</label><select id="i-alm"><option value="todos">Todos los almacenes</option>${M.almacenes.map((x) => `<option value="${x.id}" ${o.almacen === String(x.id) ? 'selected' : ''}>${esc(x.nombre)}</option>`).join('')}</select></div>
+          <div class="campo"><label for="i-tipo">Qué</label><select id="i-tipo">${[['todos', 'Todo'], ...Object.entries(TIPOS)].map(([k, t]) => `<option value="${k}" ${o.tipo === k ? 'selected' : ''}>${t}</option>`).join('')}</select></div>
+          <label class="check-todos"><input type="checkbox" id="i-bajas" ${o.bajas ? 'checked' : ''}> Incluir lo dado de baja</label>
+          <label class="check-todos"><input type="checkbox" id="i-precio" ${o.precio ? 'checked' : ''}> Incluir precios de compra</label>
+          <div class="botones"><button class="btn" type="button" id="b-imprimir">Imprimir o guardar en PDF</button><button class="btn sec" type="button" id="b-xlsx">Descargar Excel</button></div>
+          <div class="ayuda">La columna «Comprobado» queda en blanco para ir marcando a mano al revisar el almacén.</div></form>
+        <section class="inventario"><h2 style="margin:6px 0">Inventario${o.almacen === 'todos' ? ' de los almacenes' : ` · ${esc(nomAlmacen(+o.almacen))}`}${o.tipo === 'todos' ? '' : ` · ${esc(TIPOS[o.tipo])}`}</h2>
+          <div class="suave peq">Sacado el ${esc(cuando)} · ${lista.length} artículo${lista.length === 1 ? '' : 's'}${o.precio && total ? ` · valor de compra de herramientas y máquinas: ${eur(total)}` : ''}</div>
+          ${lista.length ? Object.entries(porAlm).map(([n, as]) => `<h3 style="margin:14px 0 4px">${esc(n)} · ${as.length}</h3><div class="tabla-scroll"><table class="tabla ancha inv-tabla"><thead><tr><th>Artículo</th><th>Tipo</th><th>Cantidad</th><th>Mínimo / estado</th><th>Dónde</th><th>Marca y modelo</th><th>N.º serie</th><th>Compra</th>${o.precio ? '<th>Precio</th>' : ''}<th>Comprobado</th></tr></thead><tbody>${filas(as)}</tbody></table></div>`).join('')
+            : '<div class="vacio">No hay artículos con estas opciones.</div>'}
+          ${lista.some(pocoStock) ? '<div class="suave peq">⚠ Por debajo del mínimo o avisado «queda poco».</div>' : ''}
+          <div class="inv-firma">Revisado por: ______________________ &nbsp; Fecha: ____________ &nbsp; Firma:</div></section>`);
+      const cambia = (k, v) => { o[k] = v; vistaInventario(); };
+      $('#i-alm').addEventListener('change', (e) => cambia('almacen', e.target.value));
+      $('#i-tipo').addEventListener('change', (e) => cambia('tipo', e.target.value));
+      $('#i-bajas').addEventListener('change', (e) => cambia('bajas', e.target.checked));
+      $('#i-precio').addEventListener('change', (e) => cambia('precio', e.target.checked));
+      $('#b-imprimir').addEventListener('click', () => window.print());
+      $('#b-xlsx').addEventListener('click', async (ev) => {
+        const b = ev.currentTarget; b.disabled = true;
+        try {
+          await ctx.cargarXLSX(); const X = window.XLSX; const libro = X.utils.book_new();
+          const filasX = lista.map((a) => ({ Almacén: nomAlmacen(a.almacen_id), Artículo: a.nombre, Tipo: TIPOS[a.tipo], Cantidad: Number(a.cantidad), Unidad: a.unidad || '', Mínimo: a.minimo ?? '',
+            'Queda poco': pocoStock(a) ? 'sí' : '', Estado: ESTADOS[a.estado], Dónde: a.ubicacion || '', Marca: a.marca || '', Modelo: a.modelo || '', 'N.º de serie': a.n_serie || '',
+            'Fecha de compra': a.fecha_compra || '', ...(o.precio ? { 'Precio (€)': a.precio ?? '', Proveedor: a.proveedor || '' } : {}), 'Garantía hasta': a.garantia_hasta || '', 'Próxima revisión': a.proxima_revision || '', Fotos: (a.fotos || []).length, Notas: a.notas || '', Comprobado: '' }));
+          const h = X.utils.json_to_sheet(filasX.length ? filasX : [{ Artículo: 'Sin artículos' }]);
+          h['!cols'] = Object.keys(filasX[0] || { a: 1 }).map((k) => ({ wch: Math.max(10, Math.min(40, k.length + 4, ...filasX.map((f) => String(f[k] ?? '').length + 2))) }));
+          X.utils.book_append_sheet(libro, h, 'Inventario');
+          X.utils.book_append_sheet(libro, X.utils.aoa_to_sheet([['Inventario CIFEAFARM'], ['Sacado el', cuando], ['Almacén', o.almacen === 'todos' ? 'Todos' : nomAlmacen(+o.almacen)], ['Qué', o.tipo === 'todos' ? 'Todo' : TIPOS[o.tipo]], ['Artículos', lista.length], ...(o.precio ? [['Valor de compra de herramientas y máquinas (€)', Math.round(total * 100) / 100]] : [])]), 'Datos');
+          X.writeFile(libro, `inventario-${hoy()}.xlsx`);
+        } catch (e) { msg('No se pudo crear el Excel.'); }
+        b.disabled = false;
       });
     }
 
@@ -433,6 +483,7 @@
         if (a === 'nuevo') return vistaFormArticulo(null);
         if (a === 'editar') return vistaFormArticulo(b);
         if (a === 'almacenes') return vistaAlmacenes();
+        if (a === 'inventario') return vistaInventario();
         return vistaLista();
       }
       if (a === 'nueva') return vistaNuevaRotura(b, c && c !== '-' ? c : null, d);

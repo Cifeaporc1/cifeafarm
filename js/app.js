@@ -14,7 +14,7 @@
   };
   const $app = document.getElementById('app');
   let ALM = null; // almacenes y roturas (js/almacen.js), se crea al usarlo
-  const alm = () => (ALM = ALM || window.Almacen({ sb, S, esc, fmt, hoy, toast, traducirError, pintar, cabecera, navegacion, esProf, esAdmin, verAlias,
+  const alm = () => (ALM = ALM || window.Almacen({ sb, S, esc, fmt, hoy, toast, traducirError, pintar, cabecera, navegacion, esProf, esAdmin, verAlias, cargarXLSX,
     // Zonas de rumiantes: cada nave con sus corralinas numeradas (las que haya en la app) y otras salas
     zonasRumi: () => [...new Set(S.corralinas.filter((c) => c.activa).map((c) => c.nave))].map((nv) => ({ nom: `Nave ${nv}`, z: `Nave ${nv}`, u: 'corralina',
       nums: S.corralinas.filter((c) => c.activa && c.nave === nv).map((c) => c.numero).sort((x, y) => x - y) }))
