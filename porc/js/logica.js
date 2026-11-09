@@ -51,7 +51,7 @@
   // ---- Estado de una cerda a partir de sus eventos en una granja ----
   function estadoCerda(eventos) {
     const ciclos = [];
-    let cur = null, fase = 'vacia', ubicacion = null, ultimoDestete = null, partos = 0;
+    let cur = null, fase = 'vacia', ubicacion = null, ultimoDestete = null, partos = 0, faseDesde = null;
 
     const nuevoCiclo = (ia) => ({
       ia, ecos: [], paridera: null, parto: null, aborto: null, adopciones: [], bajas: [], destete: null,
@@ -59,7 +59,7 @@
     });
 
     for (const e of ordenar(eventos)) {
-      const d = e.datos || {};
+      const d = e.datos || {}; const antes = fase;
       switch (e.tipo) {
         case 'ia':
           if (cur && !cur.parto && !cur.cierre) cur.cierre = 'repeticion';
@@ -96,9 +96,30 @@
         default: break;
       }
       if (d.ubicacion) ubicacion = d.ubicacion;
+      if (fase !== antes || e.tipo === 'ia') faseDesde = e.fecha; // día en que empezó la fase actual
     }
     const actual = cur || null;
-    return { fase, ciclos, actual, ultimo: ciclos[ciclos.length - 1] || null, partos, ubicacion, ultimoDestete };
+    return { fase, ciclos, actual, ultimo: ciclos[ciclos.length - 1] || null, partos, ubicacion, ultimoDestete, faseDesde };
+  }
+
+  // ---- Datos de una cerda para ordenar la lista ----
+  function datosLista(c, est, hoy) {
+    const conIA = est.ciclos.filter((x) => x.ia), conParto = est.ciclos.filter((x) => x.parto);
+    const cms = conParto.map(camada), dest = cms.filter((x) => x.destetados != null);
+    const up = conParto[conParto.length - 1];
+    const enGest = ['inseminada', 'gestante', 'paridera'].includes(est.fase) && est.actual && est.actual.ia;
+    const media = (l) => (l.length ? l.reduce((a, b) => a + b, 0) / l.length : null);
+    return {
+      crotal: c.crotal, fase: FASES.findIndex((f) => f.id === est.fase), faseDesde: est.faseDesde,
+      diasFase: est.faseDesde ? dias(est.faseDesde, hoy) : null,
+      gestacion: enGest ? dias(est.actual.ia.fecha, hoy) : null,
+      partoPrev: enGest ? sumarDias(est.actual.ia.fecha, REF.gestacion) : null,
+      ultIA: conIA.length ? conIA[conIA.length - 1].ia.fecha : null,
+      ultParto: up ? up.parto.fecha : null,
+      vivosUlt: up ? camada(up).vivos : null, vivosMedia: media(cms.map((x) => x.vivos)),
+      destUlt: dest.length ? dest[dest.length - 1].destetados : null, destMedia: media(dest.map((x) => x.destetados)),
+      partos: est.partos, ubicacion: est.ubicacion || null,
+    };
   }
 
   // ---- Camada ----
@@ -457,7 +478,7 @@
   const CLASES_MED = { antibiotico: 'Antibiótico', antiinflamatorio: 'Antiinflamatorio', analgesico: 'Analgésico', tranquilizante: 'Tranquilizante / sedante', anestesico: 'Anestésico',
     antiparasitario_int: 'Antiparasitario interno', antiparasitario_ext: 'Antiparasitario externo', vacuna: 'Vacuna', hormonal: 'Hormonal', vitaminas: 'Vitaminas y minerales',
     desinfectante: 'Desinfectante', insecticida: 'Insecticida', raticida: 'Raticida' };
-  const api = { CLASES_MED, REF, CAUSAS_BAJA, CAUSAS_ADULTO, CAUSAS_CEBO, CAPACIDAD, SANIDAD, CARACTER, UNIDADES_REP, sumarPeriodo, repeticion, textoRep, filaRep, MOTIVOS_CANCEL, RESULTADOS, MUESTRAS, ZONAS, usaProducto, comprobarSanidad, avisosSanidad, estadoDosis, FASES, sumarDias, dias, hoyISO, ordenar, estadoCerda, camada, fechasCiclo, indicesCiclo, avisos, ocupacion, capacidadDe, sitioPlano, ESTANCIAS, cuentaGrupos, comprobarMovGrupo, comprobar };
+  const api = { CLASES_MED, REF, CAUSAS_BAJA, CAUSAS_ADULTO, CAUSAS_CEBO, CAPACIDAD, SANIDAD, CARACTER, UNIDADES_REP, sumarPeriodo, repeticion, textoRep, filaRep, MOTIVOS_CANCEL, RESULTADOS, MUESTRAS, ZONAS, usaProducto, comprobarSanidad, avisosSanidad, estadoDosis, FASES, sumarDias, dias, hoyISO, ordenar, estadoCerda, datosLista, camada, fechasCiclo, indicesCiclo, avisos, ocupacion, capacidadDe, sitioPlano, ESTANCIAS, cuentaGrupos, comprobarMovGrupo, comprobar };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else raiz.Logica = api;
 })(typeof window !== 'undefined' ? window : globalThis);

@@ -152,3 +152,9 @@ No hay que ejecutar nada en Supabase.
 7. Tú (o el profesorado) abres el aviso y añades el material y las herramientas que hacen falta. Si están en el almacén, la app comprueba sola si hay bastante; lo que hay que comprar se marca «conseguido» cuando llegue. Cuando todo está, pasa sola a **Lista para reparar**. Si no necesita material, pulsa «No necesita material».
 8. Al terminar: «Marcar como reparada», con qué se hizo, fotos de después y, si quieres, descontar del almacén el material gastado.
 
+## 20. Ordenar cerdas y pasar de una ficha a otra (0.17.0)
+
+1. **Animales → Reproductoras → Ordenar por:** elige el dato (fecha de la última IA, del último parto, nacidos vivos, destetados, días de gestación…). El botón de al lado invierte el sentido (más reciente o más antiguo, más o menos). Puedes combinarlo con el filtro de fase y la búsqueda.
+2. Al abrir una cerda, arriba aparecen **‹ anterior** y **siguiente ›** con su crotal, en el mismo orden y filtro de la lista. Si entras en la ficha desde otro sitio (Hoy, el mapa), el orden es por crotal.
+3. En la ficha, bajo la fase del ciclo: **Gestación · Día N** (desde la IA, si está inseminada, gestante o en paridera) y **cuántos días lleva en la fase actual** y desde qué fecha.
+

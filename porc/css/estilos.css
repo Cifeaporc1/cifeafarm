@@ -243,3 +243,11 @@ fieldset[disabled] input, fieldset[disabled] select { background: #EEF1EF; color
 .fotos-tira figcaption { font-size: 12px; color: #4f5a53; margin-top: 2px; }
 .enlace-btn { background: none; border: 0; color: var(--rojo, #b3261e); text-decoration: underline; font-size: 12px; padding: 4px 2px; min-height: 32px; cursor: pointer; }
 .ficha-datos { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-bottom: 8px; }
+/* ---- Ordenar la lista y pasar de una ficha a otra */
+.orden-fila { display: flex; gap: 8px; align-items: flex-end; }
+.orden-fila .campo { flex: 1; margin: 0; }
+.orden-fila .btn { white-space: nowrap; }
+.nav-fichas { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 8px; margin-bottom: 8px; }
+.nav-fichas .btn { margin: 0; min-height: 44px; }
+.nav-fichas > :last-child { justify-self: end; }
+@media print { .nav-fichas, .orden-fila { display: none !important; } }

@@ -295,17 +295,50 @@
   }
 
   // ---------------------------------------------------------------- animales (reproductoras, verracos, lechones y cebo, bajas)
+  // Cómo se puede ordenar la lista de cerdas. ver(): lo que se enseña en cada fila
+  const nd = (v, dec = 1) => (v == null ? '—' : Number(v).toFixed(dec).replace('.', ','));
+  const ORDEN_CERDAS = {
+    crotal: { nombre: 'Crotal', dir: 'asc', asc: 'A → Z', desc: 'Z → A', ver: () => '' },
+    fase: { nombre: 'Fase del ciclo', dir: 'asc', asc: 'Vacía → Destetada', desc: 'Destetada → Vacía', ver: (d) => (d.faseDesde ? `desde el ${corta(d.faseDesde)}` : '') },
+    diasFase: { nombre: 'Días en la fase actual', dir: 'desc', asc: 'Menos días primero', desc: 'Más días primero', ver: (d) => (d.diasFase == null ? 'sin datos' : `${d.diasFase} días en la fase`) },
+    gestacion: { nombre: 'Días de gestación', dir: 'desc', asc: 'Menos días primero', desc: 'Más días primero', ver: (d) => (d.gestacion == null ? 'no gestante' : `día ${d.gestacion} de gestación`) },
+    partoPrev: { nombre: 'Parto previsto', dir: 'asc', asc: 'Más próximo primero', desc: 'Más lejano primero', ver: (d) => (d.partoPrev ? `parto previsto ${corta(d.partoPrev)}` : 'sin parto previsto') },
+    ultIA: { nombre: 'Fecha de la última inseminación', dir: 'desc', asc: 'Más antigua primero', desc: 'Más reciente primero', ver: (d) => (d.ultIA ? `IA ${fmt(d.ultIA)}` : 'sin IA') },
+    ultParto: { nombre: 'Fecha del último parto', dir: 'desc', asc: 'Más antiguo primero', desc: 'Más reciente primero', ver: (d) => (d.ultParto ? `parto ${fmt(d.ultParto)}` : 'sin partos') },
+    vivosUlt: { nombre: 'Nacidos vivos (último parto)', dir: 'desc', asc: 'Menos primero', desc: 'Más primero', ver: (d) => `${nd(d.vivosUlt, 0)} vivos en el último parto` },
+    vivosMedia: { nombre: 'Nacidos vivos (media)', dir: 'desc', asc: 'Menos primero', desc: 'Más primero', ver: (d) => `${nd(d.vivosMedia)} vivos de media` },
+    destUlt: { nombre: 'Destetados (último destete)', dir: 'desc', asc: 'Menos primero', desc: 'Más primero', ver: (d) => `${nd(d.destUlt, 0)} destetados en el último` },
+    destMedia: { nombre: 'Destetados (media)', dir: 'desc', asc: 'Menos primero', desc: 'Más primero', ver: (d) => `${nd(d.destMedia)} destetados de media` },
+    partos: { nombre: 'Número de partos', dir: 'desc', asc: 'Menos primero', desc: 'Más primero', ver: (d) => '' },
+    ubicacion: { nombre: 'Ubicación', dir: 'asc', asc: 'A → Z', desc: 'Z → A', ver: () => '' },
+  };
+  // Los que no tienen el dato van siempre al final
+  function compararOrden(a, b, k, dir) {
+    const x = a[k], y = b[k];
+    if (x == null && y == null) return String(a.crotal).localeCompare(String(b.crotal), 'es', { numeric: true });
+    if (x == null) return 1; if (y == null) return -1;
+    const r = typeof x === 'number' && typeof y === 'number' ? x - y : String(x).localeCompare(String(y), 'es', { numeric: true });
+    return (dir === 'asc' ? r : -r) || String(a.crotal).localeCompare(String(b.crotal), 'es', { numeric: true });
+  }
+
   function vistaAnimales(tab = 'cerdas') {
     const pest = [['cerdas', 'Reproductoras'], ['verracos', 'Verracos'], ['lechones', 'Lechones y cebo'], ['bajas', 'Bajas']];
     let cuerpo = '';
     if (tab === 'cerdas') {
       const filtro = S.borrador.filtro || ''; const fase = S.borrador.faseFiltro || '';
       const lista = cerdasActivas().filter((c) => (!fase || estadoDe(c.id).fase === fase) && (!filtro || [c.crotal, ...(c.otros_crotales || [])].some((x) => String(x).toLowerCase().includes(filtro.toLowerCase()))));
+      const orden = ORDEN_CERDAS[S.borrador.orden] ? S.borrador.orden : 'crotal';
+      const o = ORDEN_CERDAS[orden]; const dir = S.borrador.dir || o.dir;
+      const dl = new Map(lista.map((c) => [c.id, L.datosLista(c, estadoDe(c.id), hoy())]));
+      lista.sort((a, b) => compararOrden(dl.get(a.id), dl.get(b.id), orden, dir));
+      S.ordenFichas = lista.map((c) => c.id); // para pasar de una ficha a la siguiente en este orden
       cuerpo = `<div class="botones"><a class="btn sec peq" href="#/censo/cerda/nueva">${ICONOS.mas}Alta de cerda</a><a class="btn sec peq" href="#/censo/historial">Altas y bajas</a></div>
         <div class="campo"><input id="buscar" type="text" inputmode="search" aria-label="Buscar por crotal" placeholder="Buscar por crotal…" value="${esc(filtro)}"></div>
         <div class="campo"><select id="f-fase" aria-label="Fase"><option value="">Todas las fases (${cerdasActivas().length})</option>${L.FASES.map((f) => `<option value="${f.id}" ${fase === f.id ? 'selected' : ''}>${f.nombre} (${cerdasActivas().filter((c) => estadoDe(c.id).fase === f.id).length})</option>`).join('')}</select></div>
-        <div class="lista">${lista.map((c) => { const e = estadoDe(c.id);
-          return `<a class="cerda-fila" href="#/cerda/${c.id}"><div><strong>${esc(c.crotal)}</strong><div class="suave">${esc(e.ubicacion || 'Sin ubicación')} · ${e.partos} ${e.partos === 1 ? 'parto' : 'partos'}</div></div>
+        <div class="orden-fila"><div class="campo"><label for="f-orden">Ordenar por</label><select id="f-orden">${Object.entries(ORDEN_CERDAS).map(([k, x]) => `<option value="${k}" ${orden === k ? 'selected' : ''}>${x.nombre}</option>`).join('')}</select></div>
+          <button type="button" class="btn sec peq" id="f-dir" aria-label="Cambiar el sentido">${dir === 'asc' ? o.asc : o.desc}</button></div>
+        <div class="lista">${lista.map((c) => { const e = estadoDe(c.id); const d = dl.get(c.id); const extra = orden === 'crotal' ? '' : o.ver(d);
+          return `<a class="cerda-fila" href="#/cerda/${c.id}"><div><strong>${esc(c.crotal)}</strong><div class="suave">${extra ? `<strong>${esc(extra)}</strong> · ` : ''}${esc(e.ubicacion || 'Sin ubicación')} · ${e.partos} ${e.partos === 1 ? 'parto' : 'partos'}</div></div>
             <span class="chip ${['inseminada', 'paridera'].includes(e.fase) ? 'nar' : ''}">${faseNombre(e.fase)}</span></a>`; }).join('') || '<div class="vacio">No hay cerdas que coincidan.</div>'}</div>`;
     }
     if (tab === 'verracos') {
@@ -355,6 +388,8 @@
     const b = document.getElementById('buscar');
     if (b) b.addEventListener('input', () => { S.borrador.filtro = b.value; const pos = b.selectionStart; vistaAnimales('cerdas'); const nb = document.getElementById('buscar'); nb.focus(); nb.setSelectionRange(pos, pos); });
     const ff = document.getElementById('f-fase'); if (ff) ff.addEventListener('change', () => { S.borrador.faseFiltro = ff.value; vistaAnimales('cerdas'); });
+    const fo = document.getElementById('f-orden'); if (fo) fo.addEventListener('change', () => { S.borrador.orden = fo.value; S.borrador.dir = null; vistaAnimales('cerdas'); });
+    const fd = document.getElementById('f-dir'); if (fd) fd.addEventListener('click', () => { const ox = ORDEN_CERDAS[S.borrador.orden || 'crotal']; S.borrador.dir = (S.borrador.dir || ox.dir) === 'asc' ? 'desc' : 'asc'; vistaAnimales('cerdas'); });
   }
 
   // ---------------------------------------------------------------- reproducción (rueda de gestación y dosis)
@@ -599,11 +634,25 @@
     const repeticiones = est.ciclos.filter((x) => x.cierre === 'repeticion' || x.cierre === 'eco_negativa').length;
     const abortos = est.ciclos.filter((x) => x.cierre === 'aborto').length;
 
+    // Anterior y siguiente: en el orden de la última lista vista (o por crotal)
+    const orden = S.ordenFichas && S.ordenFichas.includes(id) ? S.ordenFichas
+      : cerdasActivas().slice().sort((a, b) => String(a.crotal).localeCompare(String(b.crotal), 'es', { numeric: true })).map((x) => x.id);
+    const pos = orden.indexOf(id), ant = pos > 0 ? cerdaPorId(orden[pos - 1]) : null, sig = pos >= 0 && pos < orden.length - 1 ? cerdaPorId(orden[pos + 1]) : null;
+    const navFichas = pos >= 0 ? `<nav class="nav-fichas" aria-label="Otras cerdas">${ant ? `<a class="btn sec peq" href="#/cerda/${ant.id}" aria-label="Cerda anterior">‹ ${esc(ant.crotal)}</a>` : '<span></span>'}
+      <span class="suave peq">${pos + 1} de ${orden.length}</span>${sig ? `<a class="btn sec peq" href="#/cerda/${sig.id}" aria-label="Cerda siguiente">${esc(sig.crotal)} ›</a>` : '<span></span>'}</nav>` : '';
+    // Días de gestación y días en la fase actual
+    const enGest = ['inseminada', 'gestante', 'paridera'].includes(est.fase) && cur && cur.ia;
+    const diasFase = est.faseDesde ? L.dias(est.faseDesde, h) : null;
+    const ahora = `<div class="dos">${enGest ? `<div class="dato"><span class="et">Gestación</span><span class="val">Día ${L.dias(cur.ia.fecha, h)}</span><span class="nota">de unos ${L.REF.gestacion} · IA el ${corta(cur.ia.fecha)}</span></div>` : ''}
+      <div class="dato"><span class="et">${esc(faseNombre(est.fase))}</span><span class="val">${diasFase == null ? '—' : `${diasFase} ${diasFase === 1 ? 'día' : 'días'}`}</span><span class="nota">${est.faseDesde ? `en esta fase desde el ${corta(est.faseDesde)}` : 'sin registros todavía'}</span></div></div>`;
+
     pintar(`${cabecera({ volver: '#/cerdas', textoVolver: 'Cerdas', titulo: c.crotal, sub: `${esc(c.raza)} · ${est.partos} ${est.partos === 1 ? 'parto' : 'partos'} · <strong>${faseNombre(est.fase)}${est.ubicacion ? ` · ${esc(est.ubicacion)}` : ''}</strong>` })}
       <main class="cuerpo">
+        ${navFichas}
         <div class="foto"><img src="img/hembra.jpg" alt="Cerda chata murciana"></div>
         <section class="tarjeta" aria-label="Fase del ciclo"><div class="suave peq" style="font-weight:700">FASE DEL CICLO</div>
           <div class="ciclo">${L.FASES.map((x, i) => `<div class="${i < idx ? 'hecho' : i === idx ? 'ahora' : ''}"><i></i>${x.nombre.replace('Inseminada', 'Insemi\u00ADnada')}</div>`).join('')}</div></section>
+        ${ahora}
         ${fechas}
         <a class="btn" href="#/registrar/${id}/${principal}">${ICONOS.mas}${esc(TIPOS[principal].nombre)}</a>
         <div class="botones">${resto.map((t) => `<a class="btn sec peq" href="#/registrar/${id}/${t}">${esc(TIPOS[t].nombre)}</a>`).join('')}<a class="btn sec peq" href="#/sanidad/nuevo/cerda/${id}">${ICONOS.sanidad}Sanidad / manejo</a><a class="btn sec peq" href="#/censo/cerda/${id}">${esProf() ? 'Datos / baja' : 'Dar de baja'}</a></div>
@@ -805,7 +854,7 @@
     const evento = eventoId ? S.eventos.find((e) => e.id === eventoId) : null;
     if (eventoId && (!evento || tipo === 'adopcion')) return vistaNoEncontrado('No puedes corregir este registro.');
     const clave = `${cerdaId}/${tipo}/${eventoId || ''}`;
-    if (S.borrador.clave !== clave) S.borrador = { clave, v: valoresIniciales(tipo, evento), confirmado: false, filtro: S.borrador.filtro };
+    if (S.borrador.clave !== clave) S.borrador = { clave, v: valoresIniciales(tipo, evento), confirmado: false, filtro: S.borrador.filtro, faseFiltro: S.borrador.faseFiltro, orden: S.borrador.orden, dir: S.borrador.dir };
     const v = S.borrador.v;
     const foto = tipo === 'parto' || tipo === 'destete' || tipo === 'adopcion' || tipo === 'baja_lechones' ? 'madre' : tipo === 'ia' ? 'verraco' : 'hembra';
 
@@ -905,7 +954,7 @@
       ({ error } = await sb.from('eventos').insert({ granja_id: S.granja, cerda_id: c.id, tipo, fecha: v.fecha, datos }));
     }
     if (error) { boton.disabled = false; boton.textContent = 'Guardar'; msj.innerHTML = `<div class="error-caja" role="alert">${esc(traducirError(error))}</div>`; return; }
-    S.borrador = { filtro: S.borrador.filtro };
+    S.borrador = { filtro: S.borrador.filtro, faseFiltro: S.borrador.faseFiltro, orden: S.borrador.orden, dir: S.borrador.dir };
     toast(evento ? 'Corrección guardada' : `Guardado: ${T.nombre.toLowerCase()}`);
     await refrescar();
     location.hash = `#/cerda/${c.id}`;
@@ -1206,7 +1255,7 @@
         procedencia: v.tipo === 'entrada' ? v.procedencia : null, causa: v.tipo === 'muerte' ? (v.causa === 'Otros' ? v.causa_otra : v.causa) : null, obs: v.obs || null };
       const { error } = await sb.from('mov_grupos').insert(fila);
       if (error) { msj.innerHTML = `<div class="error-caja" role="alert">${esc(traducirError(error))}</div>`; return; }
-      S.borrador = { filtro: S.borrador.filtro };
+      S.borrador = { filtro: S.borrador.filtro, faseFiltro: S.borrador.faseFiltro, orden: S.borrador.orden, dir: S.borrador.dir };
       toast('Guardado'); await refrescar(); location.hash = volver;
     });
   }
