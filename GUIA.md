@@ -158,3 +158,13 @@ No hay que ejecutar nada en Supabase.
 2. Al abrir una cerda, arriba aparecen **‹ anterior** y **siguiente ›** con su crotal, en el mismo orden y filtro de la lista. Si entras en la ficha desde otro sitio (Hoy, el mapa), el orden es por crotal.
 3. En la ficha, bajo la fase del ciclo: **Gestación · Día N** (desde la IA, si está inseminada, gestante o en paridera) y **cuántos días lleva en la fase actual** y desde qué fecha.
 
+## 21. Plano ampliado y control de piensos (0.18.0)
+
+1. Ejecuta una vez en Supabase `sql/17_piensos.sql` (SQL Editor → New query → Run). Es repetible y no borra datos. Crea los silos de porcino (madres, transición y cebo).
+2. **Plano de porcino:** ya salen los parques de gestación 5 y 6, el parque erótico, los tres silos (en rojo; al tocarlos se abre su control de pienso), el contenedor de cadáveres y el foso de purines. Para llevar una cerda al parque erótico o a los parques 5 y 6: en su ficha, Traslado.
+3. **Fichas de pienso** (profesorado): Hoy → Piensos y consumo → Fichas de pienso → Nueva. Nombre, tipo, fabricante, composición de la etiqueta, proteína, grasa, fibra, cenizas, energía y si es medicado.
+4. **Silos** (profesorado): Piensos y consumo → Silos. Revisa a qué zonas da de comer cada uno; en rumiantes crea los que uséis (tolvas, comederos…).
+5. **Cada reposición** (cualquiera): «Anotar reposición»: silo, pienso, fecha y kilos. Si sabes lo que quedaba en el silo, anótalo: el consumo diario sale más exacto. Si el pienso es distinto al anterior, la app avisa del cambio.
+6. **Diarreas y problemas de consumo** (cualquiera): «Anotar diarrea u otro problema»: qué pasa, zona, animales afectados. La app pone sola el silo de esa zona y el pienso que comían.
+7. **¿Tiene relación con el pienso?**: cuenta los casos por días tras el último cambio de pienso, por pienso y en los 14 días siguientes a cada cambio. Para más análisis, Reproducción → Comparar, con las medidas de pienso y el botón «Copiar para analizar con IA».
+

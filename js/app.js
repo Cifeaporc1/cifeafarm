@@ -13,6 +13,10 @@
     ultimaCopia: (() => { try { const x = localStorage.getItem('farm-ultima-copia'); return x ? new Date(x) : null; } catch (_) { return null; } })(),
   };
   const $app = document.getElementById('app');
+  let PZ = null; // control de piensos (js/piensos.js)
+  const zonasPiensoRumi = () => S.corralinas.filter((c) => c.activa).sort((x, y) => String(x.nave).localeCompare(String(y.nave)) || x.numero - y.numero).map((c) => `Nave ${c.nave} · corralina ${c.numero}`);
+  const pz = () => (PZ = PZ || window.Piensos({ sb, S, esc, fmt, hoy, toast, traducirError, pintar, cabecera, navegacion, navKey: 'inicio', esProf, esAdmin, verAlias, quienEs,
+    granja: 'rumi', zonas: zonasPiensoRumi, cargarXLSX }));
   let ALM = null; // almacenes y roturas (js/almacen.js), se crea al usarlo
   const alm = () => (ALM = ALM || window.Almacen({ sb, S, esc, fmt, hoy, toast, traducirError, pintar, cabecera, navegacion, esProf, esAdmin, verAlias, cargarXLSX,
     // Zonas de rumiantes: cada nave con sus corralinas numeradas (las que haya en la app) y otras salas
@@ -146,6 +150,7 @@
     if (!nv.error && Array.isArray(nv.data)) for (const p of nv.data) S.nombres[p.user_id] = p;
     { const ro = await sb.from('roturas').select('id,granja,zona,elemento,descripcion,prioridad,estado').in('estado', ['abierta', 'reparacion']); S.roturas = ro.error ? [] : ro.data; }
     if (ALM) { ALM.recargar(); S.almPedido = false; }
+    if (PZ) PZ.recargar();
     S.cargado = new Date();
   }
   async function cargarTodo() { await cargarPerfil(); if (S.perfil) await cargarDatos(); }
@@ -429,7 +434,7 @@
           <div class="suave">Crotales de 14 cifras, animales sin collar o cabras sin capa. Corrígelos desde la ficha de cada animal.</div></a>` : ''}
         ${esProf() && !esAdmin() && (!S.ultimaCopia || Date.now() - S.ultimaCopia > 30 * 864e5) && act.length ? `<a class="tarjeta enlace" href="#/gestion" style="border-color:var(--naranja-borde)"><div class="entre"><strong>Haz una copia de seguridad</strong><span class="chip nar">Profesor</span></div><div class="suave">${S.ultimaCopia ? `La última es del ${fechaHora(S.ultimaCopia)}` : 'Aún no has descargado ninguna desde este dispositivo'} · Gestión</div></a>` : ''}
         ${act.length === 0 && !S.faltaSQL ? `<div class="vacio">Aún no hay animales en el censo.${esProf() ? ' Impórtalos desde <a href="#/gestion">Gestión → Importar censo</a> o da de alta uno a uno.' : ''}</div>` : ''}
-        <div class="botones"><a class="btn" href="#/animales">${ICONOS.animales}Buscar animal</a><a class="btn sec" href="#/mapa">${ICONOS.mapa}Mapa</a></div>
+        <div class="botones"><a class="btn" href="#/animales">${ICONOS.animales}Buscar animal</a><a class="btn sec" href="#/mapa">${ICONOS.mapa}Mapa</a><a class="btn sec" href="#/piensos">Piensos y consumo</a></div>
         ${ultimosRegistros()}
         <a class="btn sec" href="#/alta">${ICONOS.mas}Alta de un animal</a>
       </main>${navegacion('inicio')}`);
@@ -1153,14 +1158,18 @@
       if (f === 'condicion') return { Fecha: r.fecha, Especie: r.especie || '', Animal: r.madre, CC: r.cc, FAMACHA: r.famacha ?? '' };
       return { Nacimiento: r.fecha, Especie: r.especie || '', Cría: r.cria, Madre: r.madre || '', Sexo: r.sexo || '', 'Peso (kg)': r.peso };
     };
-    return { granja: 'la granja de rumiantes (cabras y ovejas)', archivo: 'resultados-rumiantes', hrefComparar: '#/comparar', fuentes: { partos, ecos, lechero, crias, condicion }, medidas, grupos, legible,
-      nombresFuente: { partos: 'Partos', ecos: 'Ecografías', lechero: 'Control lechero', crias: 'Crías al nacer', condicion: 'Condición corporal' },
+    const P = PZ && PZ.listo() ? PZ : null;
+    return { granja: 'la granja de rumiantes (cabras y ovejas)', archivo: 'resultados-rumiantes', hrefComparar: '#/comparar', fuentes: { partos, ecos, lechero, crias, condicion, ...(P ? P.fuentesAnalisis() : {}) },
+      medidas: medidas.concat(P ? P.medidasAnalisis() : []), grupos: grupos.slice(0, 1).concat(grupos.slice(1, 8), P ? P.gruposAnalisis() : [], grupos.slice(8)),
+      legible: (f, r) => (['reposiciones', 'digestivo'].includes(f) ? P.legible(f, r) : legible(f, r)),
+      nombresFuente: { partos: 'Partos', ecos: 'Ecografías', lechero: 'Control lechero', crias: 'Crías al nacer', condicion: 'Condición corporal', reposiciones: 'Reposiciones de pienso', digestivo: 'Problemas digestivos' },
       kpis: ['partos', 'prolif', 'mortal', 'fert', 'litros', 'peso'],
       graficas: [{ titulo: 'Partos por mes', medida: 'partos', grupo: 'mes' }, { titulo: 'Prolificidad por especie', medida: 'prolif', grupo: 'especie' },
         { titulo: 'Fertilidad por lote de cubrición', medida: 'fert', grupo: 'lote' }, { titulo: 'Prolificidad por número de parto', medida: 'prolif', grupo: 'numParto' },
         { titulo: 'Curva de lactación (litros por mes de lactación)', medida: 'litros', grupo: 'mesLact' }, { titulo: 'Peso al nacer por sexo', medida: 'peso', grupo: 'sexo' }] };
   }
   function vistaAnalisis(modo) {
+    if (!PZ || !PZ.listo()) { pz().cargar().then(() => { if (/^#\/(resultados|comparar)/.test(location.hash)) vistaAnalisis(modo); }); }
     if (!S.analisis) { const d = new Date(); d.setFullYear(d.getFullYear() - 1); S.analisis = { desde: new Date(d - d.getTimezoneOffset() * 6e4).toISOString().slice(0, 10), hasta: hoy(), medidas: ['partos', 'prolif', 'fert'], grupo: 'especie' }; }
     const cat = catalogoAnalisis(), st = S.analisis, y = window.scrollY, comp = modo === 'comparar';
     pintar(`${cabecera({ volver: comp ? '#/resultados' : '#/reproduccion', textoVolver: comp ? 'Resultados' : 'Reproducción', titulo: comp ? 'Comparar y analizar' : 'Resultados de la granja' })}
@@ -2552,6 +2561,7 @@
       case 'gestion': return vistaGestion(a);
       case 'admin': return vistaAdmin(a);
       case 'cuenta': return vistaCuenta();
+      case 'piensos': return pz().vista(a, b);
       case 'almacen': case 'roturas': return alm().vista(ruta, a, b, location.hash.split('/')[4], location.hash.split('/')[5]);
       default: return vistaNoEncontrado();
     }

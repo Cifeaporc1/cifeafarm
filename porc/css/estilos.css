@@ -251,3 +251,11 @@ fieldset[disabled] input, fieldset[disabled] select { background: #EEF1EF; color
 .nav-fichas .btn { margin: 0; min-height: 44px; }
 .nav-fichas > :last-child { justify-self: end; }
 @media print { .nav-fichas, .orden-fila { display: none !important; } }
+.plano .silo { fill: #C8102E; stroke: #7a0a1c; stroke-width: 2; }
+.plano a:hover .silo, .plano a:focus .silo { stroke: #2B3A33; stroke-width: 4; }
+.plano .foso { fill: #E6E1D6; stroke: #2B3A33; stroke-width: 2; stroke-dasharray: 8 5; }
+.plano .num.izq { text-anchor: start; }
+/* ---- Piensos: barras de consumo */
+.barras-cons > div { display: grid; grid-template-columns: 44px 1fr 44px; align-items: center; gap: 6px; margin: 3px 0; }
+.barras-cons i { display: block; height: 14px; border-radius: 4px; background: var(--verde, #2f6b3a); min-width: 2px; }
+.barras-cons i.cambio { background: #D9822B; }

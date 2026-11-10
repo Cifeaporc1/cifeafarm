@@ -18,12 +18,17 @@
   const ZONAS_PORC = [
     { nom: 'Parques de vacías', z: 'Parques de vacías', u: 'parque', nums: r1(2) },
     { nom: 'Sala de implantación', z: 'Sala de implantación', u: 'jaula', nums: r1(10) },
-    { nom: 'Parques de gestación', z: 'Parques de gestación', u: 'parque', nums: r1(4) },
+    { nom: 'Parque erótico', z: 'Parque erótico' },
+    { nom: 'Parques de gestación', z: 'Parques de gestación', u: 'parque', nums: r1(6) },
     ...[1, 2, 3].map((s) => ({ nom: `Sala de partos ${s}`, z: `Sala de partos ${s}`, u: 'paridera', nums: r1(6) })),
     { nom: 'Verraqueras', z: 'Verraquera', u: '', nums: r1(5) },
     { nom: 'Lechoneras', z: 'Lechonera', u: '', nums: r1(4) },
     { nom: 'Cebadero', z: 'Cebadero', u: '', nums: r1(24) },
     { nom: 'Sala de extracción y laboratorio', z: 'Sala de extracción y laboratorio' },
+    { nom: 'Despacho y almacén', z: 'Despacho y almacén' },
+    { nom: 'Silos de pienso', z: 'Silo', u: '', nums: ['madres', 'transición', 'cebo'] },
+    { nom: 'Contenedor de cadáveres', z: 'Contenedor de cadáveres' },
+    { nom: 'Foso subterráneo de purines', z: 'Foso subterráneo de purines' },
     { nom: 'Pasillos y toda la nave', z: 'Pasillos y toda la nave' },
     { nom: 'Exterior y almacén', z: 'Exterior y almacén' }];
   // Texto que se guarda: «Sala de implantación · jaula 6», «Lechonera 3», «Nave Cría y Ordeño · corralina 2»

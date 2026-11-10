@@ -203,6 +203,7 @@
   const MESES_C = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
   const GRUPOS_FECHA = [
     { id: 'todo', nombre: 'Todo junto', clave: () => ({ k: 'todo', etq: 'Total', orden: 0 }) },
+    { id: 'semana', nombre: 'Semana', clave: (f) => { if (!f.fecha) return null; const d = new Date(`${f.fecha}T12:00:00Z`); d.setUTCDate(d.getUTCDate() - ((d.getUTCDay() + 6) % 7)); const l = d.toISOString().slice(0, 10); return { k: l, etq: `sem. ${l.slice(8)}/${l.slice(5, 7)}/${l.slice(2, 4)}`, orden: l }; } },
     { id: 'mes', nombre: 'Mes', clave: (f) => (f.fecha ? { k: f.fecha.slice(0, 7), etq: `${MESES_C[+f.fecha.slice(5, 7) - 1]} ${f.fecha.slice(2, 4)}`, orden: f.fecha.slice(0, 7) } : null) },
     { id: 'trimestre', nombre: 'Trimestre', clave: (f) => { if (!f.fecha) return null; const t = Math.ceil(+f.fecha.slice(5, 7) / 3); return { k: `${f.fecha.slice(0, 4)}T${t}`, etq: `${t}.º trim. ${f.fecha.slice(0, 4)}`, orden: `${f.fecha.slice(0, 4)}${t}` }; } },
     { id: 'anio', nombre: 'Año', clave: (f) => (f.fecha ? { k: f.fecha.slice(0, 4), etq: f.fecha.slice(0, 4), orden: f.fecha.slice(0, 4) } : null) },

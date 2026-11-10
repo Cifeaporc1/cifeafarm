@@ -346,3 +346,7 @@ a.chip { text-decoration: none; color: inherit; }
   .inventario h3 { break-after: avoid; }
   .inv-firma { margin-top: 24px; }
 }
+/* ---- Piensos: barras de consumo */
+.barras-cons > div { display: grid; grid-template-columns: 44px 1fr 44px; align-items: center; gap: 6px; margin: 3px 0; }
+.barras-cons i { display: block; height: 14px; border-radius: 4px; background: var(--verde, #2f6b3a); min-width: 2px; }
+.barras-cons i.cambio { background: #D9822B; }
