@@ -168,3 +168,16 @@ No hay que ejecutar nada en Supabase.
 6. **Diarreas y problemas de consumo** (cualquiera): «Anotar diarrea u otro problema»: qué pasa, zona, animales afectados. La app pone sola el silo de esa zona y el pienso que comían.
 7. **¿Tiene relación con el pienso?**: cuenta los casos por días tras el último cambio de pienso, por pienso y en los 14 días siguientes a cada cambio. Para más análisis, Reproducción → Comparar, con las medidas de pienso y el botón «Copiar para analizar con IA».
 
+## 22. Tres granjas: 1.º, 2.º y MADRE (0.19.0)
+
+**Antes de empezar:** CIFEAFARM → Gestión → descarga la copia de seguridad (Excel y archivo para restaurar). Hazlo un día sin clase.
+1. En Supabase → SQL Editor → New query, pega entero `sql/18_tres_granjas.sql` y pulsa Run. Es repetible y no borra datos: la primera vez pasa todo lo que había a GRANJA 2.º y lo copia a GRANJA MADRE; las siguientes veces no vuelve a copiar.
+2. Cierra la app y vuelve a abrirla (o pulsa Actualizar). Debe poner versión 0.19.0.
+3. **Saber en qué granja estás:** la etiqueta blanca bajo el nombre (GRANJA 1.º, GRANJA 2.º o GRANJA MADRE) y el color de la cabecera: naranja 1.º, verde 2.º, granate MADRE.
+4. **Cambiar de granja** (solo tú): toca la etiqueta o CIFEAFARM → «Cambiar». Ahí ves la última actualización de cada una.
+5. **Alumnos:** cada uno entra solo en la granja de su curso, en rumiantes y en porcino. La de 1.º empieza vacía. Para abrirla o cerrarla, el interruptor de acceso por curso de siempre.
+6. **Pasar a MADRE:** CIFEAFARM → «Pasar a MADRE». Para cada registro eliges Pasar / No pasar; si ya existe en MADRE, «Ya está en MADRE: unirlos»; si se cambió o se borró después de pasarlo, decides si actualizar o borrar en MADRE. «Pasar todo lo de GRANJA X» marca todo de golpe. Pulsa «Aplicar lo marcado».
+7. **Traer el censo de MADRE** a 1.º o 2.º: copia las altas y bajas de animales (sin su historia) para que la granja del curso tenga los mismos animales que la real.
+8. **Notas:** DIACLASHOM sigue igual: cada alumno puntúa en su curso. Lo copiado a MADRE no cuenta.
+9. **Otros profesores:** Gestión → Personas → marca a qué granjas entra cada uno. La veterinaria entra a GRANJA 2.º.
+

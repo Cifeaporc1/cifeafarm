@@ -85,7 +85,9 @@
     if (error) throw error;
     S.perfil = data && data.activo ? data : null;
     if (!S.perfil) return;
-    S.granja = C.granjaPorcino; // una sola granja real; el curso del alumno queda en su perfil
+    // Granja en la que se trabaja: 1 = GRANJA 1.º, 2 = GRANJA 2.º, 3 = GRANJA MADRE (la elige el administrador en CIFEAFARM)
+    S.granja = Comun.granjaDe(S.perfil); Comun.aplicarColorGranja(S.granja);
+    if (!S.granja) { S.perfil = null; location.replace('../#/granjas'); return; }
     if (S.perfil.rol === 'alumno') {
       const g = await sb.from('granjas').select('*').eq('id', S.perfil.granja_id).maybeSingle();
       if (!g.error && (!g.data || g.data.acceso === false)) { S.perfil = null; location.replace('../'); } // curso cerrado: el aviso lo da CIFEAFARM
@@ -154,14 +156,17 @@
         <div class="fila"><a class="volver" href="${o.volver}">${ICONOS.atras}${esc(o.textoVolver || 'Volver')}</a>
         <a href="../#/granjas" style="margin-left:auto;line-height:0" aria-label="Granjas del centro"><img class="logo" src="img/logo-mini.jpg" alt=""></a></div>
         <h1>${esc(o.titulo)}</h1>${o.sub ? `<div class="sub">${o.sub}</div>` : ''}
-        <div class="quien peq" style="margin-top:4px">${quien}</div>${horas}</header>`;
+        <div class="quien peq" style="margin-top:4px">${quien}</div>${lineaGranja()}${horas}</header>`;
     }
     return `<header class="cab ${o.prof ? 'prof' : ''}">
       <div class="fila"><a href="../#/granjas" style="line-height:0" aria-label="Granjas del centro"><img class="logo" src="img/logo-mini.jpg" alt=""></a>
         <div><div class="marca">CIFEAPORC</div><div class="quien">${quien}</div></div>
         <button class="refrescar" type="button" data-accion="refrescar" aria-label="Actualizar datos">Actualizar</button></div>
-      ${horas}</header>`;
+      ${lineaGranja()}${horas}</header>`;
   }
+  // Al administrador, trabajando en la granja de un curso: lo que meta aquí no llega a MADRE hasta que lo pase
+  const avisoMadre = () => (esAdmin() && [1, 2].includes(S.granja) ? `<div class="ok-caja">Estás en <strong>${Comun.GRANJAS[S.granja].nombre}</strong>. Lo que metas aquí no llega a la GRANJA MADRE hasta que lo pases. <a href="../#/madre">Pasar a MADRE</a></div>` : '');
+  const lineaGranja = () => (S.granja ? `<div style="margin-top:8px">${Comun.chipGranja(S.granja, Comun.granjasDe(S.perfil).length > 1 ? '../#/elegir' : '')}</div>` : '');
 
   // Las mismas pantallas en todas las granjas: Hoy, Mapa, Animales, Reproducción, Sanidad y CIFEAFARM (lo común)
   function navegacion(activa) {
@@ -220,6 +225,7 @@
         <div class="entre"><h1 style="font-size:22px">Hoy, ${DIAS_SEM[d.getDay()]} ${d.getDate()} ${MESES[d.getMonth()]} ${d.getFullYear()}</h1>
           <span class="suave">${lista.length + avSan.length + avDosis.length} ${lista.length + avSan.length + avDosis.length === 1 ? 'aviso' : 'avisos'}</span></div>
         ${avisoAdminHoy()}
+        ${avisoMadre()}
         ${resumenZonas()}
         ${window.Almacen ? window.Almacen.htmlHoy(S.roturas, 'porc', '../', esc) : ''}
         ${Comun.htmlTareas('porc', h, S.hechas, { esc, puedeDeshacer: (x) => esProf() || (x.autor === S.sesion.user.id && Date.now() - new Date(x.creado).getTime() < 864e5), quien: (x) => verAlias(x.autor_alias, x.curso) || '?', faltaSQL: S.faltaSQL12 })}
@@ -2001,7 +2007,7 @@
         const hoja = (nombre, filas) => { const h = X.utils.json_to_sheet(filas.length ? filas : [{ '': 'Sin datos' }]); X.utils.book_append_sheet(libro, h, nombre); };
         hoja('Cerdas', T.cerdas.map((c) => ({ Crotal: c.crotal, 'Otros crotales': (c.otros_crotales || []).join(', '), Raza: c.raza, Nacimiento: c.fecha_nacimiento || '', Entrada: c.fecha_entrada || '', Procedencia: c.origen || '', 'Fecha de baja': c.fecha_baja || '', 'Causa de baja': c.causa_baja || '' })));
         hoja('Verracos', T.verracos.map((v) => ({ Crotal: v.crotal, 'Otros crotales': (v.otros_crotales || []).join(', '), Raza: v.raza, Nacimiento: v.fecha_nacimiento || '', Entrada: v.fecha_entrada || '', Verraquera: v.verraquera || '', 'Fecha de baja': v.fecha_baja || '', 'Causa de baja': v.causa_baja || '' })));
-        hoja('Eventos', T.eventos.filter((e) => e.granja_id === C.granjaPorcino).map(fila));
+        hoja('Eventos', T.eventos.filter((e) => e.granja_id === S.granja).map(fila));
         const medDe = Object.fromEntries(T.medicamentos.map((m) => [m.id, m]));
         hoja('Sanidad', T.sanidad.map((r) => ({ Granja: r.granja_id === 1 ? '1.º' : '2.º', Estado: { previsto: 'Previsto', realizado: 'Realizado', cancelado: 'Cancelado' }[r.estado], Fecha: r.fecha, Qué: nombreSan(r.tipo), 'Cancelado el': r.cancelado_fecha || '', 'Motivo de cancelación': L.MOTIVOS_CANCEL[r.cancelado_motivo] || '', 'Detalle de cancelación': r.cancelado_detalle || '', 'Cancelado por': r.cancelado_por || '', Carácter: L.CARACTER[r.caracter] || '', Análisis: r.analisis || '', Muestra: r.muestra || '', Laboratorio: r.laboratorio || '', Resultado: L.RESULTADOS[r.resultado] || '', 'Detalle del resultado': r.resultado_nota || '', Destino: r.ambito === 'zona' ? r.zona : r.ambito === 'granja' ? 'Toda la granja' : r.ambito === 'verraco' ? `Verraco ${verracoDe[r.verraco_id] || '?'}` : `${r.ambito === 'camada' ? 'Lechones de ' : 'Cerda '}${crotalDe[r.cerda_id] || '?'}`, 'Nº animales': r.n_animales ?? '', Producto: r.producto || '', 'Materia activa': (medDe[r.medicamento_id] || {}).materia_activa || '', Dosis: r.dosis || '', Vía: r.via || '', Lote: r.lote || '', Caducidad: r.caducidad || '', 'Supresión hasta': r.supresion_hasta || '', Motivo: r.motivo || '', Observaciones: r.obs || '', 'Registrado por': aliasDe[r.autor] || r.autor_alias || '', 'Realizado por': r.realizado_por || '' })));
         hoja('Medicamentos', T.medicamentos.map((m) => ({ 'Nombre comercial': m.nombre, 'Materia activa': m.materia_activa || '', Tipo: m.tipo, Presentación: m.presentacion || '', 'Posología (cerdo)': (m.posologia || {}).porcino || m.dosis || '', Vía: m.via || '', 'Supresión (días)': m.supresion_dias ?? '', Lote: m.lote || '', Caducidad: m.caducidad || '', 'Ficha técnica': m.ficha_url || '', Activo: m.activo ? 'Sí' : 'No' })));

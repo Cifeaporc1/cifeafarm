@@ -110,6 +110,8 @@
       const g = await sb.from('granjas').select('*').eq('id', S.perfil.granja_id).maybeSingle();
       if (!g.error && (!g.data || g.data.acceso === false)) { S.perfil = null; S.cursoCerrado = true; }
     }
+    // Granja en la que se trabaja (1.º, 2.º o MADRE) y su color
+    S.granja = Comun.granjaDe(S.perfil); Comun.aplicarColorGranja(S.granja);
   }
   async function todasLasFilas(tabla, orden) {
     const out = [];
@@ -167,14 +169,16 @@
         <div class="fila"><a class="volver" href="${o.volver}">${ICONOS.atras}${esc(o.textoVolver || 'Volver')}</a>
         <span class="granja-tag">${o.comun ? 'CIFEAFARM' : 'CIFEARUMI'}</span></div>
         <h1>${esc(o.titulo)}</h1>${o.sub ? `<div class="sub">${o.sub}</div>` : ''}
-        <div class="quien peq" style="margin-top:4px">${quien}</div></header>`;
+        <div class="quien peq" style="margin-top:4px">${quien}</div>${o.comun ? '' : lineaGranja()}</header>`;
     }
     return `<header class="cab ${esProf() ? 'prof' : ''}">
       <div class="fila"><a class="logo-enlace" href="#/granjas" aria-label="Cambiar de granja"><img class="logo" src="${o.comun ? 'img/logo-mini.jpg' : 'img/rumi.jpg'}" alt=""></a>
         <div><div class="marca">${o.comun ? 'CIFEAFARM' : 'CIFEARUMI'}</div><div class="quien">${quien}</div></div>
         <button class="refrescar" type="button" data-accion="refrescar" aria-label="Actualizar datos">Actualizar</button></div>
-      ${horas}</header>`;
+      ${lineaGranja()}${horas}</header>`;
   }
+  // Etiqueta de la granja en la que se trabaja (quien puede cambiar, la toca para elegir otra)
+  const lineaGranja = () => (S.granja ? `<div style="margin-top:8px">${Comun.chipGranja(S.granja, Comun.granjasDe(S.perfil).length > 1 ? '#/elegir' : '')}</div>` : '');
   // Las mismas pantallas en todas las granjas: Hoy, Mapa, Animales, Reproducción, Sanidad y CIFEAFARM (lo común)
   function navegacion(activa) {
     if (['granjas', 'gestion', 'cuenta', 'admin'].includes(activa)) return navComun(activa);
@@ -298,11 +302,117 @@
     const nombres = { evento: (e) => nombreEvento(e), animal: (id) => nombreA(animal(id)), eventoPorc: (e) => TIPOS_PORC[e.tipo] || e.tipo, cerda: (id) => `Cerda ${crot[id] || '?'}`, verraco: (id) => `Verraco ${crot[id] || '?'}` };
     return Comun.repetidas({ eventos: S.eventos, sanidad: S.sanidad, manejo: S.manejo }, S.porcRaw, { rumi: '', porc: 'porc/' }, nombres).filter((x) => !(S.descartados || new Set()).has(x.clave));
   }
+  // ---------------------------------------------------------------- tres granjas: elegir y pasar a MADRE
+  function vistaSinGranja() {
+    pintar(`${cabecera({ comun: true })}<main class="cuerpo"><div class="aviso-caja">Aún no tienes ninguna granja asignada. Pide al administrador que te dé acceso.</div>
+      <button class="btn sec" type="button" data-accion="salir">Salir</button></main>${navegacion('granjas')}`);
+  }
+  async function vistaElegirGranja() {
+    const mias = Comun.granjasDe(S.perfil);
+    if (mias.length < 2) { location.hash = '#/granjas'; return; }
+    const pinta = (est) => pintar(`${cabecera({ volver: '#/granjas', textoVolver: 'CIFEAFARM', titulo: 'Elegir granja', comun: true })}
+      <main class="cuerpo"><div class="suave">Lo que veas y metas a partir de ahora irá a la granja que elijas, en rumiantes y en porcino. Lo común (almacén, roturas, medicamentos, silos y piensos) es igual en las tres.</div>
+        ${mias.map((g) => { const e = (est || []).find((x) => x.granja === g); const col = { 1: '#B4561A', 2: '#2F6B4F', 3: '#7A1F2B' }[g];
+          return `<button type="button" class="granja-op ${g === S.granja ? 'activa' : ''}" data-elegir="${g}" style="width:100%;text-align:left"><span class="franja" style="background:${col}"></span>
+            <strong style="font-size:18px">${Comun.GRANJAS[g].nombre}</strong>${g === S.granja ? ' <span class="chip">Ahora</span>' : ''}
+            <div class="suave peq">${g === 3 ? 'Registro oficial de la granja' : `Alumnos de ${g}.º curso`}</div>
+            <div class="peq">${est ? (e && e.ultima ? `Última actualización: ${esc(fechaHora(new Date(e.ultima)))} · ${e.registros} registros` : 'Sin datos todavía') : 'Cargando…'}</div></button>`; }).join('')}
+        ${esAdmin() ? `<a class="btn sec" href="#/madre">Pasar a MADRE${S.pendMadre != null ? ` (${S.pendMadre})` : ''}</a>` : ''}</main>${navegacion('granjas')}`);
+    const enlazar = () => $app.querySelectorAll('[data-elegir]').forEach((b) => b.addEventListener('click', async () => {
+      const g = +b.dataset.elegir; if (g === S.granja) { location.hash = '#/granjas'; return; }
+      b.disabled = true;
+      const { error } = await sb.rpc('elegir_granja', { g });
+      if (error) { b.disabled = false; return toast(/elegir_granja|function/i.test(error.message || '') ? 'Falta ejecutar en Supabase sql/18_tres_granjas.sql.' : traducirError(error)); }
+      S.perfil.granja_activa = g; S.granja = g; Comun.aplicarColorGranja(g);
+      if (ALM) ALM.recargar(); if (PZ) PZ.recargar(); S.pendMadre = undefined;
+      await refrescar(); toast(`Ahora trabajas en ${Comun.GRANJAS[g].nombre}`); location.hash = '#/granjas';
+    }));
+    pinta(null); enlazar();
+    const r = await sb.rpc('estado_granjas');
+    if (location.hash === '#/elegir') { pinta(r.error ? [] : r.data); enlazar(); }
+  }
+  // Bandeja «Pasar a MADRE»: lo que han metido 1.º y 2.º y aún no está en MADRE
+  const TABLAS_MADRE = { rum_animales: 'Rumiantes · animal', rum_eventos: 'Rumiantes · evento', rum_sanidad: 'Rumiantes · sanidad', rum_lotes: 'Rumiantes · lote de cubrición', rum_manejo: 'Rumiantes · manejo',
+    cerdas: 'Porcino · cerda', verracos: 'Porcino · verraco', eventos: 'Porcino · evento de cerda', sanidad: 'Porcino · sanidad', extracciones: 'Porcino · extracción de semen', recuentos: 'Porcino · recuento',
+    mov_grupos: 'Porcino · movimiento de lechones o cebo', protocolo_hechas: 'Tarea de protocolo', pienso_reposiciones: 'Reposición de pienso', pienso_incidencias: 'Problema digestivo' };
+  function resumenPendiente(x) {
+    const d = x.datos || {}; const crot = (id, t) => { const m = (S.madreNombres || {})[id]; return m || ''; };
+    const partes = [];
+    if (['rum_animales', 'cerdas', 'verracos'].includes(x.tabla)) partes.push(d.crotal || d.manejo || d.codigo_cria || 'sin crotal', d.categoria || '', d.fecha_baja ? `baja ${fmt(d.fecha_baja)}` : '');
+    else {
+      if (d.tipo) partes.push(String(d.tipo).replace(/_/g, ' '));
+      const a = d.animal_id || d.cerda_id || d.verraco_id; if (a && S.madreNombres && S.madreNombres[a]) partes.push(S.madreNombres[a]);
+      if (d.producto) partes.push(d.producto); if (d.nombre) partes.push(d.nombre); if (d.tarea) partes.push(d.tarea);
+      if (d.estancia) partes.push(d.estancia); if (d.origen && x.tabla === 'mov_grupos') partes.push(`${d.origen}${d.destino ? ` → ${d.destino}` : ''}`);
+      if (d.n != null && x.tabla !== 'rum_eventos') partes.push(`${d.n}`); if (d.kg != null) partes.push(`${d.kg} kg`); if (d.zona && x.tabla !== 'mov_grupos') partes.push(d.zona);
+    }
+    return partes.filter(Boolean).join(' · ');
+  }
+  async function vistaMadre() {
+    if (!esAdmin()) { location.hash = '#/granjas'; return; }
+    const cab = cabecera({ volver: '#/granjas', textoVolver: 'CIFEAFARM', titulo: 'Pasar a MADRE', comun: true });
+    pintar(`${cab}<main class="cuerpo"><div class="ok-caja">Buscando lo pendiente en las granjas de 1.º y 2.º…</div></main>${navegacion('granjas')}`);
+    const r = await sb.rpc('pendientes_madre');
+    if (r.error) { pintar(`${cab}<main class="cuerpo"><div class="aviso-caja">${/pendientes_madre|function/i.test(r.error.message || '') ? 'Falta ejecutar en Supabase sql/18_tres_granjas.sql.' : esc(traducirError(r.error))}</div></main>${navegacion('granjas')}`); return; }
+    const lista = r.data || []; S.pendMadre = lista.length;
+    // Nombres de los animales que salen en la bandeja (para que se entienda cada registro)
+    S.madreNombres = {};
+    for (const x of lista) if (['rum_animales', 'cerdas', 'verracos'].includes(x.tabla)) S.madreNombres[x.id] = x.datos.crotal || x.datos.manejo || x.datos.codigo_cria;
+    const ids = [...new Set(lista.map((x) => x.datos.animal_id || x.datos.cerda_id || x.datos.verraco_id).filter((i) => i && !S.madreNombres[i]))];
+    if (ids.length) {
+      const ra = await sb.rpc('nombres_animales', { ids });
+      if (!ra.error && ra.data) for (const n of ra.data) S.madreNombres[n.id] = n.nombre;
+    }
+    const decision = S.decisiones = S.decisiones || {};
+    const accionPor = (x) => decision[x.id] || (x.estado === 'cambiado' ? 'actualizar' : x.estado === 'borrado' ? 'borrar' : x.duplicado ? 'vincular' : 'pasar');
+    const OPC = { nuevo: [['pasar', 'Pasar'], ['descartar', 'No pasar']], dup: [['vincular', 'Ya está en MADRE: unirlos'], ['pasar', 'Pasar igualmente'], ['descartar', 'No pasar']],
+      cambiado: [['actualizar', 'Actualizar MADRE'], ['descartar', 'Dejar MADRE como está']], borrado: [['borrar', 'Borrar también en MADRE'], ['olvidar', 'Mantener en MADRE']] };
+    const opciones = (x) => OPC[x.estado === 'nuevo' && x.duplicado ? 'dup' : x.estado];
+    const grupos = [[1, 'GRANJA 1.º'], [2, 'GRANJA 2.º']];
+    pintar(`${cab}<main class="cuerpo" id="madre"><div id="msg"></div>
+      ${lista.length ? `<div class="suave">Revisa lo que han metido los cursos y decide qué pasa a la GRANJA MADRE. Lo que no pases seguirá en la granja del curso. Lo que la app cree que ya existe en MADRE (mismo animal, tipo y fecha) se propone unir, sin duplicarlo.</div>
+        <div class="botones"><button class="btn" type="button" id="b-aplicar">Aplicar lo marcado (${lista.length})</button></div>` : '<div class="vacio">No hay nada pendiente: MADRE está al día con lo de los cursos. 👍</div>'}
+      ${grupos.map(([g, n]) => { const l = lista.filter((x) => x.granja === g); if (!l.length) return '';
+        const est = { nuevo: 'Nuevos', cambiado: 'Cambiados después de pasarlos', borrado: 'Borrados en el curso después de pasarlos' };
+        return `<section class="tarjeta"><div class="entre"><h2>${n} (${l.length})</h2><button class="btn sec peq" type="button" data-todo="${g}">Pasar todo lo de ${n}</button></div>
+          ${Object.entries(est).map(([k, t]) => { const ll = l.filter((x) => x.estado === k); return ll.length ? `<h3 class="peq" style="margin:10px 0 4px">${t} (${ll.length})</h3>${ll.map((x) => `<div class="evento" data-item="${x.id}">
+            <div class="entre"><strong>${esc(TABLAS_MADRE[x.tabla] || x.tabla)}</strong><span class="suave peq">${x.fecha ? esc(fmt(x.fecha)) : ''}</span></div>
+            <div class="peq">${esc(resumenPendiente(x)) || '—'}${x.duplicado ? ' <span class="chip nar">Ya existe en MADRE</span>' : ''}</div>
+            <div class="suave peq">${x.autor_alias ? `Lo metió ${esc(verAlias(x.autor_alias, x.curso || x.granja) || x.autor_alias)}` : ''}</div>
+            <div class="opciones">${opciones(x).map(([a, t]) => `<label><input type="radio" name="d-${x.id}" value="${a}" ${accionPor(x) === a ? 'checked' : ''}> ${t}</label>`).join('')}</div></div>`).join('')}` : ''; }).join('')}</section>`; }).join('')}
+      ${[1, 2].map((g) => `<button class="btn sec peq" type="button" data-traer="${g}">Traer el censo de MADRE a ${Comun.GRANJAS[g].nombre}</button>`).join('')}
+      <div class="suave peq">«Traer el censo» copia a la granja del curso las altas y bajas de animales de MADRE (sin su historia), para que no se alejen de la granja real.</div></main>${navegacion('granjas')}`);
+    $app.querySelectorAll('input[type=radio][name^="d-"]').forEach((i) => i.addEventListener('change', () => { decision[i.name.slice(2)] = i.value; }));
+    $app.querySelectorAll('[data-todo]').forEach((b) => b.addEventListener('click', () => { const g = +b.dataset.todo; for (const x of lista.filter((y) => y.granja === g)) { const o = opciones(x)[0][0]; decision[x.id] = o; const i = $app.querySelector(`input[name="d-${x.id}"][value="${o}"]`); if (i) i.checked = true; } toast('Marcado: pasar todo'); }));
+    const ba = document.getElementById('b-aplicar');
+    if (ba) ba.addEventListener('click', async () => {
+      ba.disabled = true; ba.textContent = 'Aplicando…';
+      const items = lista.map((x) => ({ tabla: x.tabla, granja: x.granja, id: x.id, fecha: x.fecha, accion: accionPor(x) }));
+      const res = await sb.rpc('pasar_madre', { items });
+      if (res.error) { ba.disabled = false; ba.textContent = 'Aplicar lo marcado'; document.getElementById('msg').innerHTML = errorCaja(traducirError(res.error)); return; }
+      const mal = (res.data || []).filter((x) => !x.ok);
+      S.decisiones = {};
+      const ok = (res.data || []).length - mal.length;
+      await vistaMadre();
+      document.getElementById('msg').innerHTML = `<div class="ok-caja" role="status">${ok} registro${ok === 1 ? '' : 's'} aplicado${ok === 1 ? '' : 's'}.</div>${mal.length ? errorCaja(`${mal.length} no se ha${mal.length === 1 ? '' : 'n'} podido pasar: ${[...new Set(mal.map((x) => x.error))].slice(0, 3).join(' · ')}`) : ''}`;
+    });
+    $app.querySelectorAll('[data-traer]').forEach((b) => b.addEventListener('click', async () => {
+      const g = +b.dataset.traer;
+      if (b.dataset.confirmar !== '1') { b.dataset.confirmar = '1'; b.textContent = `¿Copiar a ${Comun.GRANJAS[g].nombre} los animales de MADRE? Pulsa otra vez`; return; }
+      b.disabled = true; const r2 = await sb.rpc('traer_censo', { destino: g });
+      if (r2.error) { b.disabled = false; return toast(traducirError(r2.error)); }
+      toast(`${r2.data} animal${r2.data === 1 ? '' : 'es'} copiado${r2.data === 1 ? '' : 's'} o dado${r2.data === 1 ? '' : 's'} de baja en ${Comun.GRANJAS[g].nombre}`); vistaMadre();
+    }));
+  }
+
   function vistaGranjas() {
     const d = new Date();
+    if (esAdmin() && S.pendMadre === undefined) { S.pendMadre = null; sb.rpc('pendientes_madre').then((r) => { S.pendMadre = r.error ? null : r.data.length; if (/^#\/(granjas)?$/.test(location.hash || '#/')) vistaGranjas(); }); }
     pintar(`${cabecera({ comun: true })}
       <main class="cuerpo">
         <h1 style="font-size:22px">Granjas del centro · ${DIAS_SEM[d.getDay()]} ${d.getDate()} ${MESES[d.getMonth()]}</h1>
+        ${Comun.granjasDe(S.perfil).length > 1 ? `<section class="tarjeta"><div class="entre"><h2>Trabajas en ${esc(Comun.GRANJAS[S.granja] ? Comun.GRANJAS[S.granja].nombre : '—')}</h2><a class="btn sec peq" href="#/elegir">Cambiar</a></div>
+          ${esAdmin() ? `<a class="btn ${S.pendMadre ? '' : 'sec'}" href="#/madre">Pasar a MADRE${S.pendMadre != null ? ` (${S.pendMadre})` : ''}</a>` : ''}</section>` : ''}
         <section class="tarjeta"><h2>Operaciones de granja</h2>
           <a class="granja-card" href="#/inicio"><img src="img/rumi.jpg" alt=""><div><strong>CIFEARUMI</strong>
             <div class="suave">Cabras murciano-granadinas y ovejas segureñas · ${activos().length} animales</div></div>${ICONOS.flecha}</a>
@@ -421,6 +531,7 @@
         </div>
         ${resumenZonas(act)}
         ${faltaSQL2Caja()}${faltaSQL3Caja()}
+        ${esAdmin() && [1, 2].includes(S.granja) ? `<div class="ok-caja">Estás en <strong>${Comun.GRANJAS[S.granja].nombre}</strong>. Lo que metas aquí no llega a la GRANJA MADRE hasta que lo pases. <a href="#/madre">Pasar a MADRE</a></div>` : ''}
         ${window.Almacen ? window.Almacen.htmlHoy(S.roturas, 'rumi', '', esc) : ''}
         ${(() => { const ret = retiradasHoy(); const leche = activos().filter((a) => ret[a.id] && ret[a.id].leche && a.especie === 'caprino' && esHembraRepro(a)).sort(L.ordenNatural);
           return leche.length ? `<a class="tarjeta enlace alerta" href="#/sanidad/retiradas"><div class="entre"><strong>Leche no apta: ${leche.length} ${leche.length === 1 ? 'cabra' : 'cabras'}</strong><span class="chip rojo">No al tanque</span></div>
@@ -1925,7 +2036,7 @@
   const TIPOS_PORC = { ia: 'Inseminación', eco: 'Ecografía', paridera: 'Entrada en paridera', parto: 'Parto', aborto: 'Aborto', adopcion: 'Adopción', baja_lechones: 'Baja de lechones', destete: 'Destete', traslado: 'Traslado', nota: 'Nota' };
   const SAN_PORC = { vacunacion: 'Vacunación', desparasitacion: 'Desparasitación', tratamiento: 'Tratamiento', hierro: 'Hierro y colmillos', colmillos: 'Corte de colmillos', raboteo: 'Raboteo', castracion: 'Castración', analitica: 'Control analítico', limpieza: 'Limpieza', desinfeccion: 'Desinfección', desinsectacion: 'Desinsectación', desratizacion: 'Desratización', otro: 'Otro' };
   async function cargarPorcino() {
-    const g = C.granjaPorcino; const todas = async (t, conGranja) => {
+    const g = S.granja || 2; const todas = async (t, conGranja) => {
       const out = [];
       for (let d = 0; ; d += 1000) { let q = sb.from(t).select('*'); if (conGranja) q = q.eq('granja_id', g); const r = await q.order('creado').range(d, d + 999); if (r.error) throw r.error; out.push(...r.data); if (r.data.length < 1000) break; }
       return out; };
@@ -2103,7 +2214,7 @@
         <section class="tarjeta"><h2>Acceso por curso</h2>
           ${(S.cursos || []).length && S.cursos[0].acceso === undefined ? '<div class="aviso-caja">Para usar este interruptor, ejecuta en Supabase el archivo <code>sql/04_acceso_por_curso.sql</code>.</div>' : `
           <div class="suave">Con el acceso cerrado, los alumnos de ese curso no pueden entrar en ninguna granja. Sus cuentas no se tocan: al abrirlo, siguen como estaban.</div>
-          ${(S.cursos || []).map((g) => `<div class="entre curso-acceso"><div><strong>${g.id}.º curso</strong><div class="suave peq">${(() => { const n = Object.values(S.nombres).filter((p) => p.rol === 'alumno' && p.granja_id === g.id).length; return `${n} ${n === 1 ? 'alumno' : 'alumnos'}`; })()}</div></div>
+          ${(S.cursos || []).filter((g) => g.id <= 2).map((g) => `<div class="entre curso-acceso"><div><strong>${g.id}.º curso</strong><div class="suave peq">${(() => { const n = Object.values(S.nombres).filter((p) => p.rol === 'alumno' && p.granja_id === g.id).length; return `${n} ${n === 1 ? 'alumno' : 'alumnos'}`; })()}</div></div>
             <button class="btn ${g.acceso ? 'sec' : ''} peq" type="button" data-acceso="${g.id}" data-abrir="${g.acceso ? '0' : '1'}">${g.acceso ? 'Abierto · cerrar' : 'Cerrado · abrir'}</button></div>`).join('')}`}</section>
 
         <section class="aviso-caja"><strong>Cambio de curso escolar</strong><br>Desactiva a todos los alumnos y <strong>borra sus nombres</strong>. Sus registros se conservan con el alias. Después crea los alias del curso nuevo en Personas.
@@ -2266,11 +2377,24 @@
         <button class="btn" type="submit">Crear acceso</button></form>
       ${bloqueVarios()}
       ${[1, 2].map((g) => `<section class="tarjeta"><h2>Alumnos · ${g}.º curso (${al(g).length})</h2>${al(g).map((p) => fila(p, true, true)).join('') || '<div class="suave">Sin alumnos.</div>'}</section>`).join('')}
-      <section class="tarjeta"><h2>Profesores</h2>${S.perfiles.filter((p) => p.rol === 'profesor').map((p) => fila(p, false, false)).join('')}
+      <section class="tarjeta"><h2>Profesores</h2>${S.perfiles.filter((p) => p.rol === 'profesor').map((p) => fila(p, false, false) + (p.admin ? '' : granjasPersona(p))).join('')}
         <div class="suave peq">Otro profesor se crea siguiendo la guía de puesta en marcha (paso del profesor). Trabaja en la granja, pero no ve la parte de Administrador.</div></section>
       ${seccionVeterinaria()}`;
   }
+  // Granjas a las que entra un profesor o la veterinaria (el administrador entra a todas)
+  const granjasPersona = (p) => (p.granjas === undefined ? '' : `<div class="campo" style="margin:-4px 0 10px"><span class="et peq">Entra a</span><div class="opciones">${[1, 2, 3].map((g) =>
+    `<label><input type="checkbox" data-granja-de="${p.user_id}" value="${g}" ${(p.granjas || []).includes(g) ? 'checked' : ''}> ${Comun.GRANJAS[g].nombre}</label>`).join('')}</div></div>`);
+  function enlazarGranjasPersona() {
+    $app.querySelectorAll('[data-granja-de]').forEach((c) => c.addEventListener('change', async () => {
+      const u = c.dataset.granjaDe; const gs = [...$app.querySelectorAll(`[data-granja-de="${u}"]:checked`)].map((x) => +x.value);
+      const { error } = await sb.from('perfiles').update({ granjas: gs }).eq('user_id', u);
+      if (error) return toast(traducirError(error));
+      const p = (S.perfiles || []).find((x) => x.user_id === u); if (p) p.granjas = gs; if (S.vets) { const v = S.vets.find((x) => x.user_id === u); if (v) v.granjas = gs; }
+      toast(gs.length ? `Entra a: ${gs.map((g) => Comun.GRANJAS[g].nombre).join(', ')}` : 'Sin acceso a ninguna granja');
+    }));
+  }
   function enlazarPersonas() {
+    enlazarGranjasPersona();
     const recargar = async (msg = '') => { await cargarPerfiles(); await refrescar(); location.hash = '#/gestion/personas'; vistaGestion('personas', msg); };
     const fa = document.getElementById('f-alumno');
     if (fa) fa.addEventListener('submit', async (ev) => {
@@ -2367,7 +2491,7 @@
     return `<section class="tarjeta"><h2>Veterinaria</h2>
       <div class="suave">Entra con la pestaña <strong>Veterinaria</strong>, su alias y su PIN. Trabaja con los animales y la granja (registros, datos de los animales, productos, censo y copias). No tiene nada que ver con los alumnos: no los ve, no los gestiona ni abre o cierra el acceso de un curso.</div>
       ${res ? `<div class="ok-caja" role="status"><strong>Anota y entrégale estos datos:</strong> alias <strong>${esc(res.alias)}</strong> · PIN <strong>${esc(res.pin)}</strong>. El PIN no se vuelve a mostrar.</div>` : ''}
-      ${S.vets.map((v) => `<div class="entre curso-acceso"><div><strong>${esc(v.alias)}</strong><div class="suave peq">${v.activo ? 'Activa' : 'Desactivada'}</div></div>
+      ${S.vets.map((v) => `${granjasPersona(v)}<div class="entre curso-acceso"><div><strong>${esc(v.alias)}</strong><div class="suave peq">${v.activo ? 'Activa' : 'Desactivada'}</div></div>
         <div class="botones" style="flex:none"><button class="btn sec peq" type="button" data-vet-pin="${v.user_id}" data-alias="${esc(v.alias)}">Nuevo PIN</button><button class="btn sec peq" type="button" data-vet-activo="${v.user_id}" data-valor="${v.activo ? '0' : '1'}">${v.activo ? 'Desactivar' : 'Activar'}</button><button class="btn peligro peq" type="button" data-eliminar="${v.user_id}" data-alias="${esc(v.alias)}">Eliminar</button></div></div>`).join('')}
       <form class="formu" id="f-vet" novalidate><div class="dos"><div class="campo"><label for="vet-alias">Alias</label><input id="vet-alias" name="alias" type="text" maxlength="10" autocapitalize="characters" placeholder="VET1"></div>
         <div class="campo"><label for="vet-pin">PIN</label><input id="vet-pin" name="pin" type="text" inputmode="numeric" maxlength="6" value="${pinAzar()}"></div></div>
@@ -2523,8 +2647,11 @@
     if (!S.sesion) { if (/^#\/(animal|corralina)\//.test(location.hash)) { try { sessionStorage.setItem('cife-destino', location.href); } catch (_) { /* sin almacenamiento */ } } return vistaAcceso(); }
     if (!S.perfil) return vistaSinPerfil();
     const [ruta, a, b] = location.hash.replace(/^#\/?/, '').split('/');
+    if (!S.granja && !['granjas', 'cuenta', 'elegir'].includes(ruta)) return vistaSinGranja();
     switch (ruta || 'inicio') {
       case 'granjas': return vistaGranjas();
+      case 'elegir': return vistaElegirGranja();
+      case 'madre': return vistaMadre(a);
       case 'inicio': return vistaInicio();
       case 'mapa': return vistaMapa();
       case 'corralina': return vistaCorralina(a);

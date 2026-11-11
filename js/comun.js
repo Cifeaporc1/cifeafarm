@@ -348,7 +348,22 @@
     });
   }
 
-  const api = { PROTOCOLOS, NOMBRE_CADA, periodo, tareasDe, htmlTareas, repetidas, leerPauta, htmlPauta, siguienteDosis, textoPauta, POCOS, GRUPOS_FECHA, calcular, fmtNum, svgBarras, htmlTabla, textoIA, htmlResultados, htmlComparar, enlazarAnalisis };
+  // ---- Tres granjas: 1 = GRANJA 1.º, 2 = GRANJA 2.º, 3 = GRANJA MADRE (registro oficial)
+  const GRANJAS = { 1: { nombre: 'GRANJA 1.º', corto: '1.º', color: 'naranja' }, 2: { nombre: 'GRANJA 2.º', corto: '2.º', color: 'verde' }, 3: { nombre: 'GRANJA MADRE', corto: 'MADRE', color: 'granate' } };
+  // Granja en la que trabaja la persona (la misma regla que granja_activa() en Supabase)
+  function granjaDe(p) {
+    if (!p) return null;
+    if (p.rol === 'alumno') return p.granja_id;
+    const gs = p.granjas || [];
+    if (p.admin) return p.granja_activa || 2;
+    if (p.granja_activa && gs.includes(p.granja_activa)) return p.granja_activa;
+    return gs[0] || (p.granjas === undefined ? 2 : null); // sin el SQL 18 todo seguía en la 2
+  }
+  const granjasDe = (p) => (!p ? [] : p.rol === 'alumno' ? [p.granja_id] : p.admin ? [1, 2, 3] : (p.granjas || []).slice().sort());
+  function aplicarColorGranja(g) { try { document.documentElement.dataset.granja = String(g || ''); } catch (_) {} }
+  const chipGranja = (g, href) => (GRANJAS[g] ? (href ? `<a class="granja-chip" href="${href}" aria-label="Cambiar de granja (ahora ${GRANJAS[g].nombre})">${GRANJAS[g].nombre} ▾</a>` : `<span class="granja-chip">${GRANJAS[g].nombre}</span>`) : '');
+
+  const api = { PROTOCOLOS, NOMBRE_CADA, periodo, tareasDe, htmlTareas, repetidas, leerPauta, htmlPauta, siguienteDosis, textoPauta, POCOS, GRUPOS_FECHA, calcular, fmtNum, svgBarras, htmlTabla, textoIA, htmlResultados, htmlComparar, enlazarAnalisis, GRANJAS, granjaDe, granjasDe, aplicarColorGranja, chipGranja };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else raiz.Comun = api;
 })(typeof window !== 'undefined' ? window : globalThis);

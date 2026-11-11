@@ -350,3 +350,14 @@ a.chip { text-decoration: none; color: inherit; }
 .barras-cons > div { display: grid; grid-template-columns: 44px 1fr 44px; align-items: center; gap: 6px; margin: 3px 0; }
 .barras-cons i { display: block; height: 14px; border-radius: 4px; background: var(--verde, #2f6b3a); min-width: 2px; }
 .barras-cons i.cambio { background: #D9822B; }
+/* ---- Tres granjas: color de cada una (2.º verde, 1.º naranja, MADRE granate) */
+html[data-granja="1"] { --verde: #B4561A; --verde-osc: #7E3A0E; --verde-claro: #FBE8D8; --verde-borde: #E3AF85; }
+html[data-granja="3"] { --verde: #7A1F2B; --verde-osc: #55141E; --verde-claro: #F6E3E6; --verde-borde: #D6A0A8; }
+html[data-granja] .cab.prof { background: var(--verde-osc); }
+html[data-granja] .cab.prof .horas { color: rgba(255, 255, 255, .8); }
+.granja-chip { display: inline-flex; align-items: center; min-height: 32px; padding: 2px 10px; border-radius: 99px; background: #fff; color: var(--verde-osc); font-weight: 700; font-size: 14px; letter-spacing: .4px; text-decoration: none; border: 2px solid rgba(255, 255, 255, .7); white-space: nowrap; }
+a.granja-chip { min-height: 44px; }
+.cab .fila .granja-chip { margin-left: auto; }
+.granja-op { display: block; border: 2px solid var(--borde); border-radius: 12px; padding: 12px; margin: 8px 0; background: #fff; text-decoration: none; color: var(--tinta); }
+.granja-op.activa { outline: 3px solid var(--tinta); }
+.granja-op .franja { display: block; height: 8px; border-radius: 6px; margin-bottom: 8px; }
