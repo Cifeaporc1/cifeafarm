@@ -353,13 +353,14 @@
   // Granja en la que trabaja la persona (la misma regla que granja_activa() en Supabase)
   function granjaDe(p) {
     if (!p) return null;
+    if (p.granjas === undefined) return 2; // sin el SQL 18 todo sigue en una sola granja (la 2)
     if (p.rol === 'alumno') return p.granja_id;
     const gs = p.granjas || [];
     if (p.admin) return p.granja_activa || 2;
     if (p.granja_activa && gs.includes(p.granja_activa)) return p.granja_activa;
     return gs[0] || (p.granjas === undefined ? 2 : null); // sin el SQL 18 todo seguía en la 2
   }
-  const granjasDe = (p) => (!p ? [] : p.rol === 'alumno' ? [p.granja_id] : p.admin ? [1, 2, 3] : (p.granjas || []).slice().sort());
+  const granjasDe = (p) => (!p ? [] : p.granjas === undefined ? [2] : p.rol === 'alumno' ? [p.granja_id] : p.admin ? [1, 2, 3] : (p.granjas || []).slice().sort());
   function aplicarColorGranja(g) { try { document.documentElement.dataset.granja = String(g || ''); } catch (_) {} }
   const chipGranja = (g, href) => (GRANJAS[g] ? (href ? `<a class="granja-chip" href="${href}" aria-label="Cambiar de granja (ahora ${GRANJAS[g].nombre})">${GRANJAS[g].nombre} ▾</a>` : `<span class="granja-chip">${GRANJAS[g].nombre}</span>`) : '');
 
