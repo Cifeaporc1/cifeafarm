@@ -279,7 +279,7 @@
     if (u === 'Implantación') return { zona: 'implantacion', n: null };
     if ((m = /^Vacías · parque (\d+)/.exec(u))) return { zona: 'vacias', n: +m[1] };
     if ((m = /^Gestación · parque (\d+)/.exec(u))) return { zona: 'gestacion', n: +m[1] };
-    if (u === 'Parque erótico') return { zona: 'erotico', n: 1 };
+    if (u === 'Parque vacías efecto macho' || u === 'Parque vacías efecto macho') return { zona: 'erotico', n: 1 }; // nombre antiguo: Parque vacías efecto macho
     if ((m = /^Partos · sala (\d+) · paridera (\d+)/.exec(u))) return { zona: 'partos', sala: +m[1], n: +m[2] };
     return null;
   }
@@ -425,7 +425,7 @@
   const CARACTER = { obligatorio: 'Obligatorio', recomendado: 'Recomendado', voluntario: 'Voluntario' };
   const RESULTADOS = { pendiente: 'Pendiente', negativo: 'Negativo', positivo: 'Positivo' };
   const MUESTRAS = ['Sangre', 'Suero', 'Heces', 'Orina', 'Hisopo', 'Semen', 'Pienso', 'Agua'];
-  const ZONAS = ['Parques de vacías', 'Parque erótico', 'Sala de implantación', 'Parques de gestación', 'Sala de partos 1', 'Sala de partos 2', 'Sala de partos 3', 'Verraqueras', 'Lechoneras', 'Cebadero', 'Toda la nave', 'Exterior / almacén'];
+  const ZONAS = ['Parques de vacías', 'Parque vacías efecto macho', 'Sala de implantación', 'Parques de gestación', 'Sala de partos 1', 'Sala de partos 2', 'Sala de partos 3', 'Verraqueras', 'Lechoneras', 'Cebadero', 'Toda la nave', 'Exterior / almacén'];
 
   function usaProducto(tipo) { const t = SANIDAD[tipo]; return t && (t.grupo === 'medicamento' || t.producto); }
 

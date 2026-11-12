@@ -18,7 +18,7 @@
   const ZONAS_PORC = [
     { nom: 'Parques de vacías', z: 'Parques de vacías', u: 'parque', nums: r1(2) },
     { nom: 'Sala de implantación', z: 'Sala de implantación', u: 'jaula', nums: r1(10) },
-    { nom: 'Parque erótico', z: 'Parque erótico' },
+    { nom: 'Parque vacías efecto macho', z: 'Parque vacías efecto macho' },
     { nom: 'Parques de gestación', z: 'Parques de gestación', u: 'parque', nums: r1(6) },
     ...[1, 2, 3].map((s) => ({ nom: `Sala de partos ${s}`, z: `Sala de partos ${s}`, u: 'paridera', nums: r1(6) })),
     { nom: 'Verraqueras', z: 'Verraquera', u: '', nums: r1(5) },

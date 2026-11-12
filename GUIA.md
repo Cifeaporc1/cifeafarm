@@ -161,7 +161,7 @@ No hay que ejecutar nada en Supabase.
 ## 21. Plano ampliado y control de piensos (0.18.0)
 
 1. Ejecuta una vez en Supabase `sql/17_piensos.sql` (SQL Editor → New query → Run). Es repetible y no borra datos. Crea los silos de porcino (madres, transición y cebo).
-2. **Plano de porcino:** ya salen los parques de gestación 5 y 6, el parque erótico, los tres silos (en rojo; al tocarlos se abre su control de pienso), el contenedor de cadáveres y el foso de purines. Para llevar una cerda al parque erótico o a los parques 5 y 6: en su ficha, Traslado.
+2. **Plano de porcino:** ya salen los parques de gestación 5 y 6, el parque vacías efecto macho, los tres silos (en rojo; al tocarlos se abre su control de pienso), el contenedor de cadáveres y el foso de purines. Para llevar una cerda al parque vacías efecto macho o a los parques 5 y 6: en su ficha, Traslado.
 3. **Fichas de pienso** (profesorado): Hoy → Piensos y consumo → Fichas de pienso → Nueva. Nombre, tipo, fabricante, composición de la etiqueta, proteína, grasa, fibra, cenizas, energía y si es medicado.
 4. **Silos** (profesorado): Piensos y consumo → Silos. Revisa a qué zonas da de comer cada uno; en rumiantes crea los que uséis (tolvas, comederos…).
 5. **Cada reposición** (cualquiera): «Anotar reposición»: silo, pienso, fecha y kilos. Si sabes lo que quedaba en el silo, anótalo: el consumo diario sale más exacto. Si el pienso es distinto al anterior, la app avisa del cambio.
@@ -204,4 +204,8 @@ No hay que ejecutar nada en Supabase.
 
 1. Ejecuta una vez en Supabase `sql/21_madre_almacen_roturas.sql` (después del 18, 19 y 20). Es repetible y no borra datos.
 2. En CIFEAFARM → Pasar a MADRE salen también «Almacén · artículo» y «Rotura», con las mismas opciones que el resto: pasar, no pasar, unir con lo que ya hay en MADRE, actualizar MADRE si cambió (por ejemplo, una cantidad) o borrar en MADRE si el curso lo borró.
+
+## 26. Parque vacías efecto macho (0.20.3)
+
+Ejecuta una vez en Supabase `sql/22_efecto_macho.sql`. Cambia el nombre «Parque erótico» por «Parque vacías efecto macho» en lo ya anotado (traslados, silos, piensos y roturas). Es repetible y no borra datos.
 

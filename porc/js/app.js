@@ -243,7 +243,7 @@
     const n = (o) => Object.values(o).flat().length;
     const lech = Object.values(D.recuento).filter((r) => r.estancia.startsWith('Lechonera')).reduce((a, r) => a + r.n, 0);
     const cebo = Object.values(D.recuento).filter((r) => r.estancia.startsWith('Cebadero')).reduce((a, r) => a + r.n, 0);
-    const zonas = [['implantacion', 'Implantación', n(D.implantacion) + D.implSin.length], ['vacias', 'Vacías', n(D.vacias)], ['erotico', 'Parque erótico', n(D.erotico)], ['gestacion', 'Gestación', n(D.gestacion)], ['partos', 'Parideras', n(D.partos)],
+    const zonas = [['implantacion', 'Implantación', n(D.implantacion) + D.implSin.length], ['vacias', 'Vacías', n(D.vacias)], ['erotico', 'Parque vacías efecto macho', n(D.erotico)], ['gestacion', 'Gestación', n(D.gestacion)], ['partos', 'Parideras', n(D.partos)],
       ['verraqueras', 'Verraqueras', n(D.verraqueras)], ['lechoneras', 'Lechoneras', lech], ['cebadero', 'Cebadero', cebo]];
     const tot = cerdasActivas().length + verracosActivos().length + D.lactantes + lech + cebo;
     const fases = {}; for (const c of cerdasActivas()) { const f = estadoDe(c.id).fase; fases[f] = (fases[f] || 0) + 1; }
@@ -329,7 +329,7 @@
   }
 
   // ---------------------------------------------------------------- control de piensos (js/piensos.js)
-  const ZONAS_PIENSO_PORC = ['Parques de vacías', 'Parque erótico', 'Sala de implantación', 'Parques de gestación', 'Salas de partos', 'Verraqueras', 'Lechoneras', 'Cebadero'];
+  const ZONAS_PIENSO_PORC = ['Parques de vacías', 'Parque vacías efecto macho', 'Sala de implantación', 'Parques de gestación', 'Salas de partos', 'Verraqueras', 'Lechoneras', 'Cebadero'];
   let PZ = null;
   const pz = () => (PZ = PZ || window.Piensos({ sb, S, esc, fmt, hoy, toast, traducirError, pintar, cabecera, navegacion, navKey: 'inicio', esProf, esAdmin, verAlias, quienEs,
     granja: 'porc', zonas: () => ZONAS_PIENSO_PORC, cargarXLSX: () => (window.XLSX ? Promise.resolve() : cargarScript('https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js')),
@@ -788,14 +788,14 @@
     traslado: {
       nombre: 'Traslado',
       campos: [F.fecha,
-        { n: 'zona', t: 'select', l: 'Zona', op: [['Vacías', 'Parque de vacías'], ['Erótico', 'Parque erótico'], ['Implantación', 'Sala de implantación'], ['Gestación', 'Parque de gestación'], ['Partos', 'Sala de partos']] },
+        { n: 'zona', t: 'select', l: 'Zona', op: [['Vacías', 'Parque de vacías'], ['Efecto macho', 'Parque vacías efecto macho'], ['Implantación', 'Sala de implantación'], ['Gestación', 'Parque de gestación'], ['Partos', 'Sala de partos']] },
         { n: 'sala', t: 'select', l: 'Sala de partos', op: rango(1, 3), si: (v) => v.zona === 'Partos' },
         { n: 'plaza', t: 'select', l: 'Paridera', op: rango(1, 6), si: (v) => v.zona === 'Partos' },
         { n: 'parque', t: 'select', l: 'Parque', op: rango(1, 2), si: (v) => v.zona === 'Vacías' },
         { n: 'parque_g', t: 'select', l: 'Parque', op: rango(1, 6), si: (v) => v.zona === 'Gestación' },
         { n: 'jaula', t: 'select', l: 'Jaula', op: [['', 'Sin indicar'], ...rango(1, 10)], si: (v) => v.zona === 'Implantación' },
         F.obs],
-      ubicacion: (v) => (v.zona === 'Vacías' ? `Vacías · parque ${v.parque}` : v.zona === 'Erótico' ? 'Parque erótico' : v.zona === 'Gestación' ? `Gestación · parque ${v.parque_g}` : v.zona === 'Partos' ? `Partos · sala ${v.sala} · paridera ${v.plaza}` : v.jaula ? `Implantación · jaula ${v.jaula}` : 'Implantación'),
+      ubicacion: (v) => (v.zona === 'Vacías' ? `Vacías · parque ${v.parque}` : (v.zona === 'Efecto macho' || v.zona === 'Erótico') ? 'Parque vacías efecto macho' : v.zona === 'Gestación' ? `Gestación · parque ${v.parque_g}` : v.zona === 'Partos' ? `Partos · sala ${v.sala} · paridera ${v.plaza}` : v.jaula ? `Implantación · jaula ${v.jaula}` : 'Implantación'),
     },
     aborto: {
       nombre: 'Aborto',
@@ -1053,8 +1053,8 @@
     let t = '';
     [[5, 20, -135, 290], [6, 330, -135, 280]].forEach(([p, x, y, w]) => { const it = D.gestacion[p]; t += caja(x, y, w, 160) + circulo(x + w / 2, y + 24, p) + cerdosSVG(it, x + 6, y + 42, w - 12, 100, ancho) + num(x + w - 30, y + 152, `${it.length}/8`, 'num peq'); });
     g += `<a href="#/plano/gestacion" class="zona-plano" aria-label="Parques de gestación 5 y 6"><rect x="20" y="-135" width="590" height="160" rx="6"/></a>` + t + num(315, 45, 'PARQUES GESTACIÓN 5 Y 6', 'rotulo');
-    // Parque erótico (a la izquierda, bajo implantación)
-    { const it = D.erotico[1]; g += zona('erotico', 20, 380, 150, 230, 'Parque erótico', caja(20, 380, 150, 230, it.length ? '' : 'libre') + cerdosSVG(it, 24, 400, 142, 180, ancho)) + num(95, 635, 'PARQUE', 'rotulo') + num(95, 660, 'ERÓTICO', 'rotulo'); }
+    // Parque de vacías efecto macho (a la izquierda, bajo implantación, cerca de las verraqueras)
+    { const it = D.erotico[1]; g += zona('erotico', 20, 380, 150, 230, 'Parque vacías efecto macho', caja(20, 380, 150, 230, it.length ? '' : 'libre') + cerdosSVG(it, 24, 400, 142, 180, ancho)) + num(95, 636, 'PARQUE VACÍAS', 'rotulo chico') + num(95, 658, 'EFECTO MACHO', 'rotulo chico'); }
     // Silos, contenedor de cadáveres y foso de purines (los silos llevan a su control de piensos)
     const silo = (x, y, nombre, l1, l2) => `<a href="#/piensos/silo/${encodeURIComponent(nombre)}" aria-label="${esc(nombre)}"><circle cx="${x}" cy="${y}" r="17" class="silo"/></a>${num(x, y + 36, l1, 'num mini')}${l2 ? num(x, y + 50, l2, 'num mini') : ''}`;
     g += silo(660, -60, 'Silo madres', 'Silo', 'madres') + silo(1132, 335, 'Silo transición', 'Silo', 'transición') + silo(1625, 830, 'Silo cebo', 'Silo', 'cebo');
@@ -1131,7 +1131,7 @@
             <div class="dato"><span class="et">Cebo</span><span class="val">${totalCebo}</span></div>
             <div class="dato nar"><span class="et">Total en la granja</span><span class="val">${tot}</span></div></div>`; })()}
         <div class="plano-caja"><svg class="plano" viewBox="0 -150 1870 1080" role="img" aria-label="Plano de la granja con la posición de cada animal">${g}</svg></div>
-        <div class="zonas-botones">${[['implantacion', 'Implantación', Object.values(D.implantacion).flat().length + D.implSin.length], ['vacias', 'Vacías', D.vacias[1].length + D.vacias[2].length], ['erotico', 'P. erótico', D.erotico[1].length], ['partos', 'Parideras', Object.values(D.partos).flat().length], ['gestacion', 'Gestación', Object.values(D.gestacion).flat().length], ['verraqueras', 'Verraqueras', Object.values(D.verraqueras).flat().length], ['lechoneras', 'Lechoneras', Object.values(D.recuento).filter((r) => r.estancia.startsWith('Lechonera')).reduce((a, r) => a + r.n, 0)], ['cebadero', 'Cebadero', totalCebo]].map(([z, t, n]) => `<a href="#/plano/${z}"><span>${t}</span><strong>${n}</strong></a>`).join('')}</div>
+        <div class="zonas-botones">${[['implantacion', 'Implantación', Object.values(D.implantacion).flat().length + D.implSin.length], ['vacias', 'Vacías', D.vacias[1].length + D.vacias[2].length], ['erotico', 'Efecto macho', D.erotico[1].length], ['partos', 'Parideras', Object.values(D.partos).flat().length], ['gestacion', 'Gestación', Object.values(D.gestacion).flat().length], ['verraqueras', 'Verraqueras', Object.values(D.verraqueras).flat().length], ['lechoneras', 'Lechoneras', Object.values(D.recuento).filter((r) => r.estancia.startsWith('Lechonera')).reduce((a, r) => a + r.n, 0)], ['cebadero', 'Cebadero', totalCebo]].map(([z, t, n]) => `<a href="#/plano/${z}"><span>${t}</span><strong>${n}</strong></a>`).join('')}</div>
         <div class="suave peq">${ancho ? 'Toca un animal para abrir su ficha o una zona para verla en grande.' : 'Toca una zona para verla en grande.'}</div>
         <div class="leyenda">${L.FASES.map((f) => `<span><i style="background:${COLOR_FASE[f.id]}"></i>${f.nombre}</span>`).join('')}<span><i style="background:#5B6470"></i>Verraco</span></div>
         ${D.sinUbicar.length || D.implSin.length || D.verracosSin.length ? `<section class="tarjeta"><h2>Sin sitio en el plano</h2>
@@ -1171,8 +1171,8 @@
       titulo = 'Parques de gestación';
       cuerpo = `<div class="dos">${[5, 6, 3, 4, 1, 2].map((p) => corral(`Parque ${p}`, D.gestacion[p], 'cerda', `<span class="chip ${D.gestacion[p].length > 8 ? 'rojo' : ''}">${D.gestacion[p].length}/8</span>`)).join('')}</div>`;
     } else if (z === 'erotico') {
-      titulo = 'Parque erótico';
-      cuerpo = corral('Parque erótico', D.erotico[1], 'cerda', `<span class="chip gris">${D.erotico[1].length}</span>`) + '<div class="suave peq">Para llevar una cerda aquí: en su ficha, Traslado → Parque erótico.</div>';
+      titulo = 'Parque vacías efecto macho';
+      cuerpo = corral('Parque vacías efecto macho', D.erotico[1], 'cerda', `<span class="chip gris">${D.erotico[1].length}</span>`) + '<div class="suave peq">Para llevar una cerda aquí: en su ficha, Traslado → Parque vacías efecto macho.</div>';
     } else if (z === 'partos') {
       titulo = 'Parideras';
       cuerpo = [1, 2, 3].map((s) => `<section class="tarjeta"><h2>Sala ${s}</h2><div class="sala-partos">

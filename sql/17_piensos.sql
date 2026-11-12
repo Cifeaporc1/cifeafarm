@@ -25,7 +25,7 @@ create table if not exists public.silos (
   unique (granja, nombre)
 );
 insert into public.silos (granja, nombre, zonas, orden) values
-  ('porc', 'Silo madres', array['Parques de vacías', 'Parque erótico', 'Sala de implantación', 'Parques de gestación', 'Salas de partos'], 1),
+  ('porc', 'Silo madres', array['Parques de vacías', 'Parque vacías efecto macho', 'Sala de implantación', 'Parques de gestación', 'Salas de partos'], 1),
   ('porc', 'Silo transición', array['Lechoneras'], 2),
   ('porc', 'Silo cebo', array['Cebadero'], 3)
 on conflict (granja, nombre) do nothing;
