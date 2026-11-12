@@ -200,3 +200,8 @@ No hay que ejecutar nada en Supabase.
 3. Roturas y almacén son de cada granja: lo que había está en GRANJA 2.º y copiado en MADRE; GRANJA 1.º empieza vacía.
 4. Lo que cambie la veterinaria en registros de otros aparece en Correcciones, como lo de los alumnos. Todo lo que hace cualquiera (altas, cambios, borrados) sigue en el Historial, que solo ves tú.
 
+## 25. Almacén y roturas en «Pasar a MADRE» (0.20.2)
+
+1. Ejecuta una vez en Supabase `sql/21_madre_almacen_roturas.sql` (después del 18, 19 y 20). Es repetible y no borra datos.
+2. En CIFEAFARM → Pasar a MADRE salen también «Almacén · artículo» y «Rotura», con las mismas opciones que el resto: pasar, no pasar, unir con lo que ya hay en MADRE, actualizar MADRE si cambió (por ejemplo, una cantidad) o borrar en MADRE si el curso lo borró.
+

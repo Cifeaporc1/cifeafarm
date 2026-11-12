@@ -340,11 +340,13 @@
   // Bandeja «Pasar a MADRE»: lo que han metido 1.º y 2.º y aún no está en MADRE
   const TABLAS_MADRE = { rum_animales: 'Rumiantes · animal', rum_eventos: 'Rumiantes · evento', rum_sanidad: 'Rumiantes · sanidad', rum_lotes: 'Rumiantes · lote de cubrición', rum_manejo: 'Rumiantes · manejo',
     cerdas: 'Porcino · cerda', verracos: 'Porcino · verraco', eventos: 'Porcino · evento de cerda', sanidad: 'Porcino · sanidad', extracciones: 'Porcino · extracción de semen', recuentos: 'Porcino · recuento',
-    mov_grupos: 'Porcino · movimiento de lechones o cebo', protocolo_hechas: 'Tarea de protocolo', pienso_reposiciones: 'Reposición de pienso', pienso_incidencias: 'Problema digestivo' };
+    mov_grupos: 'Porcino · movimiento de lechones o cebo', protocolo_hechas: 'Tarea de protocolo', pienso_reposiciones: 'Reposición de pienso', pienso_incidencias: 'Problema digestivo', inv_articulos: 'Almacén · artículo', roturas: 'Rotura' };
   function resumenPendiente(x) {
     const d = x.datos || {}; const crot = (id, t) => { const m = (S.madreNombres || {})[id]; return m || ''; };
     const partes = [];
     if (['rum_animales', 'cerdas', 'verracos'].includes(x.tabla)) partes.push(d.crotal || d.manejo || d.codigo_cria || 'sin crotal', d.categoria || '', d.fecha_baja ? `baja ${fmt(d.fecha_baja)}` : '');
+    else if (x.tabla === 'inv_articulos') partes.push(d.nombre, d.tipo === 'fungible' ? `${d.cantidad}${d.unidad ? ` ${d.unidad}` : ''}` : ({ bueno: 'buen estado', regular: 'regular', averiado: 'averiado', baja: 'de baja' }[d.estado] || ''), d.precio != null ? `${d.precio} €` : '');
+    else if (x.tabla === 'roturas') partes.push(String(d.elemento || '').replace(/_/g, ' '), d.zona, { abierta: 'abierta', reparacion: 'en reparación', reparada: 'reparada', descartada: 'descartada' }[d.estado] || '', (d.materiales || []).length ? `${d.materiales.length} materiales` : '');
     else {
       if (d.tipo) partes.push(String(d.tipo).replace(/_/g, ' '));
       const a = d.animal_id || d.cerda_id || d.verraco_id; if (a && S.madreNombres && S.madreNombres[a]) partes.push(S.madreNombres[a]);
