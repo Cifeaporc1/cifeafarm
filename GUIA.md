@@ -181,3 +181,15 @@ No hay que ejecutar nada en Supabase.
 8. **Notas:** DIACLASHOM sigue igual: cada alumno puntúa en su curso. Lo copiado a MADRE no cuenta.
 9. **Otros profesores:** Gestión → Personas → marca a qué granjas entra cada uno. La veterinaria entra a GRANJA 2.º.
 
+## 23. Cambio de curso (0.20.0)
+
+1. Ejecuta una vez en Supabase `sql/19_cambio_de_curso.sql` (después del 18). Es repetible y no borra datos.
+2. **Pasar alumnos a otro curso:** Gestión → Cursos → marca los alumnos (o «Marcar todos los de 1.º») → «Pasar los marcados a 2.º» (pulsa dos veces). Al entrar, el alumno elige su curso nuevo con su alias y PIN de siempre. Sus registros anteriores se quedan donde los metió.
+3. **Final de curso, en este orden:**
+   1. Pasa a MADRE lo que quieras conservar de 2.º y de 1.º (CIFEAFARM → Pasar a MADRE).
+   2. Haz la copia de seguridad.
+   3. «Cerrar 2.º»: desactiva a los alumnos que terminan y borra sus nombres (sus registros quedan con el alias).
+   4. «Pasar la granja de 1.º a 2.º» (con «Pasar también a 2.º a los alumnos de 1.º» marcado): lo de 2.º se archiva, la granja de 1.º pasa a ser la de 2.º y 1.º queda vacía.
+   5. En septiembre, crea los alias de los nuevos de 1.º en Personas (no pueden repetir un alias de 2.º).
+4. **Consultar un archivo:** toca la etiqueta de la granja → elige el ARCHIVO (gris). Para volver, elige otra granja.
+

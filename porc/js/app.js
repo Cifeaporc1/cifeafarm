@@ -102,7 +102,7 @@
       sb.from('eventos').select('*').eq('granja_id', S.granja).order('fecha').order('creado'),
     ]);
     for (const r of [g, c, v, e]) if (r.error) throw r.error;
-    S.granjas = g.data; S.cerdas = c.data; S.verracos = v.data; S.eventos = e.data;
+    S.granjas = g.data; Comun.registrarGranjas(g.data); S.cerdas = c.data; S.verracos = v.data; S.eventos = e.data;
     S.porCerda = {};
     for (const ev of S.eventos) (S.porCerda[ev.cerda_id] = S.porCerda[ev.cerda_id] || []).push(ev);
     // Sanidad, medicamentos y extracciones (SQL 05). Si aún no existen, la app sigue funcionando.

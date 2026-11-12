@@ -360,11 +360,13 @@
     if (p.granja_activa && gs.includes(p.granja_activa)) return p.granja_activa;
     return gs[0] || (p.granjas === undefined ? 2 : null); // sin el SQL 18 todo seguía en la 2
   }
-  const granjasDe = (p) => (!p ? [] : p.granjas === undefined ? [2] : p.rol === 'alumno' ? [p.granja_id] : p.admin ? [1, 2, 3] : (p.granjas || []).slice().sort());
-  function aplicarColorGranja(g) { try { document.documentElement.dataset.granja = String(g || ''); } catch (_) {} }
-  const chipGranja = (g, href) => (GRANJAS[g] ? (href ? `<a class="granja-chip" href="${href}" aria-label="Cambiar de granja (ahora ${GRANJAS[g].nombre})">${GRANJAS[g].nombre} ▾</a>` : `<span class="granja-chip">${GRANJAS[g].nombre}</span>`) : '');
+  // Granjas archivadas (id 100 en adelante): lo que tenía un curso al pasarle la granja del otro
+  function registrarGranjas(lista) { for (const g of lista || []) if (g.id > 3) GRANJAS[g.id] = { nombre: g.nombre || `ARCHIVO ${g.id}`, corto: 'Archivo', color: 'gris', archivo: true }; }
+  const granjasDe = (p) => (!p ? [] : p.granjas === undefined ? [2] : p.rol === 'alumno' ? [p.granja_id] : p.admin ? [1, 2, 3, ...Object.keys(GRANJAS).map(Number).filter((g) => g > 3)] : (p.granjas || []).slice().sort());
+  function aplicarColorGranja(g) { try { document.documentElement.dataset.granja = g > 3 ? 'archivo' : String(g || ''); } catch (_) {} }
+  const chipGranja = (g, href) => (!GRANJAS[g] && g > 3 ? `<span class="granja-chip">ARCHIVO</span>` : GRANJAS[g] ? (href ? `<a class="granja-chip" href="${href}" aria-label="Cambiar de granja (ahora ${GRANJAS[g].nombre})">${GRANJAS[g].nombre} ▾</a>` : `<span class="granja-chip">${GRANJAS[g].nombre}</span>`) : '');
 
-  const api = { PROTOCOLOS, NOMBRE_CADA, periodo, tareasDe, htmlTareas, repetidas, leerPauta, htmlPauta, siguienteDosis, textoPauta, POCOS, GRUPOS_FECHA, calcular, fmtNum, svgBarras, htmlTabla, textoIA, htmlResultados, htmlComparar, enlazarAnalisis, GRANJAS, granjaDe, granjasDe, aplicarColorGranja, chipGranja };
+  const api = { PROTOCOLOS, NOMBRE_CADA, periodo, tareasDe, htmlTareas, repetidas, leerPauta, htmlPauta, siguienteDosis, textoPauta, POCOS, GRUPOS_FECHA, calcular, fmtNum, svgBarras, htmlTabla, textoIA, htmlResultados, htmlComparar, enlazarAnalisis, GRANJAS, granjaDe, granjasDe, aplicarColorGranja, chipGranja, registrarGranjas };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else raiz.Comun = api;
 })(typeof window !== 'undefined' ? window : globalThis);

@@ -361,3 +361,4 @@ a.granja-chip { min-height: 44px; }
 .granja-op { display: block; border: 2px solid var(--borde); border-radius: 12px; padding: 12px; margin: 8px 0; background: #fff; text-decoration: none; color: var(--tinta); }
 .granja-op.activa { outline: 3px solid var(--tinta); }
 .granja-op .franja { display: block; height: 8px; border-radius: 6px; margin-bottom: 8px; }
+html[data-granja="archivo"] { --verde: #5E6460; --verde-osc: #3F4441; --verde-claro: #ECEEEC; --verde-borde: #B9BEBA; }

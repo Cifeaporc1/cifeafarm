@@ -144,7 +144,7 @@
       S.medicamentos = rm.error ? [] : rm.data; } // catálogo común a todas las especies
     S.porAnimal = {};
     for (const ev of S.eventos) (S.porAnimal[ev.animal_id] = S.porAnimal[ev.animal_id] || []).push(ev);
-    if (esAdmin()) { const g = await sb.from('granjas').select('*').order('id'); S.cursos = g.error ? [] : g.data; }
+    if (esAdmin()) { const g = await sb.from('granjas').select('*').order('id'); S.cursos = g.error ? [] : g.data; Comun.registrarGranjas(S.cursos); }
     { const ph = S.faltaSQL ? { error: true } : await sb.from('protocolo_hechas').select('*').gte('creado', new Date(Date.now() - 400 * 864e5).toISOString());
       S.faltaSQL12 = !!ph.error; S.hechas = ph.error ? [] : ph.data; }
     const nv = await sb.rpc('nombres_visibles');
@@ -252,7 +252,13 @@
         if (!alias || !/^\d{6}$/.test(password)) { vistaAcceso(modo, 'Escribe tu alias y un PIN de 6 cifras.'); return; }
       } else { email = String(f.get('correo') || '').trim(); password = String(f.get('clave') || ''); }
       boton.disabled = true; boton.textContent = 'Entrando…';
-      const { data, error } = await sb.auth.signInWithPassword({ email, password });
+      let { data, error } = await sb.auth.signInWithPassword({ email, password });
+      // Un alumno que ha pasado de curso conserva el acceso del curso en el que se dio de alta
+      if (error && modo === 'alumno' && /invalid|credentials/i.test(error.message || '')) {
+        const otro = f.get('curso') === '1' ? '2' : '1';
+        const r2 = await sb.auth.signInWithPassword({ email: email.replace(/\.g[12]@/, `.g${otro}@`), password });
+        if (!r2.error) { data = r2.data; error = null; }
+      }
       if (error) { vistaAcceso(modo, traducirError(error)); return; }
       S.sesion = data.session;
       try { await cargarTodo(); } catch (e) { vistaAcceso(modo, traducirError(e)); return; }
@@ -312,10 +318,10 @@
     if (mias.length < 2) { location.hash = '#/granjas'; return; }
     const pinta = (est) => pintar(`${cabecera({ volver: '#/granjas', textoVolver: 'CIFEAFARM', titulo: 'Elegir granja', comun: true })}
       <main class="cuerpo"><div class="suave">Lo que veas y metas a partir de ahora irá a la granja que elijas, en rumiantes y en porcino. Lo común (almacén, roturas, medicamentos, silos y piensos) es igual en las tres.</div>
-        ${mias.map((g) => { const e = (est || []).find((x) => x.granja === g); const col = { 1: '#B4561A', 2: '#2F6B4F', 3: '#7A1F2B' }[g];
+        ${mias.map((g) => { const e = (est || []).find((x) => x.granja === g); const col = { 1: '#B4561A', 2: '#2F6B4F', 3: '#7A1F2B' }[g] || '#6B6F6C';
           return `<button type="button" class="granja-op ${g === S.granja ? 'activa' : ''}" data-elegir="${g}" style="width:100%;text-align:left"><span class="franja" style="background:${col}"></span>
             <strong style="font-size:18px">${Comun.GRANJAS[g].nombre}</strong>${g === S.granja ? ' <span class="chip">Ahora</span>' : ''}
-            <div class="suave peq">${g === 3 ? 'Registro oficial de la granja' : `Alumnos de ${g}.º curso`}</div>
+            <div class="suave peq">${g === 3 ? 'Registro oficial de la granja' : g > 3 ? 'Archivada: solo para consultar' : `Alumnos de ${g}.º curso`}</div>
             <div class="peq">${est ? (e && e.ultima ? `Última actualización: ${esc(fechaHora(new Date(e.ultima)))} · ${e.registros} registros` : 'Sin datos todavía') : 'Cargando…'}</div></button>`; }).join('')}
         ${esAdmin() ? `<a class="btn sec" href="#/madre">Pasar a MADRE${S.pendMadre != null ? ` (${S.pendMadre})` : ''}</a>` : ''}</main>${navegacion('granjas')}`);
     const enlazar = () => $app.querySelectorAll('[data-elegir]').forEach((b) => b.addEventListener('click', async () => {
@@ -2217,8 +2223,7 @@
           ${(S.cursos || []).filter((g) => g.id <= 2).map((g) => `<div class="entre curso-acceso"><div><strong>${g.id}.º curso</strong><div class="suave peq">${(() => { const n = Object.values(S.nombres).filter((p) => p.rol === 'alumno' && p.granja_id === g.id).length; return `${n} ${n === 1 ? 'alumno' : 'alumnos'}`; })()}</div></div>
             <button class="btn ${g.acceso ? 'sec' : ''} peq" type="button" data-acceso="${g.id}" data-abrir="${g.acceso ? '0' : '1'}">${g.acceso ? 'Abierto · cerrar' : 'Cerrado · abrir'}</button></div>`).join('')}`}</section>
 
-        <section class="aviso-caja"><strong>Cambio de curso escolar</strong><br>Desactiva a todos los alumnos y <strong>borra sus nombres</strong>. Sus registros se conservan con el alias. Después crea los alias del curso nuevo en Personas.
-          <div style="margin-top:10px"><button class="btn peligro peq" type="button" data-accion="fin-curso">Cerrar el curso</button></div></section>`;
+        ${seccionCambioCurso()}`;
     if (sec === 'personas') cuerpo = seccionPersonas();
     pintar(`${cabecera({ comun: true })}
       <main class="cuerpo">${faltaSQLCaja()}
@@ -2240,13 +2245,7 @@
       if (error) return toast(traducirError(error));
       toast(`${b.dataset.acceso}.º curso: acceso ${abrir ? 'abierto' : 'cerrado'}`); await refrescar(); vistaGestion('cursos');
     }));
-    const fin = $app.querySelector('[data-accion="fin-curso"]');
-    if (fin) fin.addEventListener('click', async () => {
-      if (fin.dataset.confirmar !== '1') { fin.dataset.confirmar = '1'; fin.textContent = '¿Seguro? Pulsa otra vez para desactivar a todos y borrar sus nombres'; return; }
-      const { data, error } = await sb.rpc('cerrar_curso');
-      if (error) return vistaGestion('cursos', errorCaja(traducirError(error)));
-      S.perfiles = null; await refrescar(); vistaGestion('cursos', `<div class="ok-caja" role="status">Curso cerrado: ${data ?? 0} alumnos desactivados y sus nombres borrados.</div>`);
-    });
+    if (sec === 'cursos') enlazarCambioCurso();
   }
 
   // ---- Códigos QR: al escanearlos se abre la zona (con sus animales) o la ficha del animal
@@ -2296,6 +2295,8 @@
   const espera = (ms) => new Promise((r) => setTimeout(r, ms));
   async function cargarPerfiles() { const { data, error } = await sb.from('perfiles').select('*').order('alias'); if (error) throw error; S.perfiles = data; S.vets = data.filter((p) => p.rol === 'veterinario'); }
   async function crearAcceso(alias, pin, granja, nombre) {
+    // El alias no puede repetirse en ningún curso (un alumno que pasa de curso conserva su acceso)
+    if ((S.perfiles || []).some((p) => p.rol === 'alumno' && String(p.alias).toUpperCase() === String(alias).toUpperCase())) return `El alias ${alias} ya lo tiene otro alumno (puede que de otro curso). Elige otro.`;
     // Cliente aparte para no cerrar la sesión del profesor.
     const sb2 = window.supabase.createClient(C.supabaseUrl, C.supabaseKey, { auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false, storageKey: 'cife-alta' } });
     const { data, error } = await sb2.auth.signUp({ email: `${alias.toLowerCase()}.g${granja}@${C.dominioAlumnos}`, password: pin });
@@ -2356,6 +2357,55 @@
         <div class="campo"><label for="v-pref">Letra de los alias</label><input id="v-pref" name="prefijo" type="text" maxlength="2" autocapitalize="characters" placeholder="A para 1.º, B para 2.º"></div>
         <button class="btn" type="submit">Revisar lista</button></form></details>`;
   }
+  // ---- Cambio de curso: pasar alumnos, pasar la granja de 1.º a 2.º y cerrar un curso
+  function seccionCambioCurso() {
+    if (!S.perfiles) { cargarPerfiles().then(() => { if (location.hash.startsWith('#/gestion/cursos')) vistaGestion('cursos'); }).catch((e) => toast(traducirError(e))); return '<div class="suave">Cargando alumnos…</div>'; }
+    const act = (c) => S.perfiles.filter((p) => p.rol === 'alumno' && p.activo && p.granja_id === c);
+    const n1 = act(1).length, n2 = act(2).length;
+    return `<section class="tarjeta"><h2>Pasar alumnos a otro curso</h2>
+        <div class="suave">Marca los alumnos y elige a qué curso pasan. Desde ese momento entran en la granja de su nuevo curso. Siguen entrando con su alias y su PIN (en la pantalla de acceso eligen su curso nuevo). Sus registros anteriores se quedan en la granja donde los metieron.</div>
+        ${[1, 2].map((c) => `<h3 class="peq" style="margin:12px 0 4px">${c}.º curso (${act(c).length})</h3>
+          ${act(c).length ? `<label class="check-todos"><input type="checkbox" data-todos-curso="${c}"> Marcar todos los de ${c}.º</label>
+          <div class="opciones">${act(c).map((p) => `<label><input type="checkbox" data-mover="${p.user_id}" data-curso="${c}"> ${esc(p.alias)}${p.nombre ? ` · ${esc(p.nombre)}` : ''}</label>`).join('')}</div>` : '<div class="suave peq">Ninguno activo.</div>'}`).join('')}
+        <div class="botones"><button class="btn sec" type="button" data-mover-a="2">Pasar los marcados a 2.º</button><button class="btn sec" type="button" data-mover-a="1">Pasar los marcados a 1.º</button></div></section>
+      <section class="tarjeta"><h2>Pasar la granja de 1.º a 2.º</h2>
+        <div class="suave">Para el curso siguiente: todo lo que han metido los de 1.º (rumiantes y porcino) pasa a ser la GRANJA 2.º. Lo que tenía GRANJA 2.º <strong>se archiva</strong> (no se borra: solo tú puedes consultarlo eligiéndolo en «Cambiar de granja»). GRANJA 1.º queda <strong>vacía</strong> para los nuevos. GRANJA MADRE no se toca.</div>
+        ${n2 ? `<div class="aviso-caja">Hay ${n2} alumno${n2 === 1 ? '' : 's'} activo${n2 === 1 ? '' : 's'} en 2.º: después del cambio verían la granja de los de 1.º. Antes, ciérralos con «Cerrar 2.º» (abajo) o pásalos a otro curso.</div>` : ''}
+        <label class="check-todos"><input type="checkbox" id="mg-alumnos" checked> Pasar también a 2.º a los ${n1} alumno${n1 === 1 ? '' : 's'} activo${n1 === 1 ? '' : 's'} de 1.º</label>
+        <button class="btn peligro" type="button" id="b-mover-granja">Pasar la granja de 1.º a 2.º</button></section>
+      <section class="aviso-caja"><strong>Cerrar el curso</strong><br>Desactiva a los alumnos del curso que elijas y <strong>borra sus nombres</strong>. Sus registros se conservan con el alias. Después crea los alias del curso nuevo en Personas.
+        <div class="botones" style="margin-top:10px">${[[1, 'Cerrar 1.º'], [2, 'Cerrar 2.º'], [0, 'Cerrar los dos']].map(([c, t]) => `<button class="btn peligro peq" type="button" data-cerrar="${c}">${t}</button>`).join('')}</div></section>`;
+  }
+  function enlazarCambioCurso() {
+    const dos = (b, texto) => { if (b.dataset.confirmar !== '1') { b.dataset.confirmar = '1'; b.dataset.orig = b.textContent; b.textContent = texto; return false; } return true; };
+    $app.querySelectorAll('[data-todos-curso]').forEach((c) => c.addEventListener('change', () => $app.querySelectorAll(`[data-mover][data-curso="${c.dataset.todosCurso}"]`).forEach((x) => { x.checked = c.checked; })));
+    $app.querySelectorAll('[data-mover-a]').forEach((b) => b.addEventListener('click', async () => {
+      const curso = +b.dataset.moverA; const ids = [...$app.querySelectorAll('[data-mover]:checked')].filter((x) => +x.dataset.curso !== curso).map((x) => x.dataset.mover);
+      if (!ids.length) return toast(`Marca algún alumno que no esté ya en ${curso}.º`);
+      if (!dos(b, `¿Pasar ${ids.length} alumno${ids.length === 1 ? '' : 's'} a ${curso}.º? Pulsa otra vez`)) return;
+      b.disabled = true; const { data, error } = await sb.rpc('mover_alumnos', { ids, curso });
+      if (error) return vistaGestion('cursos', errorCaja(/mover_alumnos|function/i.test(error.message || '') ? 'Falta ejecutar en Supabase sql/19_cambio_de_curso.sql.' : traducirError(error)));
+      await cargarPerfiles(); await refrescar(); vistaGestion('cursos', `<div class="ok-caja" role="status">${data} alumno${data === 1 ? '' : 's'} pasado${data === 1 ? '' : 's'} a ${curso}.º. Al entrar, que elijan ${curso}.º curso con su alias y PIN de siempre.</div>`);
+    }));
+    const bm = document.getElementById('b-mover-granja');
+    if (bm) bm.addEventListener('click', async () => {
+      if (!dos(bm, '¿Seguro? Lo de 2.º se archiva y 1.º queda vacía. Pulsa otra vez')) return;
+      bm.disabled = true; bm.textContent = 'Pasando…';
+      const { data, error } = await sb.rpc('mover_granja', { origen: 1, destino: 2, con_alumnos: document.getElementById('mg-alumnos').checked });
+      if (error) return vistaGestion('cursos', errorCaja(/mover_granja|function/i.test(error.message || '') ? 'Falta ejecutar en Supabase sql/19_cambio_de_curso.sql.' : traducirError(error)));
+      const g = await sb.from('granjas').select('*').order('id'); if (!g.error) { S.cursos = g.data; Comun.registrarGranjas(g.data); }
+      await cargarPerfiles(); await refrescar();
+      vistaGestion('cursos', `<div class="ok-caja" role="status">Hecho: ${data.registros} registros de 1.º pasan a ser la GRANJA 2.º${data.alumnos ? ` y ${data.alumnos} alumnos pasan a 2.º` : ''}. Lo que tenía 2.º está en «${esc((Comun.GRANJAS[data.archivo] || {}).nombre || 'ARCHIVO')}». GRANJA 1.º está vacía.</div>`);
+    });
+    $app.querySelectorAll('[data-cerrar]').forEach((b) => b.addEventListener('click', async () => {
+      const c = +b.dataset.cerrar;
+      if (!dos(b, `¿Seguro? Pulsa otra vez para desactivar ${c ? `a los de ${c}.º` : 'a todos'} y borrar sus nombres`)) return;
+      const { data, error } = await sb.rpc('cerrar_curso', c ? { curso: c } : {});
+      if (error) return vistaGestion('cursos', errorCaja(traducirError(error)));
+      await cargarPerfiles(); await refrescar(); vistaGestion('cursos', `<div class="ok-caja" role="status">Curso cerrado: ${data ?? 0} alumnos desactivados y sus nombres borrados.</div>`);
+    }));
+  }
+
   function seccionPersonas() {
     if (!S.perfiles) { cargarPerfiles().then(() => { if (location.hash.startsWith('#/gestion/personas')) vistaGestion('personas'); }).catch((e) => toast(traducirError(e))); return '<div class="suave">Cargando personas…</div>'; }
     if (S.borrador.resultado || S.borrador.lote) return bloqueVarios();
