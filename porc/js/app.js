@@ -1307,7 +1307,7 @@
         <section class="tarjeta"><h2>Últimos movimientos</h2>${S.censoMov.length ? S.censoMov.map((m) => `<a class="cerda-fila" href="#/${m.animal}/${m.animal_id}"><div><strong>${esc(m.crotal)}</strong> <span class="suave">${m.animal === 'verraco' ? '(verraco)' : ''}</span>
             <div class="suave">${fmt(m.fecha)}${m.causa ? ` · ${esc(m.causa)}` : ''} · ${esc(verAlias(m.autor_alias, m.granja_id) || 'Profesor')}${m.granja_id && !esVet() ? ` (${m.granja_id}.º)` : ''}</div></div><span class="chip ${nombreMov[m.mov][1]}">${nombreMov[m.mov][0]}</span></a>`).join('') : '<div class="suave">Aún no hay movimientos registrados.</div>'}</section>
         <section class="tarjeta"><h2>Animales dados de baja (${bajasC.length + bajasV.length})</h2>${[...bajasC.map((c) => ['cerda', c]), ...bajasV.map((c) => ['verraco', c])].sort((a, b) => (a[1].fecha_baja < b[1].fecha_baja ? 1 : -1)).map(([t, c]) =>
-          `<a class="cerda-fila" href="#/censo/${t}/${c.id}"><div><strong>${esc(c.crotal)}</strong> <span class="suave">${t === 'verraco' ? '(verraco)' : ''}</span><div class="suave">${fmt(c.fecha_baja)} · ${esc(c.causa_baja || '')}${c.baja_por ? ` · ${esc(c.baja_por)}` : ''}</div></div>${esProf() ? '<span class="chip gris">Anular</span>' : ''}</a>`).join('') || '<div class="suave">Ninguno.</div>'}</section>
+          `<a class="cerda-fila" href="#/censo/${t}/${c.id}"><div><strong>${esc(c.crotal)}</strong> <span class="suave">${t === 'verraco' ? '(verraco)' : ''}</span><div class="suave">${fmt(c.fecha_baja)} · ${esc(c.causa_baja || '')}${c.baja_por ? ` · ${esc(c.baja_por)}` : ''}</div></div><span class="chip gris">Anular</span></a>`).join('') || '<div class="suave">Ninguno.</div>'}</section>
       </main>${navegacion('cerdas')}`);
   }
 
@@ -1806,7 +1806,7 @@
           <div><span>Nacimiento</span><span>${fmt(x.fecha_nacimiento)}</span></div><div><span>Entrada</span><span>${fmt(x.fecha_entrada)}</span></div>
           <div><span>Verraquera</span><span>${x.verraquera || '—'}</span></div>
           ${x.fecha_baja ? `<div><span>Baja</span><span>${fmt(x.fecha_baja)} · ${esc(x.causa_baja || '')}</span></div>` : ''}</div>
-          <a class="btn sec peq" href="#/censo/verraco/${id}">${x.fecha_baja ? 'Ver la baja' : esProf() ? 'Editar datos o dar de baja' : 'Dar de baja'}</a></section>
+          <a class="btn sec peq" href="#/censo/verraco/${id}">${x.fecha_baja ? 'Ver o anular la baja' : esProf() ? 'Editar datos o dar de baja' : 'Dar de baja'}</a></section>
       </main>${navegacion('verracos')}`);
     enlazarBorrarSan(() => vistaVerraco(id));
     $app.querySelectorAll('[data-borrar-ext]').forEach((b) => b.addEventListener('click', async () => {
@@ -1894,7 +1894,7 @@
     const t = tipo === 'cerda' ? 'cerda' : 'verraco';
     // Un alumno solo cambia los datos de un animal que dio de alta él hace menos de 24 h; dar de baja, cualquiera
     const editaDatos = nuevo || esProf() || (x.alta_autor === S.sesion.user.id && Date.now() - new Date(x.creado).getTime() < 864e5);
-    const editaBaja = !nuevo && (esProf() || !x.fecha_baja || editaDatos);
+    const editaBaja = !nuevo; // anular o corregir una baja: cualquiera en su granja
     const volver = desde === 'admin' ? '#/admin/censo' : nuevo ? (tipo === 'cerda' ? '#/cerdas' : '#/verracos') : `#/${tipo}/${x.id}`;
     pintar(`${cabecera({ prof: desde === 'admin', volver, textoVolver: desde === 'admin' ? 'Censo' : 'Volver', titulo: nuevo ? `Alta de ${t}` : `${tipo === 'cerda' ? 'Cerda' : 'Verraco'} ${x.crotal}` })}
       <main class="cuerpo">
@@ -1914,7 +1914,7 @@
           ${(() => { const enLista = L.CAUSAS_ADULTO.includes(x.causa_baja); const sel = x.causa_baja ? (enLista ? x.causa_baja : 'Otros') : '';
             return `<div class="campo"><label for="a-cb">Causa</label><select id="a-cb" name="causa_sel"><option value="">Elige…</option>${L.CAUSAS_ADULTO.map((k) => `<option ${sel === k ? 'selected' : ''}>${k}</option>`).join('')}</select></div>
             <div class="campo" id="a-otra" ${sel === 'Otros' ? '' : 'hidden'}><label for="a-co">Escribe la causa</label><input id="a-co" name="causa_otra" type="text" value="${esc(enLista ? '' : x.causa_baja || '')}"></div>`; })()}
-          <div class="suave peq">Al dar de baja, el animal deja de aparecer en el censo, pero su historial se conserva.${esProf() ? ' Para anularla, vacía la fecha.' : ' Si te equivocas, avisa al profesor para anularla.'}</div></fieldset>`}
+          <div class="suave peq">Al dar de baja, el animal deja de aparecer en el censo, pero su historial se conserva. Para anularla, vacía la fecha.</div></fieldset>`}
         <div id="mensajes" aria-live="polite"></div>
         ${editaDatos || editaBaja ? `<button class="btn" type="submit">${nuevo ? 'Dar de alta' : editaDatos ? 'Guardar cambios' : 'Dar de baja'}</button>` : ''}
       </form></main>`);

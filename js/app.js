@@ -837,7 +837,7 @@
         <div class="dos"><div class="dato ${a.especie === 'ovino' ? 'ovi' : ''}"><span class="et">Ubicación</span><span class="val peq-val">${esc(a.fecha_baja ? '—' : nombreCorrCorto(u))}</span><span class="nota">${a.fecha_baja ? '' : esc((corralina(u) || {}).uso || '')}</span></div>
           <div class="dato gris"><span class="et">Edad</span><span class="val peq-val">${esc(L.edad(a, h))}</span><span class="nota">${a.fecha_nacimiento ? `Nació el ${fmt(a.fecha_nacimiento)}` : a.anio_nacimiento ? `Año ${a.anio_nacimiento}` : 'Fecha sin anotar'}</span></div></div>
         ${a.fecha_baja ? '' : `<div class="botones"><a class="btn" href="#/trasladar/${a.id}">${ICONOS.flecha}Trasladar</a><a class="btn sec" href="#/nota/${a.id}">Nota</a></div>`}
-        <div class="botones">${a.fecha_baja ? (esProf() ? '<button class="btn sec peq" type="button" id="b-anular">Anular la baja</button>' : '') : `<a class="btn sec peq" href="#/baja/${a.id}">Dar de baja</a>`}
+        <div class="botones">${a.fecha_baja ? ('<button class="btn sec peq" type="button" id="b-anular">Anular la baja</button>') : `<a class="btn sec peq" href="#/baja/${a.id}">Dar de baja</a>`}
           ${puedeEditarAnimal(a) ? `<a class="btn sec peq" href="#/editar/${a.id}">Corregir datos</a>` : ''}</div>
         ${(() => { const x = retiradasHoy()[a.id]; if (!x || a.fecha_baja) return ''; const t = []; if (x.leche) t.push(`<strong>Leche no apta hasta el ${fmt(x.leche.hasta)}</strong>${a.especie === 'caprino' && esHembraRepro(a) ? ': no va al tanque' : ''} (${esc(x.leche.producto)})`); if (x.carne) t.push(`Carne no apta hasta el ${fmt(x.carne.hasta)} (${esc(x.carne.producto)})`); return `<div class="error-caja">${t.join('<br>')}</div>`; })()}
         ${a.fecha_baja || S.faltaSQL2 ? '' : seccionRepro(a)}
@@ -1012,7 +1012,7 @@
         ${c.deshecha ? '' : `<div class="acciones">${c.revisada ? '' : `<button class="btn peq" type="button" data-rev="${c.id}">Correcta</button>`}<button class="btn peligro peq" type="button" data-deshacer="${c.id}">Deshacer</button></div>`}</div>`; };
     pintar(`${cabecera({ volver: '#/admin', textoVolver: 'Administrador', titulo: 'Correcciones · cabras y ovejas' })}
       <main class="cuerpo">
-        <div class="suave">Cada vez que un alumno cambia un registro que hizo otra persona en CIFEARUMI. «Correcta» la da por revisada; «Deshacer» devuelve el registro a como estaba. Las de porcino están en CIFEAPORC.</div>
+        <div class="suave">Cada vez que un alumno o la veterinaria cambian un registro que hizo otra persona en CIFEARUMI. «Correcta» la da por revisada; «Deshacer» devuelve el registro a como estaba. Las de porcino están en CIFEAPORC.</div>
         ${S.faltaCorr ? '<div class="aviso-caja">Falta ejecutar en Supabase el archivo 06_porcino_correcciones.sql.</div>' : ''}
         <div class="pestanas" role="tablist"><a role="tab" href="#/correcciones/pendientes" class="${sec !== 'todas' ? 'activo' : ''}">Sin revisar (${S.correcciones.filter((c) => !c.revisada).length})</a><a role="tab" href="#/correcciones/todas" class="${sec === 'todas' ? 'activo' : ''}">Todas</a></div>
         ${sec !== 'todas' && lista.length > 1 ? '<button class="btn sec" type="button" id="rev-todas">Marcar todas como correctas</button>' : ''}

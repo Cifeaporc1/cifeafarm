@@ -193,3 +193,10 @@ No hay que ejecutar nada en Supabase.
    5. En septiembre, crea los alias de los nuevos de 1.º en Personas (no pueden repetir un alias de 2.º).
 4. **Consultar un archivo:** toca la etiqueta de la granja → elige el ARCHIVO (gris). Para volver, elige otra granja.
 
+## 24. Permisos de alumnos y veterinaria (0.20.1)
+
+1. Ejecuta una vez en Supabase `sql/20_permisos_alumnos.sql` (después del 18). Es repetible y no borra datos.
+2. Desde ahora, en la granja de su curso, los alumnos llevan el almacén (altas, cantidades, fotos, precios), preparan y reparan las roturas y pueden anular o corregir una baja.
+3. Roturas y almacén son de cada granja: lo que había está en GRANJA 2.º y copiado en MADRE; GRANJA 1.º empieza vacía.
+4. Lo que cambie la veterinaria en registros de otros aparece en Correcciones, como lo de los alumnos. Todo lo que hace cualquiera (altas, cambios, borrados) sigue en el Historial, que solo ves tú.
+

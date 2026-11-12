@@ -120,12 +120,11 @@
       return M.articulos.filter((a) => (f.almacen === 'todos' || String(a.almacen_id) === f.almacen) && (f.tipo === 'todos' || a.tipo === f.tipo) && (f.bajas || a.estado !== 'baja')
         && (!q || `${a.nombre} ${a.marca || ''} ${a.modelo || ''} ${a.ubicacion || ''}`.toLowerCase().includes(q))); };
     function vistaLista() {
-      const f = M.filtro, adm = ctx.esAdmin();
+      const f = M.filtro, adm = ctx.esAdmin(); // todos llevan el almacén de su granja; los almacenes y el inventario, el administrador
       const poco = M.articulos.filter((a) => pocoStock(a) && a.estado !== 'baja');
       const revisar = M.articulos.filter((a) => a.proxima_revision && a.proxima_revision <= hoy() && a.estado !== 'baja');
       pantalla({ volver: '#/granjas', textoVolver: 'CIFEAFARM', titulo: 'Almacenes y herramientas' }, `
-        ${adm ? '<div class="botones"><a class="btn" href="#/almacen/nuevo">Añadir artículo</a><a class="btn sec" href="#/almacen/almacenes">Almacenes</a><a class="btn sec" href="#/almacen/inventario">Sacar inventario</a></div>'
-          : '<div class="ok-caja">Puedes consultar lo que hay y avisar de que algo se está acabando («Queda poco») o de una avería. Solo el profesor cambia el almacén.</div>'}
+        <div class="botones"><a class="btn" href="#/almacen/nuevo">Añadir artículo</a>${adm ? '<a class="btn sec" href="#/almacen/almacenes">Almacenes</a><a class="btn sec" href="#/almacen/inventario">Sacar inventario</a>' : ''}</div>
         ${poco.length ? `<section class="tarjeta" style="border-color:var(--naranja-borde)"><h2>Queda poco (${poco.length})</h2>${poco.map((a) => `<a class="evento enlace" href="#/almacen/articulo/${a.id}"><div class="entre"><strong>${esc(a.nombre)}</strong><span class="chip nar">${esc(cant(a))}</span></div>
           <div class="suave peq">${esc(nomAlmacen(a.almacen_id))}${a.queda_poco ? ` · avisó ${esc(ctx.verAlias(a.queda_poco_alias, a.queda_poco_curso) || '?')} el ${esc(fmt(String(a.queda_poco_fecha || '').slice(0, 10)))}` : ' · por debajo del mínimo'}</div></a>`).join('')}</section>` : ''}
         ${revisar.length ? `<section class="tarjeta"><h2>Revisión pendiente</h2>${revisar.map((a) => `<a class="evento enlace" href="#/almacen/articulo/${a.id}"><div class="entre"><strong>${esc(a.nombre)}</strong><span class="chip nar">${esc(fmt(a.proxima_revision))}</span></div></a>`).join('')}</section>` : ''}
@@ -149,7 +148,7 @@
 
     async function vistaArticulo(id) {
       const a = art(id); if (!a) return pantalla({ volver: '#/almacen', textoVolver: 'Almacén', titulo: 'No encontrado' }, '<div class="vacio">Este artículo ya no existe.</div>');
-      const adm = ctx.esAdmin();
+      const adm = true, borra = ctx.esProf(); // en su granja, todos dan de alta, cambian cantidades, fotos y precios
       await enlaces(a.fotos || []);
       const usos = M.roturas.filter((r) => (r.materiales || []).some((m) => m.articulo_id === id) && ['abierta', 'reparacion'].includes(r.estado));
       const dato = (t, v) => (v || v === 0 ? `<div class="dato"><span class="et">${t}</span><span>${esc(v)}</span></div>` : '');
@@ -166,7 +165,7 @@
         ${adm && a.tipo === 'fungible' ? `<section class="tarjeta"><h2>Cambiar la cantidad</h2><div class="dos"><div class="campo"><label for="c-mas">Entra (+) o sale (−)</label><input id="c-mas" type="number" step="any" inputmode="decimal" placeholder="+10 o −2"></div>
           <div class="campo"><label for="c-nueva">o cantidad que hay ahora</label><input id="c-nueva" type="number" step="any" inputmode="decimal" placeholder="${esc(a.cantidad)}"></div></div>
           <button class="btn peq" type="button" id="b-cant">Guardar cantidad</button></section>` : ''}
-        <section class="tarjeta"><h2>Fotos${a.tipo === 'maquina' ? ' del estado' : ''}</h2>${galeria(a.fotos, adm)}
+        <section class="tarjeta"><h2>Fotos${a.tipo === 'maquina' ? ' del estado' : ''}</h2>${galeria(a.fotos, borra)}
           ${adm ? `${campoFotos('fotos-nuevas', 'Añadir fotos')}<div class="campo"><label for="foto-nota">Nota de las fotos <span class="suave">(opcional)</span></label><input id="foto-nota" type="text" placeholder="Al comprarla, tras la revisión, golpe en el lateral…"></div><button class="btn sec peq" type="button" id="b-fotos">Subir fotos</button>` : ''}</section>
         ${usos.length ? `<section class="tarjeta"><h2>Se necesita para reparar</h2>${usos.map((r) => `<a class="evento enlace" href="#/roturas/${r.id}"><strong>${esc(ELEMENTOS[r.elemento])} · ${esc(r.zona)}</strong><div class="suave peq">${esc(r.materiales.filter((m) => m.articulo_id === id).map((m) => `${m.cantidad || 1} ${m.unidad || a.unidad || ''}`).join(', '))}</div></a>`).join('')}</section>` : ''}`);
       const poco = $('#b-poco'); if (poco) poco.addEventListener('click', async () => { poco.disabled = true; const r = await sb.rpc('avisar_queda_poco', { p_id: id, p_si: true }); if (r.error) { poco.disabled = false; return msg(traducirError(r.error)); } toast('Avisado: queda poco'); await cargar(); vistaArticulo(id); });
@@ -205,7 +204,6 @@
     }
 
     function vistaFormArticulo(id) {
-      if (!ctx.esAdmin()) return pantalla({ volver: '#/almacen', textoVolver: 'Almacén', titulo: 'Solo el administrador' }, '<div class="vacio">Solo el administrador da de alta y cambia lo del almacén.</div>');
       const a = id ? art(id) : null; const v = a || { tipo: 'fungible', estado: 'bueno', cantidad: 0, almacen_id: M.filtro.almacen !== 'todos' ? +M.filtro.almacen : null };
       const t = (k, l, extra = '', tipo = 'text') => `<div class="campo"><label for="${k}">${l}</label><input id="${k}" name="${k}" type="${tipo}" ${tipo === 'number' ? 'step="any" inputmode="decimal"' : ''} value="${esc(v[k] ?? '')}" ${extra}></div>`;
       pantalla({ volver: a ? `#/almacen/articulo/${id}` : '#/almacen', textoVolver: a ? 'Ficha' : 'Almacén', titulo: a ? 'Editar artículo' : 'Añadir artículo' }, `<div id="msg"></div>
@@ -227,7 +225,7 @@
           <div class="campo"><label for="notas">Notas</label><textarea id="notas" name="notas" rows="3">${esc(v.notas || '')}</textarea></div>
           ${a ? '' : campoFotos('fotos-alta', 'Fotos')}
           <button class="btn" type="submit">${a ? 'Guardar cambios' : 'Añadir'}</button>
-          ${a ? '<button class="btn peligro" type="button" id="b-borrar">Eliminar artículo</button><div class="ayuda">Si se ha roto o ya no se usa, mejor márcalo «De baja»: se conserva su ficha.</div>' : ''}
+          ${a && ctx.esProf() ? '<button class="btn peligro" type="button" id="b-borrar">Eliminar artículo</button>' : ''}${a ? '<div class="ayuda">Si se ha roto o ya no se usa, márcalo «De baja»: se conserva su ficha.</div>' : ''}
         </form>`);
       const f = $('#f-art');
       f.querySelectorAll('input[name=tipo]').forEach((r) => r.addEventListener('change', () => { const fu = f.tipo.value === 'fungible'; $('#b-fung').hidden = !fu; $('#b-equipo').hidden = fu; }));
@@ -399,7 +397,7 @@
 
     async function vistaRotura(id) {
       const r = M.roturas.find((x) => x.id === id); if (!r) return pantalla({ volver: '#/roturas', textoVolver: 'Roturas', titulo: 'No encontrada' }, '<div class="vacio">Este aviso ya no existe.</div>');
-      const prof = ctx.esProf(), mio = r.autor === (S.sesion && S.sesion.user.id), abierta = ['abierta', 'reparacion'].includes(r.estado);
+      const prof = true, mio = r.autor === (S.sesion && S.sesion.user.id), abierta = ['abierta', 'reparacion'].includes(r.estado);
       await enlaces((r.fotos || []).concat(r.fotos_despues || []));
       const s = situacion(r, M.articulos);
       const mats = r.materiales || [];
@@ -414,9 +412,9 @@
           <div class="suave peq">Avisó ${esc(ctx.verAlias(r.autor_alias, r.curso) || '?')} el ${esc(fmt(String(r.creado).slice(0, 10)))}${r.estado === 'reparada' ? ` · reparada el ${esc(fmt(r.reparada_fecha))}${r.reparada_por ? ` por ${esc(ctx.verAlias(r.reparada_por) || '')}` : ''}` : ''}</div>
           ${r.nota_reparacion ? `<p class="peq"><strong>Reparación:</strong> ${esc(r.nota_reparacion)}</p>` : ''}
           ${prof ? `<div class="campo"><span class="et">Prioridad</span><div class="opciones">${Object.entries(PRIORIDAD).map(([k, x]) => `<label><input type="radio" name="prio" value="${k}" ${r.prioridad === k ? 'checked' : ''}> ${x}</label>`).join('')}</div></div>` : ''}</section>
-        <section class="tarjeta"><h2>Fotos${r.fotos_despues && r.fotos_despues.length ? ' de antes' : ''}</h2>${galeria(r.fotos, ctx.esAdmin())}
+        <section class="tarjeta"><h2>Fotos${r.fotos_despues && r.fotos_despues.length ? ' de antes' : ''}</h2>${galeria(r.fotos, ctx.esProf())}
           ${(prof || (mio && r.estado === 'abierta')) && abierta ? `${campoFotos('fotos-nuevas', 'Añadir fotos')}<button class="btn sec peq" type="button" id="b-fotos">Subir fotos</button>` : ''}</section>
-        ${r.fotos_despues && r.fotos_despues.length ? `<section class="tarjeta"><h2>Fotos después de reparar</h2>${galeria(r.fotos_despues, ctx.esAdmin())}</section>` : ''}
+        ${r.fotos_despues && r.fotos_despues.length ? `<section class="tarjeta"><h2>Fotos después de reparar</h2>${galeria(r.fotos_despues, ctx.esProf())}</section>` : ''}
         <section class="tarjeta"><h2>Material y herramientas para la reparación${mats.length ? ` (${s.clave === 'pendiente' ? `${s.listos}/${s.total} listos` : 'todo listo'})` : ''}</h2>
           ${mats.length ? mats.map(filaMat).join('') : `<div class="${r.sin_material ? 'ok-caja' : 'vacio'}">${r.sin_material ? 'No necesita material: está lista para reparar.' : 'Aún no hay lista de materiales.'}</div>`}
           ${prof && abierta ? `<form class="formu" id="f-mat" novalidate style="margin-top:10px">
@@ -432,7 +430,7 @@
               <div class="campo"><label for="rep-fecha">Fecha</label><input id="rep-fecha" type="date" value="${hoy()}" max="${hoy()}"></div>
               <div class="campo"><label for="rep-nota">Qué se hizo <span class="suave">(opcional)</span></label><textarea id="rep-nota" rows="2"></textarea></div>
               ${campoFotos('fotos-despues', 'Fotos después de reparar')}
-              ${ctx.esAdmin() && mats.some((m) => m.articulo_id && (art(m.articulo_id) || {}).tipo === 'fungible') ? '<label class="check-todos"><input type="checkbox" id="rep-descontar" checked> Descontar del almacén el material gastado</label>' : ''}
+              ${mats.some((m) => m.articulo_id && (art(m.articulo_id) || {}).tipo === 'fungible') ? '<label class="check-todos"><input type="checkbox" id="rep-descontar" checked> Descontar del almacén el material gastado</label>' : ''}
               <button class="btn" type="submit">Guardar como reparada</button></form></details>
           <button class="btn peligro peq" type="button" id="b-descartar">Descartar el aviso</button></section>` : ''}
         ${prof && !abierta ? '<button class="btn sec peq" type="button" id="b-reabrir">Volver a abrir</button>' : ''}
