@@ -367,6 +367,7 @@
         if (ult) { st.ecos += 1; if (ult.datos.resultado === 'positiva') st.pos += 1; }
         if (ci.parto) { st.partos += 1; st.vivos += L.camada(ci).vivos; }
       }
+      S.ordenVerracos = verracosActivos().map((x) => x.id); // para pasar de una ficha a otra en este orden
       cuerpo = `<div class="botones"><a class="btn sec peq" href="#/censo/verraco/nuevo">${ICONOS.mas}Alta de verraco</a><a class="btn sec peq" href="#/censo/historial">Altas y bajas</a></div>
         <section class="tarjeta"><h2>Verracos (${verracosActivos().length})</h2><div class="suave peq">Toca un verraco para ver su ficha, registrar una extracción o ver sus dosis.</div>
           ${verracosActivos().length ? `<table class="tabla"><thead><tr><th>Verraco</th><th>Verraquera</th><th>IA</th><th>Eco +</th><th>Vivos/parto</th></tr></thead><tbody>
@@ -1783,8 +1784,15 @@
         ${e.obs ? `<div class="suave">${esc(e.obs)}</div>` : ''}
         <div class="acciones"><a class="btn sec peq" href="#/extraccion/${id}/${e.id}">Corregir</a>${puede && (!usosExtraccion(e.id) || !['caducada', 'agotada'].includes(st.estado)) ? `<button class="btn peligro peq" type="button" data-borrar-ext="${e.id}">${['caducada', 'agotada'].includes(st.estado) ? 'Eliminar' : 'Borrar'}</button>` : ''}</div>
         ${e.modificado ? `<div class="suave peq">Corregida por ${esc(verAlias(e.modificado_por) || '?')}</div>` : ''}</div>`; };
+    // Anterior y siguiente, en el orden de la lista de verracos (o por crotal)
+    const ordenV = S.ordenVerracos && S.ordenVerracos.includes(id) ? S.ordenVerracos
+      : verracosActivos().slice().sort((a, b) => String(a.crotal).localeCompare(String(b.crotal), 'es', { numeric: true })).map((v) => v.id);
+    const posV = ordenV.indexOf(id), antV = posV > 0 ? verracoPorId(ordenV[posV - 1]) : null, sigV = posV >= 0 && posV < ordenV.length - 1 ? verracoPorId(ordenV[posV + 1]) : null;
+    const navV = posV >= 0 && ordenV.length > 1 ? `<nav class="nav-fichas" aria-label="Otros verracos">${antV ? `<a class="btn sec peq" href="#/verraco/${antV.id}" aria-label="Verraco anterior">‹ ${esc(antV.crotal)}</a>` : '<span></span>'}
+      <span class="suave peq">${posV + 1} de ${ordenV.length}</span>${sigV ? `<a class="btn sec peq" href="#/verraco/${sigV.id}" aria-label="Verraco siguiente">${esc(sigV.crotal)} ›</a>` : '<span></span>'}</nav>` : '';
     pintar(`${cabecera({ volver: '#/verracos', textoVolver: 'Verracos', titulo: x.crotal, sub: `${esc(x.raza)}${x.verraquera ? ` · verraquera ${x.verraquera}` : ''}${x.fecha_baja ? ` · <strong>baja ${fmt(x.fecha_baja)}</strong>` : ''}` })}
       <main class="cuerpo">
+        ${navV}
         <div class="foto"><img src="img/verraco.jpg" alt="Verraco chato murciano"></div>
         ${avisoSQL05()}
         <div class="dos"><div class="dato"><span class="et">Inseminaciones</span><span class="val">${s.ia}</span><span class="nota">registradas</span></div>

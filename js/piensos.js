@@ -121,7 +121,7 @@
     // ================================================================ formularios
     function vistaReposicion(siloId) {
       const activos = M.silos.filter((s) => s.activo), ps = M.piensos.filter((p) => p.activo);
-      if (!activos.length || !ps.length) return pantalla({ volver: '#/piensos', textoVolver: 'Piensos', titulo: 'Anotar reposición' }, `<div class="aviso-caja">Antes hay que dar de alta ${!activos.length ? 'algún silo' : ''}${!activos.length && !ps.length ? ' y ' : ''}${!ps.length ? 'alguna ficha de pienso' : ''}. ${ctx.esProf() ? `<a href="${!ps.length ? '#/piensos/ficha/nuevo' : '#/piensos/silos'}">Hazlo aquí</a>.` : 'Avisa al profesor.'}</div>`);
+      if (!activos.length || !ps.length) return pantalla({ volver: '#/piensos', textoVolver: 'Piensos', titulo: 'Anotar reposición' }, `<div class="aviso-caja">Antes hay que dar de alta ${!activos.length ? 'algún silo' : ''}${!activos.length && !ps.length ? ' y ' : ''}${!ps.length ? 'alguna ficha de pienso' : ''}. ${!ps.length ? '<a href="#/piensos/ficha/nuevo">Crea una ficha de pienso aquí</a>.' : ctx.esProf() ? '<a href="#/piensos/silos">Hazlo aquí</a>.' : 'Avisa al profesor para el silo.'}</div>`);
       const s0 = siloId && silo(siloId) ? siloId : activos.length === 1 ? activos[0].id : '';
       pantalla({ volver: '#/piensos', textoVolver: 'Piensos', titulo: 'Anotar reposición' }, `<div id="msg"></div>
         <form class="formu" id="f-repo" novalidate>
@@ -211,14 +211,14 @@
 
     // ================================================================ fichas de pienso y silos
     function vistaFichas() {
-      pantalla({ volver: '#/piensos', textoVolver: 'Piensos', titulo: 'Fichas de pienso' }, `${ctx.esProf() ? '<a class="btn" href="#/piensos/ficha/nuevo">Nueva ficha de pienso</a>' : ''}
+      pantalla({ volver: '#/piensos', textoVolver: 'Piensos', titulo: 'Fichas de pienso' }, `<a class="btn" href="#/piensos/ficha/nuevo">Nueva ficha de pienso</a>
         <section class="tarjeta">${M.piensos.map((p) => `<a class="evento enlace" href="#/piensos/ficha/${p.id}"><div class="entre"><strong>${esc(p.nombre)}</strong>${p.medicado ? '<span class="chip nar">Medicado</span>' : ''}${p.activo ? '' : '<span class="chip gris">No se usa</span>'}</div>
           <div class="suave peq">${esc([p.tipo, p.fabricante].filter(Boolean).join(' · '))}${p.proteina != null ? ` · PB ${nd(p.proteina)} %` : ''}${p.fibra != null ? ` · FB ${nd(p.fibra)} %` : ''}${p.grasa != null ? ` · GB ${nd(p.grasa)} %` : ''}</div></a>`).join('') || '<div class="vacio">No hay fichas de pienso.</div>'}</section>`);
     }
     function vistaFicha(id) {
       const p = id && id !== 'nuevo' ? pienso(id) : null; const prof = ctx.esProf();
       if (id !== 'nuevo' && !p) return pantalla({ volver: '#/piensos/fichas', textoVolver: 'Fichas', titulo: 'Pienso' }, '<div class="vacio">No encuentro esa ficha.</div>');
-      if (!prof) {
+      if (!prof && p) { // cualquiera da de alta un pienso nuevo; cambiar una ficha, el profesorado
         const fila = (t, v) => (v != null && v !== '' ? `<div><span>${t}</span><span>${esc(v)}</span></div>` : '');
         const usos = M.repos.filter((r) => r.pienso_id === p.id);
         return pantalla({ volver: '#/piensos/fichas', textoVolver: 'Fichas', titulo: p.nombre, sub: esc([p.tipo, p.fabricante].filter(Boolean).join(' · ')) }, `

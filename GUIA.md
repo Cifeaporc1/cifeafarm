@@ -209,3 +209,8 @@ No hay que ejecutar nada en Supabase.
 
 Ejecuta una vez en Supabase `sql/22_efecto_macho.sql`. Cambia el nombre «Parque erótico» por «Parque vacías efecto macho» en lo ya anotado (traslados, silos, piensos y roturas). Es repetible y no borra datos.
 
+## 27. Verracos y fichas de pienso (0.20.4)
+
+1. Ejecuta una vez en Supabase `sql/23_piensos_alumnos.sql`: los alumnos pueden crear fichas de pienso nuevas.
+2. En la ficha de un verraco, arriba, «‹ anterior» y «siguiente ›» como en las cerdas.
+
