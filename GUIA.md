@@ -214,3 +214,9 @@ Ejecuta una vez en Supabase `sql/22_efecto_macho.sql`. Cambia el nombre «Parque
 1. Ejecuta una vez en Supabase `sql/23_piensos_alumnos.sql`: los alumnos pueden crear fichas de pienso nuevas.
 2. En la ficha de un verraco, arriba, «‹ anterior» y «siguiente ›» como en las cerdas.
 
+## 28. Listado de roturas y espacio de fotos (0.20.5)
+
+1. Ejecuta una vez en Supabase `sql/24_uso_fotos.sql` (para que la app sepa cuánto ocupan las fotos).
+2. **Listado:** Roturas e instalaciones → «Sacar listado». Elige cuáles (pendientes, reparadas…), dónde y entre qué fechas. «Imprimir o guardar en PDF» o «Descargar Excel».
+3. **Fotos:** se reducen solas a unos 50–100 KB. En Almacén y en Roturas verás «Fotos guardadas: n · MB de 1024 MB». A partir del 80 % sale un aviso naranja; al 100 % no se pueden subir más hasta borrar fotos antiguas (botón «Quitar» en cada foto de roturas reparadas o artículos de baja).
+

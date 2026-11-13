@@ -4,6 +4,8 @@
 (function () {
   'use strict';
   const BUCKET = 'cifeafarm-fotos';
+  // Fotos: lado mayor 1024 px y calidad 0,6 (unos 40–100 KB cada una). Plan gratuito de Supabase: 1 GB.
+  const LADO_FOTO = 1024, CALIDAD_FOTO = 0.6, LIMITE_FOTOS = 1024 ** 3, AVISO_FOTOS = 0.8;
   const TIPOS = { fungible: 'Material fungible', herramienta: 'Herramienta', maquina: 'Máquina o equipo' };
   const ESTADOS = { bueno: 'Buen estado', regular: 'Regular', averiado: 'Averiado', baja: 'De baja' };
   const ELEMENTOS = { suelo_continuo: 'Suelo continuo', suelo_rejilla: 'Suelo de rejilla', techo: 'Techo', paredes: 'Paredes', ventanas: 'Ventanas', puertas: 'Puertas y cerramientos',
@@ -70,6 +72,7 @@
       const err = al.error || ar.error || ro.error;
       if (err) { if (/does not exist|schema cache|PGRST205|42P01/i.test(`${err.message} ${err.code}`)) { M.falta = true; M.listo = true; return; } throw err; }
       Object.assign(M, { almacenes: al.data, articulos: ar.data, roturas: ro.data, listo: true, falta: false });
+      const u = await sb.rpc('uso_fotos'); M.uso = u.error || !u.data || !u.data[0] ? null : { fotos: Number(u.data[0].fotos), bytes: Number(u.data[0].bytes) };
     }
     // Fotos: carpeta privada; se piden enlaces temporales (1 hora)
     async function enlaces(fotos) {
@@ -84,9 +87,14 @@
       return new Promise((ok, mal) => {
         const img = new Image(); const u = URL.createObjectURL(file);
         img.onload = () => {
-          const k = Math.min(1, 1280 / Math.max(img.width, img.height)); const c = document.createElement('canvas');
+          const k = Math.min(1, LADO_FOTO / Math.max(img.width, img.height)); const c = document.createElement('canvas');
           c.width = Math.round(img.width * k); c.height = Math.round(img.height * k); c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
-          URL.revokeObjectURL(u); c.toBlob((b) => (b ? ok(b) : mal(new Error('No se pudo leer la foto'))), 'image/jpeg', 0.78);
+          URL.revokeObjectURL(u);
+          // WebP ocupa un 25–35 % menos que JPEG; si el móvil no sabe hacerlo, JPEG
+          c.toBlob((b) => {
+            if (b && b.type === 'image/webp') return ok(b);
+            c.toBlob((j) => (j ? ok(j) : mal(new Error('No se pudo leer la foto'))), 'image/jpeg', CALIDAD_FOTO);
+          }, 'image/webp', CALIDAD_FOTO);
         };
         img.onerror = () => { URL.revokeObjectURL(u); mal(new Error('No se pudo leer la foto')); };
         img.src = u;
@@ -95,9 +103,12 @@
     async function subirFotos(carpeta, files, nota) {
       const out = [];
       for (const f of files) {
+        if (M.uso && M.uso.bytes >= LIMITE_FOTOS) throw new Error('El espacio de fotos está lleno. Avisa al profesor para borrar fotos antiguas.');
         const blob = await reducir(f);
-        const path = `${carpeta}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.jpg`;
-        const r = await sb.storage.from(BUCKET).upload(path, blob, { contentType: 'image/jpeg' });
+        const ext = blob.type === 'image/webp' ? 'webp' : 'jpg';
+        const path = `${carpeta}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+        const r = await sb.storage.from(BUCKET).upload(path, blob, { contentType: blob.type || 'image/jpeg' });
+        if (M.uso) { M.uso.bytes += blob.size; M.uso.fotos += 1; }
         if (r.error) throw new Error(/bucket|not found/i.test(r.error.message || '') ? 'Falta la carpeta de fotos: ejecuta en Supabase 16_almacenes_roturas.sql.' : r.error.message);
         out.push({ path, fecha: hoy(), ...(nota ? { nota } : {}) });
       }
@@ -107,6 +118,16 @@
       return `<figure>${u ? `<a href="${esc(u.url)}" target="_blank" rel="noopener"><img src="${esc(u.url)}" alt="Foto del ${esc(fmt(f.fecha))}" loading="lazy"></a>` : '<div class="foto-falta">Foto</div>'}
         <figcaption>${esc(fmt(f.fecha))}${f.nota ? ` · ${esc(f.nota)}` : ''}${borrable ? ` <button type="button" class="enlace-btn" data-borrar-foto="${esc(f.path)}">Quitar</button>` : ''}</figcaption></figure>`; }).join('')}</div>` : '<div class="suave peq">Sin fotos.</div>');
     const campoFotos = (id, texto) => `<div class="campo"><label for="${id}">${texto}</label><input id="${id}" type="file" accept="image/*" multiple><span class="ayuda">Desde el móvil puedes hacer la foto en el momento. Se reducen antes de subirlas.</span></div>`;
+    // Espacio de las fotos: a todos, aviso si pasa del 80 %; al administrador, siempre la cifra
+    const mb = (b) => `${(b / 1024 ** 2).toLocaleString('es-ES', { maximumFractionDigits: b < 100 * 1024 ** 2 ? 1 : 0 })} MB`;
+    function avisoFotos() {
+      if (!M.uso) return '';
+      const pc = M.uso.bytes / LIMITE_FOTOS;
+      const texto = `Fotos guardadas: ${M.uso.fotos} · ${mb(M.uso.bytes)} de ${mb(LIMITE_FOTOS)} (${Math.round(pc * 100)} %)`;
+      if (pc >= 1) return `<div class="aviso-caja"><strong>El espacio de fotos está lleno.</strong> ${texto}. No se pueden subir más hasta borrar fotos antiguas${ctx.esAdmin() ? ' (en las roturas reparadas o los artículos de baja: botón «Quitar» de cada foto) o pasar a un plan de pago de Supabase' : '. Avisa al profesor'}.</div>`;
+      if (pc >= AVISO_FOTOS) return `<div class="aviso-caja"><strong>Quedan pocas fotos por guardar.</strong> ${texto}.${ctx.esAdmin() ? ' Conviene borrar fotos de roturas reparadas o de artículos de baja que ya no necesites.' : ' Haz solo las fotos imprescindibles.'}</div>`;
+      return ctx.esAdmin() ? `<div class="suave peq">${texto}</div>` : '';
+    }
     const faltaSQL = () => `<div class="aviso-caja">Para usar esta parte, ejecuta una vez en Supabase <strong>sql/16_almacenes_roturas.sql</strong> (SQL Editor → New query → Run).</div>`;
     const pantalla = (o, cuerpo) => ctx.pintar(`${ctx.cabecera({ comun: true, ...o })}<main class="cuerpo" id="alm">${cuerpo}</main>${ctx.navegacion('granjas')}`);
     const nomAlmacen = (id) => (M.almacenes.find((x) => x.id === id) || {}).nombre || 'Sin almacén';
@@ -127,6 +148,7 @@
         <div class="botones"><a class="btn" href="#/almacen/nuevo">Añadir artículo</a>${adm ? '<a class="btn sec" href="#/almacen/almacenes">Almacenes</a><a class="btn sec" href="#/almacen/inventario">Sacar inventario</a>' : ''}</div>
         ${poco.length ? `<section class="tarjeta" style="border-color:var(--naranja-borde)"><h2>Queda poco (${poco.length})</h2>${poco.map((a) => `<a class="evento enlace" href="#/almacen/articulo/${a.id}"><div class="entre"><strong>${esc(a.nombre)}</strong><span class="chip nar">${esc(cant(a))}</span></div>
           <div class="suave peq">${esc(nomAlmacen(a.almacen_id))}${a.queda_poco ? ` · avisó ${esc(ctx.verAlias(a.queda_poco_alias, a.queda_poco_curso) || '?')} el ${esc(fmt(String(a.queda_poco_fecha || '').slice(0, 10)))}` : ' · por debajo del mínimo'}</div></a>`).join('')}</section>` : ''}
+        ${avisoFotos()}
         ${revisar.length ? `<section class="tarjeta"><h2>Revisión pendiente</h2>${revisar.map((a) => `<a class="evento enlace" href="#/almacen/articulo/${a.id}"><div class="entre"><strong>${esc(a.nombre)}</strong><span class="chip nar">${esc(fmt(a.proxima_revision))}</span></div></a>`).join('')}</section>` : ''}
         <div class="campo"><label for="f-alm">Almacén</label><select id="f-alm"><option value="todos">Todos los almacenes</option>${M.almacenes.map((x) => `<option value="${x.id}" ${f.almacen === String(x.id) ? 'selected' : ''}>${esc(x.nombre)}</option>`).join('')}</select></div>
         <div class="pestanas">${[['todos', 'Todo'], ['fungible', 'Fungible'], ['herramienta', 'Herram.'], ['maquina', 'Máquinas']].map(([k, t]) => `<button type="button" data-tipo="${k}" class="${f.tipo === k ? 'activo' : ''}">${t}</button>`).join('')}</div>
@@ -328,6 +350,52 @@
         <span class="chip ${r.prioridad === 'urgente' && !['reparada', 'descartada'].includes(r.estado) ? 'rojo' : CHIP_SIT[s.clave]}">${r.prioridad === 'urgente' && !['reparada', 'descartada'].includes(r.estado) ? 'Urgente' : esc(NOMBRE_SIT[s.clave])}</span></div>
         <div class="suave peq">${esc(GRANJAS[r.granja])} · ${esc(NOMBRE_SIT[s.clave])}${s.clave === 'pendiente' ? ` (${s.listos}/${s.total} materiales)` : ''} · avisó ${esc(ctx.verAlias(r.autor_alias, r.curso) || '?')} el ${esc(fmt(String(r.creado).slice(0, 10)))}${(r.fotos || []).length ? ` · ${r.fotos.length} foto${r.fotos.length > 1 ? 's' : ''}` : ''}</div></a>`;
     }
+    // ---- Listado de roturas (imprimir, PDF o Excel)
+    function vistaListadoRoturas() {
+      if (!ctx.esProf()) return vistaRoturas();
+      const o = M.lr = M.lr || { estado: 'pendientes', granja: 'todas', desde: '', hasta: '' };
+      const ESTADOS_L = { pendientes: 'Pendientes (abiertas y en reparación)', reparadas: 'Reparadas', descartadas: 'Descartadas', todas: 'Todas' };
+      const lista = M.roturas.filter((r) => (o.granja === 'todas' || r.granja === o.granja)
+        && (o.estado === 'todas' || (o.estado === 'pendientes' ? ['abierta', 'reparacion'].includes(r.estado) : o.estado === 'reparadas' ? r.estado === 'reparada' : r.estado === 'descartada'))
+        && (!o.desde || String(r.creado).slice(0, 10) >= o.desde) && (!o.hasta || String(r.creado).slice(0, 10) <= o.hasta))
+        .sort((a, b) => ({ urgente: 0, normal: 1, baja: 2 }[a.prioridad] - { urgente: 0, normal: 1, baja: 2 }[b.prioridad]) || String(a.creado).localeCompare(String(b.creado)));
+      const ahora = new Date(); const cuando = `${fmt(hoy())} a las ${ahora.toTimeString().slice(0, 5)}`;
+      const sit = (r) => { const s = situacion(r, M.articulos); return NOMBRE_SIT[s.clave] + (s.clave === 'pendiente' ? ` (${s.listos}/${s.total})` : ''); };
+      const mats = (r) => (r.materiales || []).map((m) => `${m.nombre}${m.cantidad ? ` ×${m.cantidad}${m.unidad ? ` ${m.unidad}` : ''}` : ''}${materialListo(m, M.articulos) ? ' ✓' : ''}`).join('; ');
+      const quienR = (r) => ctx.verAlias(r.autor_alias, r.curso) || '';
+      pantalla({ volver: '#/roturas', textoVolver: 'Roturas', titulo: 'Listado de roturas' }, `<div id="msg"></div>
+        <form class="formu tarjeta" id="f-lr" novalidate>
+          <div class="dos"><div class="campo"><label for="lr-estado">Cuáles</label><select id="lr-estado">${Object.entries(ESTADOS_L).map(([k, t]) => `<option value="${k}" ${o.estado === k ? 'selected' : ''}>${t}</option>`).join('')}</select></div>
+            <div class="campo"><label for="lr-granja">Dónde</label><select id="lr-granja"><option value="todas">Todas</option>${Object.entries(GRANJAS).map(([k, t]) => `<option value="${k}" ${o.granja === k ? 'selected' : ''}>${t}</option>`).join('')}</select></div></div>
+          <div class="dos"><div class="campo"><label for="lr-desde">Avisadas desde</label><input id="lr-desde" type="date" value="${esc(o.desde)}"></div><div class="campo"><label for="lr-hasta">hasta</label><input id="lr-hasta" type="date" value="${esc(o.hasta)}"></div></div>
+          <div class="botones"><button class="btn" type="button" id="b-imprimir">Imprimir o guardar en PDF</button><button class="btn sec" type="button" id="b-xlsx">Descargar Excel</button></div></form>
+        <section class="inventario"><h2 style="margin:6px 0">Roturas e instalaciones · ${esc(ESTADOS_L[o.estado])}${o.granja === 'todas' ? '' : ` · ${esc(GRANJAS[o.granja])}`}</h2>
+          <div class="suave peq">Sacado el ${esc(cuando)} · ${lista.length} aviso${lista.length === 1 ? '' : 's'}${lista.filter((r) => r.prioridad === 'urgente' && ['abierta', 'reparacion'].includes(r.estado)).length ? ` · ${lista.filter((r) => r.prioridad === 'urgente' && ['abierta', 'reparacion'].includes(r.estado)).length} urgentes sin reparar` : ''}</div>
+          ${lista.length ? `<div class="tabla-scroll"><table class="tabla ancha inv-tabla"><thead><tr><th>Avisada</th><th>Dónde</th><th>Zona</th><th>Qué</th><th>Qué le pasa</th><th>Prioridad</th><th>Situación</th><th>Material</th><th>Reparada</th><th>Hecho</th></tr></thead><tbody>
+            ${lista.map((r) => `<tr><td>${esc(fmt(String(r.creado).slice(0, 10)))}${ctx.esAdmin() && quienR(r) ? `<br><span class="suave">${esc(quienR(r))}</span>` : ''}</td><td>${esc(GRANJAS[r.granja])}</td><td>${esc(r.zona)}</td><td>${esc(ELEMENTOS[r.elemento] || r.elemento)}</td>
+              <td>${esc(r.descripcion || '')}</td><td>${esc(PRIORIDAD[r.prioridad])}</td><td>${esc(sit(r))}</td><td>${esc(mats(r))}</td>
+              <td>${r.reparada_fecha ? `${esc(fmt(r.reparada_fecha))}${r.nota_reparacion ? `<br><span class="suave">${esc(r.nota_reparacion)}</span>` : ''}` : ''}</td><td class="inv-check"></td></tr>`).join('')}</tbody></table></div>`
+            : '<div class="vacio">No hay roturas con estas opciones.</div>'}
+          <div class="inv-firma">Revisado por: ______________________ &nbsp; Fecha: ____________ &nbsp; Firma:</div></section>`);
+      const cambia = (k, v) => { o[k] = v; vistaListadoRoturas(); };
+      ['estado', 'granja', 'desde', 'hasta'].forEach((k) => $(`#lr-${k}`).addEventListener('change', (e) => cambia(k, e.target.value)));
+      $('#b-imprimir').addEventListener('click', () => window.print());
+      $('#b-xlsx').addEventListener('click', async (ev) => {
+        const b = ev.currentTarget; b.disabled = true;
+        try {
+          await ctx.cargarXLSX(); const X = window.XLSX; const libro = X.utils.book_new();
+          const filas = lista.map((r) => ({ Avisada: String(r.creado).slice(0, 10), ...(ctx.esAdmin() ? { 'Avisó': quienR(r) } : {}), Granja: GRANJAS[r.granja], Zona: r.zona, Elemento: ELEMENTOS[r.elemento] || r.elemento,
+            'Qué le pasa': r.descripcion || '', Prioridad: PRIORIDAD[r.prioridad], Situación: sit(r), Material: mats(r), 'Fotos antes': (r.fotos || []).length, 'Fotos después': (r.fotos_despues || []).length,
+            Reparada: r.reparada_fecha || '', 'Qué se hizo': r.nota_reparacion || '' }));
+          const h = X.utils.json_to_sheet(filas.length ? filas : [{ Avisada: 'Sin roturas' }]);
+          h['!cols'] = Object.keys(filas[0] || { a: 1 }).map((k) => ({ wch: Math.max(10, Math.min(45, k.length + 4, ...filas.map((f) => String(f[k] ?? '').length + 2))) }));
+          X.utils.book_append_sheet(libro, h, 'Roturas');
+          X.writeFile(libro, `roturas-${hoy()}.xlsx`);
+        } catch (e) { msg('No se pudo crear el Excel.'); }
+        b.disabled = false;
+      });
+    }
+
     function vistaRoturas() {
       const g = M.filtroR;
       const de = M.roturas.filter((r) => g === 'todas' || r.granja === g);
@@ -338,7 +406,8 @@
       const grupos = [['reparacion', 'En reparación'], ['lista', 'Listas para reparar'], ['pendiente', 'Pendientes de material'], ['sin_lista', 'Falta preparar la lista de materiales']];
       const cerradas = de.filter((r) => ['reparada', 'descartada'].includes(r.estado)).sort((a, b) => String(b.reparada_fecha || b.modificado).localeCompare(String(a.reparada_fecha || a.modificado)));
       pantalla({ volver: '#/granjas', textoVolver: 'CIFEAFARM', titulo: 'Roturas e instalaciones' }, `
-        <a class="btn" href="#/roturas/nueva/${g === 'todas' ? '' : g}">Avisar de una rotura</a>
+        <div class="botones"><a class="btn" href="#/roturas/nueva/${g === 'todas' ? '' : g}">Avisar de una rotura</a>${ctx.esProf() ? '<a class="btn sec" href="#/roturas/listado">Sacar listado</a>' : ''}</div>
+        ${avisoFotos()}
         <div class="pestanas">${[['todas', 'Todas'], ['rumi', 'Rumiantes'], ['porc', 'Porcino'], ['otra', 'Otras']].map(([k, t]) => `<button type="button" data-g="${k}" class="${g === k ? 'activo' : ''}">${t}</button>`).join('')}</div>
         ${abiertas.length ? grupos.map(([k, t]) => { const l = abiertas.filter((r) => situacion(r, M.articulos).clave === k); return l.length ? `<section class="tarjeta"><h2>${t} (${l.length})</h2>${l.map(tarjetaRotura).join('')}</section>` : ''; }).join('')
           : '<div class="vacio">No hay nada roto pendiente. 👍</div>'}
@@ -490,6 +559,7 @@
         return vistaLista();
       }
       if (a === 'nueva') return vistaNuevaRotura(b, c && c !== '-' ? c : null, d);
+      if (a === 'listado') return vistaListadoRoturas();
       if (a) return vistaRotura(a);
       return vistaRoturas();
     }
@@ -499,7 +569,8 @@
       if (M.falta) return null;
       const ab = M.roturas.filter((r) => ['abierta', 'reparacion'].includes(r.estado));
       return { poco: M.articulos.filter((a) => pocoStock(a) && a.estado !== 'baja').length, abiertas: ab.length, urgentes: ab.filter((r) => r.prioridad === 'urgente').length,
-        listas: ab.filter((r) => situacion(r, M.articulos).clave === 'lista' && r.estado === 'abierta').length, roturas: ab };
+        listas: ab.filter((r) => situacion(r, M.articulos).clave === 'lista' && r.estado === 'abierta').length, roturas: ab,
+        fotosPc: M.uso ? Math.round((100 * M.uso.bytes) / LIMITE_FOTOS) : null };
     }
     return { vista, resumen, recargar: () => { M.listo = false; } };
   }

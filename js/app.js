@@ -428,7 +428,7 @@
             <div class="suave">Porcino de ciclo cerrado, chato murciano</div></div>${ICONOS.flecha}</a></section>
         <section class="tarjeta"><h2>Común a todas las granjas</h2>
           ${esProf() ? tarjetaComun('#/gestion', ICONOS.gestion, 'Gestión', `Importar censo, copias de seguridad${esAdmin() ? ', personas y acceso por curso' : ''}`) : ''}
-          ${tarjetaComun('#/almacen', ICONOS.gestion, 'Almacenes y herramientas', `Material, herramientas y máquinas por almacén${S.almRes && S.almRes.poco ? ` · <strong>queda poco: ${S.almRes.poco}</strong>` : ''}`)}
+          ${tarjetaComun('#/almacen', ICONOS.gestion, 'Almacenes y herramientas', `Material, herramientas y máquinas por almacén${S.almRes && S.almRes.poco ? ` · <strong>queda poco: ${S.almRes.poco}</strong>` : ''}${S.almRes && S.almRes.fotosPc >= 80 ? ` · <strong>fotos al ${S.almRes.fotosPc} %</strong>` : ''}`)}
           ${tarjetaComun('#/roturas', ICONOS.gestion, 'Roturas e instalaciones', S.almRes && S.almRes.abiertas ? `${S.almRes.abiertas} pendiente${S.almRes.abiertas > 1 ? 's' : ''}${S.almRes.urgentes ? ` · <strong>${S.almRes.urgentes} urgente${S.almRes.urgentes > 1 ? 's' : ''}</strong>` : ''}${S.almRes.listas ? ` · ${S.almRes.listas} lista${S.almRes.listas > 1 ? 's' : ''} para reparar` : ''}` : 'Avisar de algo roto y preparar la reparación')}
           ${tarjetaComun('#/cuenta', ICONOS.cuenta, 'Cuenta', `${esProf() ? 'Contraseña' : 'PIN'}, descargar datos${esProf() ? '' : ', mi actividad'} e instalación`)}</section>
         ${esAdmin() ? bloqueAdmin() : ''}
