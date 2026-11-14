@@ -279,7 +279,7 @@
     if (u === 'Implantación') return { zona: 'implantacion', n: null };
     if ((m = /^Vacías · parque (\d+)/.exec(u))) return { zona: 'vacias', n: +m[1] };
     if ((m = /^Gestación · parque (\d+)/.exec(u))) return { zona: 'gestacion', n: +m[1] };
-    if (u === 'Parque vacías efecto macho' || u === 'Parque vacías efecto macho') return { zona: 'erotico', n: 1 }; // nombre antiguo: Parque vacías efecto macho
+    if (u === 'Parque vacías efecto macho' || u === 'Parque erótico') return { zona: 'erotico', n: 1 }; // nombre antiguo: Parque erótico
     if ((m = /^Partos · sala (\d+) · paridera (\d+)/.exec(u))) return { zona: 'partos', sala: +m[1], n: +m[2] };
     return null;
   }

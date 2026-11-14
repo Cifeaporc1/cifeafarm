@@ -155,7 +155,7 @@
       return `<header class="cab ${o.prof ? 'prof' : ''}">
         <div class="fila"><a class="volver" href="${o.volver}">${ICONOS.atras}${esc(o.textoVolver || 'Volver')}</a>
         <a href="../#/granjas" style="margin-left:auto;line-height:0" aria-label="Granjas del centro"><img class="logo" src="img/logo-mini.jpg" alt=""></a></div>
-        <h1>${esc(o.titulo)}</h1>${o.sub ? `<div class="sub">${o.sub}</div>` : ''}
+        <div class="id-fila"><h1>${esc(o.titulo)}</h1>${(o.otros || []).filter(Boolean).map((x) => `<span class="otro-num">${esc(x)}</span>`).join('')}</div>${o.sub ? `<div class="sub">${o.sub}</div>` : ''}
         <div class="quien peq" style="margin-top:4px">${quien}</div>${lineaGranja()}${horas}</header>`;
     }
     return `<header class="cab ${o.prof ? 'prof' : ''}">
@@ -668,7 +668,7 @@
     const ahora = `<div class="dos">${enGest ? `<div class="dato"><span class="et">Gestación</span><span class="val">Día ${L.dias(cur.ia.fecha, h)}</span><span class="nota">de unos ${L.REF.gestacion} · IA el ${corta(cur.ia.fecha)}</span></div>` : ''}
       <div class="dato"><span class="et">${esc(faseNombre(est.fase))}</span><span class="val">${diasFase == null ? '—' : `${diasFase} ${diasFase === 1 ? 'día' : 'días'}`}</span><span class="nota">${est.faseDesde ? `en esta fase desde el ${corta(est.faseDesde)}` : 'sin registros todavía'}</span></div></div>`;
 
-    pintar(`${cabecera({ volver: '#/cerdas', textoVolver: 'Cerdas', titulo: c.crotal, sub: `${esc(c.raza)} · ${est.partos} ${est.partos === 1 ? 'parto' : 'partos'} · <strong>${faseNombre(est.fase)}${est.ubicacion ? ` · ${esc(est.ubicacion)}` : ''}</strong>` })}
+    pintar(`${cabecera({ volver: '#/cerdas', textoVolver: 'Cerdas', titulo: c.crotal, otros: c.otros_crotales || [], sub: `${esc(c.raza)} · ${est.partos} ${est.partos === 1 ? 'parto' : 'partos'} · <strong>${faseNombre(est.fase)}${est.ubicacion ? ` · ${esc(est.ubicacion)}` : ''}</strong>` })}
       <main class="cuerpo">
         ${navFichas}
         <div class="foto"><img src="img/hembra.jpg" alt="Cerda chata murciana"></div>
@@ -781,7 +781,7 @@
       ayuda: 'Referencia: 30 días de lactación y 7–9 destetados por camada. Los lechones pueden quedarse unos días en la paridera y pasar después a la lechonera desde el plano.',
       campos: [F.fecha,
         { grupo: 'Lechones destetados', campos: [{ n: 'destetados_h', t: 'contador', l: 'Hembras' }, { n: 'destetados_m', t: 'contador', l: 'Machos' }] },
-        { n: 'lechonera', t: 'select', l: 'Los lechones van a', op: [...rango(1, 4).map((k) => [k, `Lechonera ${k}`]), ['paridera', 'Se quedan en la paridera (de momento)']] },
+        { n: 'lechonera', t: 'select', l: 'Los lechones van a', op: [['paridera', 'Se quedan unos días en la paridera, sin la madre'], ...rango(1, 4).map((k) => [k, `Lechonera ${k}`])] },
         { n: 'parque_v', t: 'select', l: 'La madre pasa al parque de vacías', op: rango(1, 2) },
         F.obs],
       ubicacion: (v) => `Vacías · parque ${v.parque_v}`,
@@ -1024,6 +1024,21 @@
     return D;
   }
 
+  // Cada cerdito se mueve un poco dentro de su corral, a su ritmo (sin moverse si el móvil pide menos animación)
+  const andar = (i, a) => `--a:${Math.max(1.5, a).toFixed(1)};--d:${(4 + ((i * 37) % 30) / 10).toFixed(1)}s;--r:-${((i * 53) % 50) / 10}s`;
+  // Lechones: cerditos pequeños dentro de un rectángulo; si no caben todos, el último hueco dice cuántos más hay
+  function lechonesSVG(n, x, y, w, h, tam = 16) {
+    if (!(n > 0)) return '';
+    const lw = tam, lh = tam / 1.6; const cols = Math.max(1, Math.floor(w / (lw * 1.08))), filas = Math.max(1, Math.floor(h / (lh * 1.25)));
+    const caben = cols * filas; const ver = n > caben ? caben - 1 : n;
+    const cw = w / cols, ch = h / filas; let out = '';
+    for (let i = 0; i < ver; i++) {
+      const cx = x + cw * (i % cols) + (cw - lw) / 2, cy = y + ch * Math.floor(i / cols) + (ch - lh) / 2;
+      out += `<g class="anda" style="${andar(i + 7, lw * 0.12)}"><use href="#cerdito" class="lechon" x="${cx.toFixed(1)}" y="${cy.toFixed(1)}" width="${lw}" height="${lh.toFixed(1)}"/></g>`;
+    }
+    if (n > ver) { const i = ver; const cx = x + cw * (i % cols) + cw / 2, cy = y + ch * Math.floor(i / cols) + ch / 2 + 4; out += `<text x="${cx.toFixed(1)}" y="${cy.toFixed(1)}" text-anchor="middle" class="num mini mas">+${n - ver}</text>`; }
+    return `<g aria-hidden="true">${out}</g>`;
+  }
   // Coloca n cerditos dentro de un rectángulo del plano (unidades del dibujo)
   function cerdosSVG(items, x, y, w, h, enlaces, etiqueta = (it) => it.c.crotal, color = (it) => COLOR_FASE[it.fase]) {
     if (!items.length) return '';
@@ -1036,7 +1051,7 @@
       const cx = x + cw * (i % cols) + cw / 2, cy = y + ch * Math.floor(i / cols) + (ch - ph - 16) / 2;
       const id = it.c ? it.c.id : it.id;
       const dentro = `<ellipse cx="${cx}" cy="${cy + ph * 0.95}" rx="${pw * 0.48}" ry="${ph * 0.16}" fill="${color(it)}"/>
-        <use href="#cerdito" x="${cx - pw / 2}" y="${cy}" width="${pw}" height="${ph}"/>
+        <g class="anda" style="${andar(i, pw * 0.07)}"><use href="#cerdito" x="${cx - pw / 2}" y="${cy}" width="${pw}" height="${ph}"/></g>
         <text x="${cx}" y="${cy + ph + 15}" text-anchor="middle" class="crotal">${esc(etiqueta(it))}</text>`;
       return enlaces ? `<a href="${it.c ? `#/cerda/${id}` : `#/verraco/${id}`}" aria-label="${esc(etiqueta(it))}">${dentro}</a>` : `<g>${dentro}</g>`;
     }).join('');
@@ -1086,8 +1101,8 @@
         const x = k <= 3 ? x0 : x0 + 93, y = 62 + ((k - 1) % 3) * 85.6; const it = D.partos[`${s}-${k}`] || [];
         t += caja(x, y, 57, 85.6, it.length ? '' : 'libre') + num(x + 10, y + 16, k, 'num peq');
         t += cerdosSVG(it, x + 2, y + 18, 53, 52, ancho);
-        if (it[0] && it[0].lechones != null) t += num(x + 28, y + 82, `+${it[0].lechones}`, 'num lech');
-        { const dg = D.grupos[`Paridera ${s}-${k}`]; if (dg && dg.n > 0) t += num(x + 28, it.length ? y + 30 : y + 52, `${dg.n} dest.`, 'num lech'); }
+        if (it[0] && it[0].lechones != null) t += lechonesSVG(it[0].lechones, x + 3, y + 66, 51, 18, 14);
+        { const dg = D.grupos[`Paridera ${s}-${k}`]; if (dg && dg.n > 0) t += it.length ? num(x + 28, y + 30, `${dg.n} dest.`, 'num lech') : lechonesSVG(dg.n, x + 3, y + 22, 51, 48, 15) + num(x + 28, y + 82, `${dg.n} destetados`, 'num mini'); }
       }
       t += `<rect class="pared" x="${x0}" y="62" width="150" height="257"/>` + num(x0 + 75, 200, 'pasillo', 'num vertical');
     }
@@ -1099,7 +1114,9 @@
     g += `<a href="#/plano/gestacion" class="zona-plano" aria-label="Parques de gestación"><rect x="1150" y="400" width="450" height="270" rx="6"/></a>` + t + num(1375, 360, 'PARQUES GESTACIÓN', 'rotulo');
     // Lechoneras 1-4
     t = '';
-    for (let l = 1; l <= 4; l++) { const y = 420 + (l - 1) * 62; const r = D.recuento[`Lechonera ${l}`]; t += caja(930, y, 130, 62, r && r.n ? '' : 'libre') + num(948, y + 24, l, 'num peq') + (r ? num(1005, y + 38, r.n, `num grande ${r.n > 25 ? 'exceso' : ''}`) + num(1005, y + 56, corta(r.fecha), 'num mini') : num(1005, y + 40, '—', 'num')); }
+    for (let l = 1; l <= 4; l++) { const y = 420 + (l - 1) * 62; const r = D.recuento[`Lechonera ${l}`];
+      t += caja(930, y, 130, 62, r && r.n ? '' : 'libre') + num(942, y + 20, l, 'num peq') + (r && r.n > 0 ? lechonesSVG(r.n, 950, y + 6, 66, 52, 20) : '')
+        + (r ? num(1042, y + 34, r.n, `num grande ${r.n > 25 ? 'exceso' : ''}`) + num(1042, y + 54, corta(r.fecha), 'num mini') : num(1020, y + 40, '·', 'num')); }
     g += zona('lechoneras', 930, 420, 130, 248, 'Lechoneras', t) + `<text x="920" y="550" class="rotulo" text-anchor="end">LECHONERAS</text>`;
     // Verraqueras 5..1, salas de servicio
     t = '';
@@ -1114,7 +1131,7 @@
     let totalCebo = 0;
     for (let k = 1; k <= 24; k++) {
       const col = Math.ceil(k / 2) - 1, x = 1140 + col * 38, y = k % 2 === 0 ? 720 : 812; const r = D.recuento[`Cebadero ${k}`]; if (r) totalCebo += r.n;
-      t += caja(x, y, 38, 80, r && r.n ? '' : 'libre') + num(x + 19, y + 18, k, 'num mini') + num(x + 19, y + 54, r ? r.n : '·', 'num');
+      t += caja(x, y, 38, 80, r && r.n ? '' : 'libre') + num(x + 19, y + 16, k, 'num mini') + (r && r.n > 0 ? lechonesSVG(r.n, x + 1, y + 20, 36, 32, 15) : '') + num(x + 19, y + 70, r ? r.n : '·', 'num');
     }
     g += zona('cebadero', 1140, 720, 456, 172, 'Cebadero', t) + num(1368, 915, `CEBADERO${totalCebo ? ` · ${totalCebo} cerdos` : ''}`, 'rotulo');
 
@@ -1151,6 +1168,18 @@
     return `<a class="cerdo" href="${tipo === 'cerda' ? `#/cerda/${it.c.id}` : `#/verraco/${it.id}`}">
       <svg viewBox="0 0 64 46" aria-hidden="true"><ellipse cx="32" cy="40" rx="27" ry="5" fill="${color}"/><use href="#cerdito" x="0" y="2" width="64" height="40"/></svg>
       <strong>${esc(crotal)}</strong><span class="peq" style="color:${color}">${tipo === 'cerda' ? faseNombre(it.fase) : 'Verraco'}${it.lechones != null ? ` · ${it.lechones} lech.` : ''}</span></a>`;
+  }
+  // Roturas pendientes de una zona del plano (las urgentes primero)
+  const PREFIJOS_ZONA = { vacias: ['Parques de vacías'], erotico: ['Parque vacías efecto macho', 'Parque erótico'], implantacion: ['Sala de implantación'], gestacion: ['Parques de gestación'],
+    partos: ['Sala de partos'], verraqueras: ['Verraquera'], lechoneras: ['Lechonera'], cebadero: ['Cebadero'] };
+  function roturasZona(z) {
+    const pre = PREFIJOS_ZONA[z]; if (!pre) return '';
+    const l = (S.roturas || []).filter((r) => r.granja === 'porc' && pre.some((p) => r.zona === p || r.zona.startsWith(`${p} `)))
+      .sort((a, b) => (a.prioridad === 'urgente' ? 0 : 1) - (b.prioridad === 'urgente' ? 0 : 1));
+    if (!l.length) return '';
+    const urg = l.filter((r) => r.prioridad === 'urgente').length;
+    return `<section class="tarjeta aviso-roturas ${urg ? 'urgente' : ''}"><h2>${urg ? `⚠ ${urg} rotura${urg > 1 ? 's' : ''} urgente${urg > 1 ? 's' : ''} en esta zona` : `Roturas pendientes en esta zona (${l.length})`}</h2>
+      ${l.map((r) => `<a class="evento enlace" href="../#/roturas/${r.id}"><div class="entre"><strong>${esc((window.Almacen && window.Almacen._.ELEMENTOS[r.elemento]) || r.elemento)} · ${esc(r.zona)}</strong>${r.prioridad === 'urgente' ? '<span class="chip rojo">Urgente</span>' : ''}</div>${r.descripcion ? `<div class="suave peq">${esc(r.descripcion.slice(0, 100))}</div>` : ''}</a>`).join('')}</section>`;
   }
   function vistaZona(z) {
     const D = datosPlano();
@@ -1198,6 +1227,7 @@
     } else return vistaNoEncontrado();
     pintar(`${cabecera({ volver: '#/plano', textoVolver: 'Plano', titulo })}${DEFS_CERDO}
       <main class="cuerpo">${cuerpo}
+        ${roturasZona(z)}
         ${['lechoneras', 'cebadero'].includes(z) ? '' : `<div class="leyenda">${L.FASES.map((f) => `<span><i style="background:${COLOR_FASE[f.id]}"></i>${f.nombre}</span>`).join('')}</div>`}
       </main>${navegacion('mapa')}`);
   }
@@ -1238,7 +1268,8 @@
         <div class="dos"><div class="dato ${G.n < 0 || (z === 'lechoneras' && G.n > 25) ? 'nar' : ''}"><span class="et">Animales ahora</span><span class="val">${G.n}</span><span class="nota">${z === 'lechoneras' ? 'capacidad 25' : 'según la app'}</span></div>
           <div class="dato"><span class="et">Último recuento</span><span class="val">${G.recuento ? G.recuento.n : '—'}</span><span class="nota">${G.recuento ? fmt(G.recuento.fecha) : 'sin contar'}</span></div></div>
         ${G.n < 0 ? '<div class="aviso-caja">Salen más animales de los que había: falta registrar una entrada o hacer un recuento.</div>' : ''}
-        ${z === 'parideras' ? `<div class="botones"><a class="btn" href="#/movg/traslado/${z}/${k}">Pasar a lechonera</a><a class="btn sec" href="#/movg/muerte/${z}/${k}">Muerte</a></div><div class="suave peq">Sala ${k.split('-')[0]}, paridera ${k.split('-')[1]}. Puedes pasarlos todos o una parte.</div>` : `<div class="botones"><a class="btn" href="#/recuento/${z}/${k}">Contar</a>${S.faltaSQL07 ? '' : `<a class="btn sec" href="#/movg/entrada/${z}/${k}">Entrada</a><a class="btn sec" href="#/movg/traslado/${z}/${k}">Traslado</a><a class="btn sec" href="#/movg/muerte/${z}/${k}">Muerte</a><a class="btn sec" href="#/movg/venta/${z}/${k}">Venta / matadero</a>`}</div>`}
+        ${z === 'parideras' ? `<div class="botones"><a class="btn" href="#/movg/traslado/${z}/${k}/lechonera">Pasar a lechonera</a><a class="btn" href="#/movg/traslado/${z}/${k}/cebadero">Pasar al cebadero</a><a class="btn sec" href="#/movg/muerte/${z}/${k}">Muerte</a></div>
+          ${(() => { const ult = G.movs.filter((m) => m.virtual).sort((a, b) => (a.fecha < b.fecha ? 1 : -1))[0]; const d = ult ? L.dias(ult.fecha, hoy()) : null; return d != null ? `<div class="ok-caja">Destetados hace <strong>${d} día${d === 1 ? '' : 's'}</strong> (${fmt(ult.fecha)}). Se quedan en la paridera sin su madre los días que consideres; después, pásalos a una lechonera o directamente al cebadero.</div>` : ''; })()}<div class="suave peq">Sala ${k.split('-')[0]}, paridera ${k.split('-')[1]}. Puedes pasarlos todos o una parte.</div>` : `<div class="botones"><a class="btn" href="#/recuento/${z}/${k}">Contar</a>${S.faltaSQL07 ? '' : `<a class="btn sec" href="#/movg/entrada/${z}/${k}">Entrada</a><a class="btn sec" href="#/movg/traslado/${z}/${k}">Traslado</a><a class="btn sec" href="#/movg/muerte/${z}/${k}">Muerte</a><a class="btn sec" href="#/movg/venta/${z}/${k}">Venta / matadero</a>`}</div>`}
         <section class="tarjeta"><h2>Historial</h2>${hist.length ? hist.slice(0, 30).map(linea).join('') : '<div class="suave">Sin recuentos ni movimientos.</div>'}</section>
       </main>${navegacion('mapa')}`);
     $app.querySelectorAll('[data-borrar-g]').forEach((b) => b.addEventListener('click', async () => {
@@ -1251,9 +1282,10 @@
   }
 
   // ---- Entrada, traslado, muerte o venta/matadero de lechones o cerdos de cebo
-  function vistaMovGrupo(tipo, z, k) {
+  function vistaMovGrupo(tipo, z, k, haciaParam) {
+    const hacia = haciaParam || location.hash.split('/')[5]; // lechonera | cebadero: solo esos destinos
     if (!TIPOS_MOVG[tipo] || S.faltaSQL07) return vistaZona(zonaVolver(z || 'cebadero'));
-    const clave = `movg/${tipo}/${z}/${k || ''}`;
+    const clave = `movg/${tipo}/${z}/${k || ''}/${hacia || ''}`;
     if (S.borrador.clave !== clave) {
       const est = k ? estanciaDe(z, k) : '';
       S.borrador = { clave, v: { tipo: tipo === 'venta' ? 'venta' : tipo, fecha: hoy(), n: z === 'parideras' && k ? String(Math.max(0, L.cuentaGrupos(S.recuentos, movsGrupos())[est].n)) : '', origen: tipo === 'entrada' ? '' : est, destino: tipo === 'entrada' ? est : '', procedencia: tipo === 'entrada' ? 'Otra granja del centro' : '', causa: '', causa_otra: '', obs: '' }, confirmado: false, filtro: S.borrador.filtro };
@@ -1269,7 +1301,7 @@
         ${tipo === 'venta' ? `<div class="campo"><span class="et" id="et-gt">Salida</span><div class="opciones" role="radiogroup" aria-labelledby="et-gt">
           <label><input type="radio" name="tipo" value="venta" ${v.tipo === 'venta' ? 'checked' : ''}> Venta</label><label><input type="radio" name="tipo" value="matadero" ${v.tipo === 'matadero' ? 'checked' : ''}> Matadero</label></div></div>` : ''}
         ${tipo !== 'entrada' ? `<div class="campo"><label for="g-origen">${tipo === 'traslado' ? 'Salen de' : 'De'}</label><select id="g-origen" name="origen"><option value="">Elige…</option>${opEst(v.origen)}</select></div>` : ''}
-        ${['entrada', 'traslado'].includes(tipo) ? `<div class="campo"><label for="g-destino">${tipo === 'traslado' ? 'Van a' : 'Entran en'}</label><select id="g-destino" name="destino"><option value="">Elige…</option>${opEst(v.destino, (e) => e !== v.origen && !e.startsWith('Paridera'))}</select></div>` : ''}
+        ${['entrada', 'traslado'].includes(tipo) ? `<div class="campo"><label for="g-destino">${tipo === 'traslado' ? 'Van a' : 'Entran en'}</label><select id="g-destino" name="destino"><option value="">Elige…</option>${opEst(v.destino, (e) => e !== v.origen && !e.startsWith('Paridera') && (hacia !== 'lechonera' || e.startsWith('Lechonera')) && (hacia !== 'cebadero' || e.startsWith('Cebadero')))}</select></div>` : ''}
         <div class="campo"><label for="g-n">Número de animales</label><input id="g-n" name="n" type="number" inputmode="numeric" min="1" max="200" value="${esc(v.n)}"></div>
         ${tipo === 'entrada' ? `<div class="campo"><label for="g-proc">Procedencia</label><select id="g-proc" name="procedencia">${['Otra granja del centro', 'Compra', 'Otro'].map((o) => `<option ${v.procedencia === o ? 'selected' : ''}>${o}</option>`).join('')}</select><span class="ayuda">Los lechones destetados se suman solos a su lechonera al registrar el destete: no hace falta apuntarlos aquí.</span></div>` : ''}
         ${tipo === 'muerte' ? `<div class="campo"><label for="g-causa">Causa</label><select id="g-causa" name="causa"><option value="">Elige…</option>${L.CAUSAS_CEBO.map((c) => `<option ${v.causa === c ? 'selected' : ''}>${c}</option>`).join('')}</select></div>
@@ -1790,7 +1822,7 @@
     const posV = ordenV.indexOf(id), antV = posV > 0 ? verracoPorId(ordenV[posV - 1]) : null, sigV = posV >= 0 && posV < ordenV.length - 1 ? verracoPorId(ordenV[posV + 1]) : null;
     const navV = posV >= 0 && ordenV.length > 1 ? `<nav class="nav-fichas" aria-label="Otros verracos">${antV ? `<a class="btn sec peq" href="#/verraco/${antV.id}" aria-label="Verraco anterior">‹ ${esc(antV.crotal)}</a>` : '<span></span>'}
       <span class="suave peq">${posV + 1} de ${ordenV.length}</span>${sigV ? `<a class="btn sec peq" href="#/verraco/${sigV.id}" aria-label="Verraco siguiente">${esc(sigV.crotal)} ›</a>` : '<span></span>'}</nav>` : '';
-    pintar(`${cabecera({ volver: '#/verracos', textoVolver: 'Verracos', titulo: x.crotal, sub: `${esc(x.raza)}${x.verraquera ? ` · verraquera ${x.verraquera}` : ''}${x.fecha_baja ? ` · <strong>baja ${fmt(x.fecha_baja)}</strong>` : ''}` })}
+    pintar(`${cabecera({ volver: '#/verracos', textoVolver: 'Verracos', titulo: x.crotal, otros: x.otros_crotales || [], sub: `${esc(x.raza)}${x.verraquera ? ` · verraquera ${x.verraquera}` : ''}${x.fecha_baja ? ` · <strong>baja ${fmt(x.fecha_baja)}</strong>` : ''}` })}
       <main class="cuerpo">
         ${navV}
         <div class="foto"><img src="img/verraco.jpg" alt="Verraco chato murciano"></div>

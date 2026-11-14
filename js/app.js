@@ -168,7 +168,7 @@
       return `<header class="cab ${esProf() ? 'prof' : ''}">
         <div class="fila"><a class="volver" href="${o.volver}">${ICONOS.atras}${esc(o.textoVolver || 'Volver')}</a>
         <span class="granja-tag">${o.comun ? 'CIFEAFARM' : 'CIFEARUMI'}</span></div>
-        <h1>${esc(o.titulo)}</h1>${o.sub ? `<div class="sub">${o.sub}</div>` : ''}
+        <div class="id-fila"><h1>${esc(o.titulo)}</h1>${(o.otros || []).filter(Boolean).map((x) => `<span class="otro-num">${esc(x)}</span>`).join('')}</div>${o.sub ? `<div class="sub">${o.sub}</div>` : ''}
         <div class="quien peq" style="margin-top:4px">${quien}</div>${o.comun ? '' : lineaGranja()}</header>`;
     }
     return `<header class="cab ${esProf() ? 'prof' : ''}">
@@ -704,6 +704,16 @@
   }
 
   // ---------------------------------------------------------------- corralina (lista y traslado en grupo)
+  // Roturas pendientes de esta corralina o de toda su nave (las urgentes primero)
+  function roturasCorralina(c) {
+    const nave = `Nave ${c.nave}`, esta = `${nave} · corralina ${c.numero}`;
+    const l = (S.roturas || []).filter((r) => r.granja === 'rumi' && (r.zona === esta || r.zona === nave))
+      .sort((a, b) => (a.prioridad === 'urgente' ? 0 : 1) - (b.prioridad === 'urgente' ? 0 : 1));
+    if (!l.length) return '';
+    const urg = l.filter((r) => r.prioridad === 'urgente').length;
+    return `<section class="tarjeta aviso-roturas ${urg ? 'urgente' : ''}"><h2>${urg ? `⚠ ${urg} rotura${urg > 1 ? 's' : ''} urgente${urg > 1 ? 's' : ''} aquí` : `Roturas pendientes aquí (${l.length})`}</h2>
+      ${l.map((r) => `<a class="evento enlace" href="#/roturas/${r.id}"><div class="entre"><strong>${esc((window.Almacen && window.Almacen._.ELEMENTOS[r.elemento]) || r.elemento)} · ${esc(r.zona)}</strong>${r.prioridad === 'urgente' ? '<span class="chip rojo">Urgente</span>' : ''}</div>${r.descripcion ? `<div class="suave peq">${esc(r.descripcion.slice(0, 100))}</div>` : ''}</a>`).join('')}</section>`;
+  }
   function vistaCorralina(id) {
     const cid = Number(id);
     const c = corralina(cid);
@@ -721,6 +731,7 @@
         ${esProf() && c ? `<form class="formu tarjeta" id="f-uso"><h2>Uso de la corralina</h2>
           <div class="campo"><label for="uso">Texto libre (p. ej. «Chivas», «Machos»)</label><input id="uso" name="uso" type="text" value="${esc(c.uso || '')}"></div>
           <button class="btn sec" type="submit">Guardar</button></form>` : ''}
+        ${c ? roturasCorralina(c) : ''}
       </main>${navegacion('mapa')}`);
     const f = document.getElementById('f-sel');
     if (f) {
@@ -831,8 +842,9 @@
       ${e.tipo === 'parto' && esProf() ? `<div class="acciones"><button class="btn peligro peq" type="button" data-borrar-parto="${e.id}">Borrar parto</button></div>` : ''}
       ${!AUTO.includes(e.tipo) ? `<div class="acciones"><a class="btn sec peq" href="${e.tipo === 'nota' ? `#/nota/${a.id}/${e.id}` : `#/corregir/${a.id}/${e.id}`}">Corregir</a>${puedeEditarEv(e) ? `<button class="btn peligro peq" type="button" data-borrar="${e.id}">Borrar</button>` : ''}</div>` : ''}</div>`;
     const historial = evs.slice(0, 10).map(tarjetaEv).join('') + (evs.length > 10 ? `<details><summary class="suave" style="min-height:44px;display:flex;align-items:center">Ver ${evs.length - 10} registros anteriores</summary>${evs.slice(10).map(tarjetaEv).join('')}</details>` : '');
-    const ident = [a.crotal ? `Crotal ${esc(a.crotal)}` : null, a.manejo && a.codigo_cria ? `antes ${esc(a.codigo_cria)}` : null].filter(Boolean).join(' · ');
-    pintar(`${cabecera({ volver: '#/animales', textoVolver: 'Animales', titulo: nombreA(a), sub: `${esc(catNombre(a.categoria))} · ${esc(raza(a))}${ident ? ` · ${ident}` : ''}` })}
+    // Número principal en grande (el de manejo o el de cría) y, al lado, los demás números del animal
+    const otrosNum = [a.crotal && nombreA(a) !== a.crotal ? `Crotal ${a.crotal}` : null, a.manejo && a.codigo_cria ? `Cría ${a.codigo_cria}` : null];
+    pintar(`${cabecera({ volver: '#/animales', textoVolver: 'Animales', titulo: a.manejo || a.codigo_cria || a.crotal || '¿?', otros: otrosNum, sub: `${esc(catNombre(a.categoria))} · ${esc(raza(a))}` })}
       <main class="cuerpo">
         ${a.fecha_baja ? `<div class="error-caja"><strong>Dado de baja el ${fmt(a.fecha_baja)}</strong> · ${esc(a.causa_baja)}${a.destino_baja ? ` · ${esc(a.destino_baja)}` : ''}${a.baja_por ? ` · por ${esc(verAlias(a.baja_por))}` : ''}</div>` : ''}
         ${rev.length ? `<div class="aviso-caja"><strong>Por completar:</strong> ${esc(rev.join(' · '))}. <a href="#/editar/${a.id}">Corregir datos</a></div>` : ''}

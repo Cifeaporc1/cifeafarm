@@ -363,3 +363,15 @@ a.granja-chip { min-height: 44px; }
 .granja-op .franja { display: block; height: 8px; border-radius: 6px; margin-bottom: 8px; }
 html[data-granja="archivo"] { --verde: #5E6460; --verde-osc: #3F4441; --verde-claro: #ECEEEC; --verde-borde: #B9BEBA; }
 @media print { .inventario .tabla .suave { font-size: inherit; } }
+/* ---- Ficha: número principal grande y los demás al lado */
+.cab .id-fila { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 10px; }
+.cab .id-fila h1 { font-size: 34px; line-height: 1.1; letter-spacing: .5px; }
+.cab .otro-num { display: inline-block; padding: 2px 9px; border-radius: 99px; background: rgba(255, 255, 255, .18); border: 1px solid rgba(255, 255, 255, .45); font-size: 14px; font-weight: 600; white-space: nowrap; }
+/* ---- Plano: los cerdos se mueven un poco y los lechones son más pequeños */
+.plano .anda { animation: anda var(--d, 5s) ease-in-out var(--r, 0s) infinite alternate; transform-box: fill-box; transform-origin: center; }
+@keyframes anda { 0% { transform: translate(0, 0); } 35% { transform: translate(calc(var(--a, 2) * 1px), calc(var(--a, 2) * .15px)); } 70% { transform: translate(calc(var(--a, 2) * -.6px), calc(var(--a, 2) * -.2px)); } 100% { transform: translate(calc(var(--a, 2) * .8px), 0); } }
+@media (prefers-reduced-motion: reduce) { .plano .anda { animation: none; } }
+.plano .mas { font-weight: 700; }
+.aviso-roturas { border-color: var(--naranja-borde, #E3AF85); }
+.aviso-roturas.urgente { border: 2px solid var(--rojo, #A8261B); }
+.aviso-roturas.urgente h2 { color: var(--rojo, #A8261B); }

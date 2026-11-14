@@ -220,3 +220,10 @@ Ejecuta una vez en Supabase `sql/22_efecto_macho.sql`. Cambia el nombre «Parque
 2. **Listado:** Roturas e instalaciones → «Sacar listado». Elige cuáles (pendientes, reparadas…), dónde y entre qué fechas. «Imprimir o guardar en PDF» o «Descargar Excel».
 3. **Fotos:** se reducen solas a unos 50–100 KB. En Almacén y en Roturas verás «Fotos guardadas: n · MB de 1024 MB». A partir del 80 % sale un aviso naranja; al 100 % no se pueden subir más hasta borrar fotos antiguas (botón «Quitar» en cada foto de roturas reparadas o artículos de baja).
 
+## 29. Destete en la paridera, fichas y plano (0.21.0)
+
+No hay que ejecutar nada en Supabase.
+1. **Destete:** en «Los lechones van a», elige «Se quedan unos días en la paridera, sin la madre». En el plano, en esa paridera verás los lechones; al tocarla, los días que llevan destetados y los botones «Pasar a lechonera» o «Pasar al cebadero» (puedes pasar todos o una parte).
+2. **Fichas:** el número principal sale en grande y, al lado, el resto de números del animal.
+3. **Plano:** los cerdos se mueven un poco y los lechones salen como cerditos pequeños. Al entrar en una zona, abajo aparecen sus roturas pendientes.
+
