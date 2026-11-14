@@ -1027,16 +1027,22 @@
   // Cada cerdito se mueve un poco dentro de su corral, a su ritmo (sin moverse si el móvil pide menos animación)
   const andar = (i, a) => `--a:${Math.max(1.5, a).toFixed(1)};--d:${(4 + ((i * 37) % 30) / 10).toFixed(1)}s;--r:-${((i * 53) % 50) / 10}s`;
   // Lechones: cerditos pequeños dentro de un rectángulo; si no caben todos, el último hueco dice cuántos más hay
-  function lechonesSVG(n, x, y, w, h, tam = 16) {
+  // Si no caben todos, un solo cerdito con el número al lado (sinNumero: la instalación ya enseña la cifra)
+  function lechonesSVG(n, x, y, w, h, tam = 16, sinNumero = false) {
     if (!(n > 0)) return '';
     const lw = tam, lh = tam / 1.6; const cols = Math.max(1, Math.floor(w / (lw * 1.08))), filas = Math.max(1, Math.floor(h / (lh * 1.25)));
-    const caben = cols * filas; const ver = n > caben ? caben - 1 : n;
+    const caben = cols * filas;
+    if (n > caben) {
+      const t = Math.min(h * 1.6, w * (sinNumero ? 0.9 : 0.55), tam * 2.2), th = t / 1.6;
+      const cx = sinNumero ? x + (w - t) / 2 : x + 2, cy = y + (h - th) / 2;
+      return `<g aria-hidden="true"><g class="anda" style="${andar(n, t * 0.08)}"><use href="#cerdito" class="lechon" x="${cx.toFixed(1)}" y="${cy.toFixed(1)}" width="${t.toFixed(1)}" height="${th.toFixed(1)}"/></g>${sinNumero ? '' : `<text x="${(cx + t + 3).toFixed(1)}" y="${(y + h / 2 + 5).toFixed(1)}" class="num mini mas">×${n}</text>`}</g>`;
+    }
+    const ver = n;
     const cw = w / cols, ch = h / filas; let out = '';
     for (let i = 0; i < ver; i++) {
       const cx = x + cw * (i % cols) + (cw - lw) / 2, cy = y + ch * Math.floor(i / cols) + (ch - lh) / 2;
       out += `<g class="anda" style="${andar(i + 7, lw * 0.12)}"><use href="#cerdito" class="lechon" x="${cx.toFixed(1)}" y="${cy.toFixed(1)}" width="${lw}" height="${lh.toFixed(1)}"/></g>`;
     }
-    if (n > ver) { const i = ver; const cx = x + cw * (i % cols) + cw / 2, cy = y + ch * Math.floor(i / cols) + ch / 2 + 4; out += `<text x="${cx.toFixed(1)}" y="${cy.toFixed(1)}" text-anchor="middle" class="num mini mas">+${n - ver}</text>`; }
     return `<g aria-hidden="true">${out}</g>`;
   }
   // Coloca n cerditos dentro de un rectángulo del plano (unidades del dibujo)
@@ -1110,7 +1116,7 @@
         t += caja(x, y, 57, 85.6, it.length ? '' : 'libre') + num(x + 10, y + 16, k, 'num peq');
         t += cerdosSVG(it, x + 2, y + 18, 53, 52, ancho);
         if (it[0] && it[0].lechones != null) t += lechonesSVG(it[0].lechones, x + 3, y + 66, 51, 18, 14);
-        { const dg = D.grupos[`Paridera ${s}-${k}`]; if (dg && dg.n > 0) t += it.length ? num(x + 28, y + 30, `${dg.n} dest.`, 'num lech') : lechonesSVG(dg.n, x + 3, y + 22, 51, 48, 15) + num(x + 28, y + 82, `${dg.n} destetados`, 'num mini'); }
+        { const dg = D.grupos[`Paridera ${s}-${k}`]; if (dg && dg.n > 0) t += it.length ? num(x + 28, y + 30, `${dg.n} dest.`, 'num lech') : lechonesSVG(dg.n, x + 3, y + 22, 51, 48, 15, true) + num(x + 28, y + 82, `${dg.n} destetados`, 'num mini'); }
       }
       t += `<rect class="pared" x="${x0}" y="62" width="150" height="257"/>` + num(x0 + 75, 200, 'pasillo', 'num vertical');
     }
@@ -1123,7 +1129,7 @@
     // Lechoneras 1-4
     t = '';
     for (let l = 1; l <= 4; l++) { const y = 420 + (l - 1) * 62; const r = D.recuento[`Lechonera ${l}`];
-      t += caja(930, y, 130, 62, r && r.n ? '' : 'libre') + num(942, y + 20, l, 'num peq') + (r && r.n > 0 ? lechonesSVG(r.n, 950, y + 6, 66, 52, 20) : '')
+      t += caja(930, y, 130, 62, r && r.n ? '' : 'libre') + num(942, y + 20, l, 'num peq') + (r && r.n > 0 ? lechonesSVG(r.n, 950, y + 6, 66, 52, 20, true) : '')
         + (r ? num(1042, y + 34, r.n, `num grande ${r.n > 25 ? 'exceso' : ''}`) + num(1042, y + 54, corta(r.fecha), 'num mini') : num(1020, y + 40, '·', 'num')); }
     g += zona('lechoneras', 930, 420, 130, 248, 'Lechoneras', t) + `<text x="920" y="550" class="rotulo" text-anchor="end">LECHONERAS</text><text x="920" y="574" class="rotulo chico" text-anchor="end">${cuantos(nGrupo('Lechonera'), 'lechón', 'lechones')}</text>`;
     // Verraqueras 5..1, salas de servicio
@@ -1139,7 +1145,7 @@
     let totalCebo = 0;
     for (let k = 1; k <= 24; k++) {
       const col = Math.ceil(k / 2) - 1, x = 1140 + col * 38, y = k % 2 === 0 ? 720 : 812; const r = D.recuento[`Cebadero ${k}`]; if (r) totalCebo += r.n;
-      t += caja(x, y, 38, 80, r && r.n ? '' : 'libre') + num(x + 19, y + 16, k, 'num mini') + (r && r.n > 0 ? lechonesSVG(r.n, x + 1, y + 20, 36, 32, 15) : '') + num(x + 19, y + 70, r ? r.n : '·', 'num');
+      t += caja(x, y, 38, 80, r && r.n ? '' : 'libre') + num(x + 19, y + 16, k, 'num mini') + (r && r.n > 0 ? lechonesSVG(r.n, x + 1, y + 20, 36, 32, 15, true) : '') + num(x + 19, y + 70, r ? r.n : '·', 'num');
     }
     g += zona('cebadero', 1140, 720, 456, 172, 'Cebadero', t) + num(1368, 915, `CEBADERO · ${cuantos(totalCebo, 'cerdo', 'cerdos')}`, 'rotulo');
 
