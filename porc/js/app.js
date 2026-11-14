@@ -1065,12 +1065,20 @@
     const num = (x, y, t, cls = 'num') => `<text x="${x}" y="${y}" class="${cls}" text-anchor="middle">${t}</text>`;
     const circulo = (x, y, t) => `<circle cx="${x}" cy="${y}" r="15" class="circ"/>${num(x, y + 6, t)}`;
     let g = '';
+    // Cuántos animales hay en cada instalación (para ponerlo junto a su nombre)
+    const cuantos = (n, uno, varios) => `${n} ${n === 1 ? uno : varios}`;
+    const nArr = (o, ks) => ks.reduce((a, k) => a + ((o[k] || []).length), 0);
+    const nGrupo = (pref) => Object.values(D.recuento).filter((r) => r.estancia.startsWith(pref)).reduce((a, r) => a + Math.max(0, r.n), 0);
+    const nPartos = Object.values(D.partos).reduce((a, l) => a + l.length, 0);
+    const nLechPartos = Object.values(D.partos).reduce((a, l) => a + l.reduce((b, it) => b + (it.lechones || 0), 0), 0) + nGrupo('Paridera');
+    const nImpl = Object.values(D.implantacion).reduce((a, l) => a + l.length, 0) + D.implSin.length;
+    const nVerr = Object.values(D.verraqueras).reduce((a, l) => a + l.length, 0);
     // Parques de gestación 5 y 6, encima de implantación y de vacías
     let t = '';
     [[5, 20, -135, 290], [6, 330, -135, 280]].forEach(([p, x, y, w]) => { const it = D.gestacion[p]; t += caja(x, y, w, 160) + circulo(x + w / 2, y + 24, p) + cerdosSVG(it, x + 6, y + 42, w - 12, 100, ancho) + num(x + w - 30, y + 152, `${it.length}/8`, 'num peq'); });
-    g += `<a href="#/plano/gestacion" class="zona-plano" aria-label="Parques de gestación 5 y 6"><rect x="20" y="-135" width="590" height="160" rx="6"/></a>` + t + num(315, 45, 'PARQUES GESTACIÓN 5 Y 6', 'rotulo');
+    g += `<a href="#/plano/gestacion" class="zona-plano" aria-label="Parques de gestación 5 y 6"><rect x="20" y="-135" width="590" height="160" rx="6"/></a>` + t + num(315, 45, `PARQUES GESTACIÓN 5 Y 6 · ${cuantos(nArr(D.gestacion, [5, 6]), 'cerda', 'cerdas')}`, 'rotulo');
     // Parque de vacías efecto macho (a la izquierda, bajo implantación, cerca de las verraqueras)
-    { const it = D.erotico[1]; g += zona('erotico', 20, 380, 150, 230, 'Parque vacías efecto macho', caja(20, 380, 150, 230, it.length ? '' : 'libre') + cerdosSVG(it, 24, 400, 142, 180, ancho)) + num(95, 636, 'PARQUE VACÍAS', 'rotulo chico') + num(95, 658, 'EFECTO MACHO', 'rotulo chico'); }
+    { const it = D.erotico[1]; g += zona('erotico', 20, 380, 150, 230, 'Parque vacías efecto macho', caja(20, 380, 150, 230, it.length ? '' : 'libre') + cerdosSVG(it, 24, 400, 142, 180, ancho)) + num(95, 636, 'PARQUE VACÍAS', 'rotulo chico') + num(95, 658, 'EFECTO MACHO', 'rotulo chico') + num(95, 680, cuantos(D.erotico[1].length, 'cerda', 'cerdas'), 'rotulo chico'); }
     // Silos, contenedor de cadáveres y foso de purines (los silos llevan a su control de piensos)
     const silo = (x, y, nombre, l1, l2) => `<a href="#/piensos/silo/${encodeURIComponent(nombre)}" aria-label="${esc(nombre)}"><circle cx="${x}" cy="${y}" r="17" class="silo"/></a>${num(x, y + 36, l1, 'num mini')}${l2 ? num(x, y + 50, l2, 'num mini') : ''}`;
     g += silo(660, -60, 'Silo madres', 'Silo', 'madres') + silo(1132, 335, 'Silo transición', 'Silo', 'transición') + silo(1625, 830, 'Silo cebo', 'Silo', 'cebo');
@@ -1086,11 +1094,11 @@
         t += ancho ? `<a href="#/cerda/${it[0].c.id}">${dib}</a>` : `<g>${dib}</g>`;
       }
     }
-    g += zona('implantacion', 180, 50, 120, 270, 'Sala de implantación', t) + num(240, 345, 'IMPLANTACIÓN', 'rotulo');
+    g += zona('implantacion', 180, 50, 120, 270, 'Sala de implantación', t) + num(240, 345, 'IMPLANTACIÓN', 'rotulo') + num(240, 367, cuantos(nImpl, 'cerda', 'cerdas'), 'rotulo chico');
     // Parques de vacías (2 a la izquierda, 1 a la derecha)
     t = '';
     [[2, 330], [1, 470]].forEach(([p, x]) => { const it = D.vacias[p]; t += caja(x, 50, 140, 270) + circulo(x + 70, 75, p) + cerdosSVG(it, x + 4, 95, 132, 220, ancho) + num(x + 70, 312, `${it.length}/10`, 'num peq'); });
-    g += zona('vacias', 330, 50, 280, 270, 'Parques de vacías', t) + num(470, 345, 'PARQUE VACÍAS', 'rotulo');
+    g += zona('vacias', 330, 50, 280, 270, 'Parques de vacías', t) + num(470, 345, `PARQUE VACÍAS · ${cuantos(nArr(D.vacias, [1, 2]), 'cerda', 'cerdas')}`, 'rotulo');
     // Parideras: 3 salas; en cada una, plazas 1-3, pasillo, plazas 4-6
     t = '';
     // Cada sala es un local cerrado (pared gruesa) con su pasillo central; entre salas, separación
@@ -1106,22 +1114,22 @@
       }
       t += `<rect class="pared" x="${x0}" y="62" width="150" height="257"/>` + num(x0 + 75, 200, 'pasillo', 'num vertical');
     }
-    g += zona('partos', 640, 50, 480, 270, 'Parideras', t) + num(880, 345, 'PARIDERAS · 3 SALAS', 'rotulo');
+    g += zona('partos', 640, 50, 480, 270, 'Parideras', t) + num(880, 345, 'PARIDERAS · 3 SALAS', 'rotulo') + num(880, 367, `${cuantos(nPartos, 'cerda', 'cerdas')}${nLechPartos ? ` y ${cuantos(nLechPartos, 'lechón', 'lechones')}` : ''}`, 'rotulo chico');
     // Parques de gestación: 3 y 4 arriba, 1 y 2 abajo
     t = '';
     [[3, 1150, 40], [4, 1380, 40], [1, 1150, 400], [2, 1380, 400]].forEach(([p, x, y]) => { const it = D.gestacion[p]; t += caja(x, y, 220, 270) + circulo(x + 110, y + 26, p) + cerdosSVG(it, x + 6, y + 48, 208, 200, ancho) + num(x + 110, y + 262, `${it.length}/8`, 'num peq'); });
     g += `<a href="#/plano/gestacion" class="zona-plano" aria-label="Parques de gestación"><rect x="1150" y="40" width="450" height="270" rx="6"/></a>`;
-    g += `<a href="#/plano/gestacion" class="zona-plano" aria-label="Parques de gestación"><rect x="1150" y="400" width="450" height="270" rx="6"/></a>` + t + num(1375, 360, 'PARQUES GESTACIÓN', 'rotulo');
+    g += `<a href="#/plano/gestacion" class="zona-plano" aria-label="Parques de gestación"><rect x="1150" y="400" width="450" height="270" rx="6"/></a>` + t + num(1375, 360, `PARQUES GESTACIÓN · ${cuantos(nArr(D.gestacion, [1, 2, 3, 4]), 'cerda', 'cerdas')}`, 'rotulo');
     // Lechoneras 1-4
     t = '';
     for (let l = 1; l <= 4; l++) { const y = 420 + (l - 1) * 62; const r = D.recuento[`Lechonera ${l}`];
       t += caja(930, y, 130, 62, r && r.n ? '' : 'libre') + num(942, y + 20, l, 'num peq') + (r && r.n > 0 ? lechonesSVG(r.n, 950, y + 6, 66, 52, 20) : '')
         + (r ? num(1042, y + 34, r.n, `num grande ${r.n > 25 ? 'exceso' : ''}`) + num(1042, y + 54, corta(r.fecha), 'num mini') : num(1020, y + 40, '·', 'num')); }
-    g += zona('lechoneras', 930, 420, 130, 248, 'Lechoneras', t) + `<text x="920" y="550" class="rotulo" text-anchor="end">LECHONERAS</text>`;
+    g += zona('lechoneras', 930, 420, 130, 248, 'Lechoneras', t) + `<text x="920" y="550" class="rotulo" text-anchor="end">LECHONERAS</text><text x="920" y="574" class="rotulo chico" text-anchor="end">${cuantos(nGrupo('Lechonera'), 'lechón', 'lechones')}</text>`;
     // Verraqueras 5..1, salas de servicio
     t = '';
     [5, 4, 3, 2, 1].forEach((v, i) => { const x = 20 + i * 100 + (v === 1 ? 10 : 0); const it = D.verraqueras[v]; t += caja(x, 720, 95, 180, it.length ? '' : 'libre') + num(x + 47, 745, v) + cerdosSVG(it, x + 4, 760, 87, 120, ancho, (y) => y.crotal, () => '#5B6470'); });
-    g += zona('verraqueras', 20, 720, 505, 180, 'Verraqueras', t) + num(260, 705, 'VERRAQUERAS', 'rotulo');
+    g += zona('verraqueras', 20, 720, 505, 180, 'Verraqueras', t) + num(260, 705, `VERRAQUERAS · ${cuantos(nVerr, 'verraco', 'verracos')}`, 'rotulo');
     g += caja(535, 720, 110, 130, 'servicio') + num(590, 780, 'Sala', 'num mini') + num(590, 798, 'extracción', 'num mini');
     g += caja(645, 720, 120, 130, 'servicio') + num(705, 790, 'Laboratorio', 'num mini');
     g += caja(765, 720, 200, 130, 'servicio') + num(865, 780, 'Despacho', 'num mini') + num(865, 798, 'almacén', 'num mini');
@@ -1133,7 +1141,7 @@
       const col = Math.ceil(k / 2) - 1, x = 1140 + col * 38, y = k % 2 === 0 ? 720 : 812; const r = D.recuento[`Cebadero ${k}`]; if (r) totalCebo += r.n;
       t += caja(x, y, 38, 80, r && r.n ? '' : 'libre') + num(x + 19, y + 16, k, 'num mini') + (r && r.n > 0 ? lechonesSVG(r.n, x + 1, y + 20, 36, 32, 15) : '') + num(x + 19, y + 70, r ? r.n : '·', 'num');
     }
-    g += zona('cebadero', 1140, 720, 456, 172, 'Cebadero', t) + num(1368, 915, `CEBADERO${totalCebo ? ` · ${totalCebo} cerdos` : ''}`, 'rotulo');
+    g += zona('cebadero', 1140, 720, 456, 172, 'Cebadero', t) + num(1368, 915, `CEBADERO · ${cuantos(totalCebo, 'cerdo', 'cerdos')}`, 'rotulo');
 
     const lista = (arr, fn) => arr.map(fn).join(', ');
     pintar(`${cabecera({ volver: '#/inicio', textoVolver: 'Inicio', titulo: 'Plano de la granja' })}
