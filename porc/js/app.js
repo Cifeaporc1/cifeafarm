@@ -1027,12 +1027,13 @@
   // Cada cerdito se mueve un poco dentro de su corral, a su ritmo (sin moverse si el móvil pide menos animación)
   const andar = (i, a) => `--a:${Math.max(1.5, a).toFixed(1)};--d:${(4 + ((i * 37) % 30) / 10).toFixed(1)}s;--r:-${((i * 53) % 50) / 10}s`;
   // Lechones: cerditos pequeños dentro de un rectángulo; si no caben todos, el último hueco dice cuántos más hay
-  // Si no caben todos, un solo cerdito con el número al lado (sinNumero: la instalación ya enseña la cifra)
+  // Un solo cerdito con su número: siempre en lechoneras, cebadero y destetados (sinNumero: la instalación ya enseña la cifra);
+  // con la madre, solo si no caben todos
   function lechonesSVG(n, x, y, w, h, tam = 16, sinNumero = false) {
     if (!(n > 0)) return '';
     const lw = tam, lh = tam / 1.6; const cols = Math.max(1, Math.floor(w / (lw * 1.08))), filas = Math.max(1, Math.floor(h / (lh * 1.25)));
     const caben = cols * filas;
-    if (n > caben) {
+    if (sinNumero || n > caben) { // lechoneras, cebadero y destetados: siempre un cerdito y su número
       const t = Math.min(h * 1.6, w * (sinNumero ? 0.9 : 0.55), tam * 2.2), th = t / 1.6;
       const cx = sinNumero ? x + (w - t) / 2 : x + 2, cy = y + (h - th) / 2;
       return `<g aria-hidden="true"><g class="anda" style="${andar(n, t * 0.08)}"><use href="#cerdito" class="lechon" x="${cx.toFixed(1)}" y="${cy.toFixed(1)}" width="${t.toFixed(1)}" height="${th.toFixed(1)}"/></g>${sinNumero ? '' : `<text x="${(cx + t + 3).toFixed(1)}" y="${(y + h / 2 + 5).toFixed(1)}" class="num mini mas">×${n}</text>`}</g>`;
