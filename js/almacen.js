@@ -353,12 +353,16 @@
     // ---- Listado de roturas (imprimir, PDF o Excel)
     function vistaListadoRoturas() {
       if (!ctx.esProf()) return vistaRoturas();
-      const o = M.lr = M.lr || { estado: 'pendientes', granja: 'todas', desde: '', hasta: '' };
+      const o = M.lr = M.lr || { estado: 'pendientes', granja: 'todas', desde: '', hasta: '', orden: 'urgencia' };
       const ESTADOS_L = { pendientes: 'Pendientes (abiertas y en reparación)', reparadas: 'Reparadas', descartadas: 'Descartadas', todas: 'Todas' };
       const lista = M.roturas.filter((r) => (o.granja === 'todas' || r.granja === o.granja)
         && (o.estado === 'todas' || (o.estado === 'pendientes' ? ['abierta', 'reparacion'].includes(r.estado) : o.estado === 'reparadas' ? r.estado === 'reparada' : r.estado === 'descartada'))
         && (!o.desde || String(r.creado).slice(0, 10) >= o.desde) && (!o.hasta || String(r.creado).slice(0, 10) <= o.hasta))
-        .sort((a, b) => ({ urgente: 0, normal: 1, baja: 2 }[a.prioridad] - { urgente: 0, normal: 1, baja: 2 }[b.prioridad]) || String(a.creado).localeCompare(String(b.creado)));
+        ;
+      const gruposL = agruparRoturas(lista, o.orden || 'urgencia');
+      const filasT = (l) => l.map((r) => `<tr><td>${esc(fmt(String(r.creado).slice(0, 10)))}${ctx.esAdmin() && quienR(r) ? `<br><span class="suave">${esc(quienR(r))}</span>` : ''}</td><td>${esc(GRANJAS[r.granja])}</td><td>${esc(r.zona)}</td><td>${esc(ELEMENTOS[r.elemento] || r.elemento)}</td>
+              <td>${esc(r.descripcion || '')}</td><td>${esc(PRIORIDAD[r.prioridad])}</td><td>${esc(sit(r))}</td><td>${esc(mats(r))}</td>
+              <td>${r.reparada_fecha ? `${esc(fmt(r.reparada_fecha))}${r.nota_reparacion ? `<br><span class="suave">${esc(r.nota_reparacion)}</span>` : ''}` : ''}</td><td class="inv-check"></td></tr>`).join('');
       const ahora = new Date(); const cuando = `${fmt(hoy())} a las ${ahora.toTimeString().slice(0, 5)}`;
       const sit = (r) => { const s = situacion(r, M.articulos); return NOMBRE_SIT[s.clave] + (s.clave === 'pendiente' ? ` (${s.listos}/${s.total})` : ''); };
       const mats = (r) => (r.materiales || []).map((m) => `${m.nombre}${m.cantidad ? ` ×${m.cantidad}${m.unidad ? ` ${m.unidad}` : ''}` : ''}${materialListo(m, M.articulos) ? ' ✓' : ''}`).join('; ');
@@ -366,25 +370,24 @@
       pantalla({ volver: '#/roturas', textoVolver: 'Roturas', titulo: 'Listado de roturas' }, `<div id="msg"></div>
         <form class="formu tarjeta" id="f-lr" novalidate>
           <div class="dos"><div class="campo"><label for="lr-estado">Cuáles</label><select id="lr-estado">${Object.entries(ESTADOS_L).map(([k, t]) => `<option value="${k}" ${o.estado === k ? 'selected' : ''}>${t}</option>`).join('')}</select></div>
+            <div class="campo"><label for="lr-orden">Agrupar por</label><select id="lr-orden">${Object.entries(ORDEN_R).map(([k, t]) => `<option value="${k}" ${o.orden === k ? 'selected' : ''}>${t}</option>`).join('')}</select></div>
             <div class="campo"><label for="lr-granja">Dónde</label><select id="lr-granja"><option value="todas">Todas</option>${Object.entries(GRANJAS).map(([k, t]) => `<option value="${k}" ${o.granja === k ? 'selected' : ''}>${t}</option>`).join('')}</select></div></div>
           <div class="dos"><div class="campo"><label for="lr-desde">Avisadas desde</label><input id="lr-desde" type="date" value="${esc(o.desde)}"></div><div class="campo"><label for="lr-hasta">hasta</label><input id="lr-hasta" type="date" value="${esc(o.hasta)}"></div></div>
           <div class="botones"><button class="btn" type="button" id="b-imprimir">Imprimir o guardar en PDF</button><button class="btn sec" type="button" id="b-xlsx">Descargar Excel</button></div></form>
         <section class="inventario"><h2 style="margin:6px 0">Roturas e instalaciones · ${esc(ESTADOS_L[o.estado])}${o.granja === 'todas' ? '' : ` · ${esc(GRANJAS[o.granja])}`}</h2>
           <div class="suave peq">Sacado el ${esc(cuando)} · ${lista.length} aviso${lista.length === 1 ? '' : 's'}${lista.filter((r) => r.prioridad === 'urgente' && ['abierta', 'reparacion'].includes(r.estado)).length ? ` · ${lista.filter((r) => r.prioridad === 'urgente' && ['abierta', 'reparacion'].includes(r.estado)).length} urgentes sin reparar` : ''}</div>
-          ${lista.length ? `<div class="tabla-scroll"><table class="tabla ancha inv-tabla"><thead><tr><th>Avisada</th><th>Dónde</th><th>Zona</th><th>Qué</th><th>Qué le pasa</th><th>Prioridad</th><th>Situación</th><th>Material</th><th>Reparada</th><th>Hecho</th></tr></thead><tbody>
-            ${lista.map((r) => `<tr><td>${esc(fmt(String(r.creado).slice(0, 10)))}${ctx.esAdmin() && quienR(r) ? `<br><span class="suave">${esc(quienR(r))}</span>` : ''}</td><td>${esc(GRANJAS[r.granja])}</td><td>${esc(r.zona)}</td><td>${esc(ELEMENTOS[r.elemento] || r.elemento)}</td>
-              <td>${esc(r.descripcion || '')}</td><td>${esc(PRIORIDAD[r.prioridad])}</td><td>${esc(sit(r))}</td><td>${esc(mats(r))}</td>
-              <td>${r.reparada_fecha ? `${esc(fmt(r.reparada_fecha))}${r.nota_reparacion ? `<br><span class="suave">${esc(r.nota_reparacion)}</span>` : ''}` : ''}</td><td class="inv-check"></td></tr>`).join('')}</tbody></table></div>`
+          ${lista.length ? gruposL.map((x) => `<h3 style="margin:14px 0 4px">${esc(x.t)} · ${x.l.length}</h3><div class="tabla-scroll"><table class="tabla ancha inv-tabla"><thead><tr><th>Avisada</th><th>Dónde</th><th>Zona</th><th>Qué</th><th>Qué le pasa</th><th>Prioridad</th><th>Situación</th><th>Material</th><th>Reparada</th><th>Hecho</th></tr></thead><tbody>
+            ${filasT(x.l)}</tbody></table></div>`).join('')
             : '<div class="vacio">No hay roturas con estas opciones.</div>'}
           <div class="inv-firma">Revisado por: ______________________ &nbsp; Fecha: ____________ &nbsp; Firma:</div></section>`);
       const cambia = (k, v) => { o[k] = v; vistaListadoRoturas(); };
-      ['estado', 'granja', 'desde', 'hasta'].forEach((k) => $(`#lr-${k}`).addEventListener('change', (e) => cambia(k, e.target.value)));
+      ['estado', 'granja', 'desde', 'hasta', 'orden'].forEach((k) => $(`#lr-${k}`).addEventListener('change', (e) => cambia(k, e.target.value)));
       $('#b-imprimir').addEventListener('click', () => window.print());
       $('#b-xlsx').addEventListener('click', async (ev) => {
         const b = ev.currentTarget; b.disabled = true;
         try {
           await ctx.cargarXLSX(); const X = window.XLSX; const libro = X.utils.book_new();
-          const filas = lista.map((r) => ({ Avisada: String(r.creado).slice(0, 10), ...(ctx.esAdmin() ? { 'Avisó': quienR(r) } : {}), Granja: GRANJAS[r.granja], Zona: r.zona, Elemento: ELEMENTOS[r.elemento] || r.elemento,
+          const filas = gruposL.flatMap((x) => x.l).map((r) => ({ [ORDEN_R[o.orden] || 'Grupo']: (gruposL.find((x) => x.l.includes(r)) || {}).t, Avisada: String(r.creado).slice(0, 10), ...(ctx.esAdmin() ? { 'Avisó': quienR(r) } : {}), Granja: GRANJAS[r.granja], Zona: r.zona, Elemento: ELEMENTOS[r.elemento] || r.elemento,
             'Qué le pasa': r.descripcion || '', Prioridad: PRIORIDAD[r.prioridad], Situación: sit(r), Material: mats(r), 'Fotos antes': (r.fotos || []).length, 'Fotos después': (r.fotos_despues || []).length,
             Reparada: r.reparada_fecha || '', 'Qué se hizo': r.nota_reparacion || '' }));
           const h = X.utils.json_to_sheet(filas.length ? filas : [{ Avisada: 'Sin roturas' }]);
@@ -396,24 +399,46 @@
       });
     }
 
+    // Cómo agrupar y ordenar las roturas (se recuerda en cada aparato)
+    const ORDEN_R = { situacion: 'Situación', urgencia: 'Urgencia', zona: 'Zona', tipo: 'Tipo (qué está roto)', granja: 'Granja', fecha: 'Fecha del aviso' };
+    const zonaPrincipal = (r) => String(r.zona || 'Sin zona').split(' · ')[0].replace(/^(Lechonera|Verraquera|Cebadero) \d+$/, (m, a) => ({ Lechonera: 'Lechoneras', Verraquera: 'Verraqueras', Cebadero: 'Cebadero' }[a]));
+    const antig = (r) => { const d = Math.floor((Date.now() - Date.parse(r.creado)) / 864e5); return d <= 7 ? [0, 'Última semana'] : d <= 31 ? [1, 'Último mes'] : d <= 92 ? [2, 'Últimos 3 meses'] : [3, 'Más antiguas']; };
+    const PRIO_N = { urgente: 0, normal: 1, baja: 2 };
+    const SIT_N = { reparacion: 0, lista: 1, pendiente: 2, sin_lista: 3 };
+    function agruparRoturas(lista, modo) {
+      const clave = {
+        situacion: (r) => { const k = situacion(r, M.articulos).clave; return [SIT_N[k], { reparacion: 'En reparación', lista: 'Listas para reparar', pendiente: 'Pendientes de material', sin_lista: 'Falta preparar la lista de materiales' }[k]]; },
+        urgencia: (r) => [PRIO_N[r.prioridad], PRIORIDAD[r.prioridad]],
+        zona: (r) => [zonaPrincipal(r), zonaPrincipal(r)],
+        tipo: (r) => [ELEMENTOS[r.elemento] || r.elemento, ELEMENTOS[r.elemento] || r.elemento],
+        granja: (r) => [Object.keys(GRANJAS).indexOf(r.granja), GRANJAS[r.granja]],
+        fecha: antig,
+      }[modo] || antig;
+      const g = new Map();
+      for (const r of lista) { const [o, t] = clave(r); if (!g.has(t)) g.set(t, { o, t, l: [] }); g.get(t).l.push(r); }
+      // Dentro de cada grupo: urgentes primero y, después, las más antiguas
+      for (const x of g.values()) x.l.sort((a, b) => PRIO_N[a.prioridad] - PRIO_N[b.prioridad] || String(a.creado).localeCompare(String(b.creado)));
+      return [...g.values()].sort((a, b) => (typeof a.o === 'number' ? a.o - b.o : String(a.o).localeCompare(String(b.o), 'es', { numeric: true })));
+    }
+    const leerOrden = () => { try { return localStorage.getItem('cifea.ordenRoturas') || 'situacion'; } catch (_) { return 'situacion'; } };
     function vistaRoturas() {
-      const g = M.filtroR;
+      const g = M.filtroR; const modo = M.ordenR = M.ordenR || leerOrden();
       const de = M.roturas.filter((r) => g === 'todas' || r.granja === g);
       const abiertas = de.filter((r) => ['abierta', 'reparacion'].includes(r.estado));
-      const orden = { reparacion: 0, lista: 1, pendiente: 2, sin_lista: 3 };
-      const prio = { urgente: 0, normal: 1, baja: 2 };
-      abiertas.sort((a, b) => prio[a.prioridad] - prio[b.prioridad] || orden[situacion(a, M.articulos).clave] - orden[situacion(b, M.articulos).clave]);
-      const grupos = [['reparacion', 'En reparación'], ['lista', 'Listas para reparar'], ['pendiente', 'Pendientes de material'], ['sin_lista', 'Falta preparar la lista de materiales']];
       const cerradas = de.filter((r) => ['reparada', 'descartada'].includes(r.estado)).sort((a, b) => String(b.reparada_fecha || b.modificado).localeCompare(String(a.reparada_fecha || a.modificado)));
+      const urg = abiertas.filter((r) => r.prioridad === 'urgente').length;
       pantalla({ volver: '#/granjas', textoVolver: 'CIFEAFARM', titulo: 'Roturas e instalaciones' }, `
         <div class="botones"><a class="btn" href="#/roturas/nueva/${g === 'todas' ? '' : g}">Avisar de una rotura</a>${ctx.esProf() ? '<a class="btn sec" href="#/roturas/listado">Sacar listado</a>' : ''}</div>
         ${avisoFotos()}
         <div class="pestanas">${[['todas', 'Todas'], ['rumi', 'Rumiantes'], ['porc', 'Porcino'], ['otra', 'Otras']].map(([k, t]) => `<button type="button" data-g="${k}" class="${g === k ? 'activo' : ''}">${t}</button>`).join('')}</div>
-        ${abiertas.length ? grupos.map(([k, t]) => { const l = abiertas.filter((r) => situacion(r, M.articulos).clave === k); return l.length ? `<section class="tarjeta"><h2>${t} (${l.length})</h2>${l.map(tarjetaRotura).join('')}</section>` : ''; }).join('')
+        <div class="campo"><label for="r-orden">Agrupar por</label><select id="r-orden">${Object.entries(ORDEN_R).map(([k, t]) => `<option value="${k}" ${modo === k ? 'selected' : ''}>${t}</option>`).join('')}</select></div>
+        ${abiertas.length ? `<div class="suave peq">${abiertas.length} pendiente${abiertas.length === 1 ? '' : 's'}${urg ? ` · <strong>${urg} urgente${urg === 1 ? '' : 's'}</strong>` : ''}. En cada grupo, primero las urgentes y después las más antiguas.</div>
+          ${agruparRoturas(abiertas, modo).map((x) => `<section class="tarjeta"><h2>${esc(x.t)} (${x.l.length})</h2>${x.l.map(tarjetaRotura).join('')}</section>`).join('')}`
           : '<div class="vacio">No hay nada roto pendiente. 👍</div>'}
         ${cerradas.length ? `<details class="tarjeta"><summary style="min-height:44px;display:flex;align-items:center;font-weight:700">Reparadas y descartadas (${cerradas.length})</summary>${cerradas.slice(0, 50).map(tarjetaRotura).join('')}</details>` : ''}
         <div class="suave peq">Una rotura pasa sola a «Lista para reparar» cuando todo el material de su lista está en el almacén (o se ha marcado como conseguido).</div>`);
       document.querySelectorAll('[data-g]').forEach((b) => b.addEventListener('click', () => { M.filtroR = b.dataset.g; vistaRoturas(); }));
+      $('#r-orden').addEventListener('change', (e) => { M.ordenR = e.target.value; try { localStorage.setItem('cifea.ordenRoturas', M.ordenR); } catch (_) {} vistaRoturas(); });
     }
 
     function vistaNuevaRotura(granja, articuloId, zonaIni) {
