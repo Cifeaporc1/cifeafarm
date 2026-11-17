@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 200" role="img" aria-label="Grupo de alumnos en la granja">
+<rect width="480" height="200" fill="#DCEBF5"/>
+<path d="M0 110 Q120 86 240 104 T480 96 V200 H0Z" fill="#B9D4B0"/>
+<g stroke="#1E2A24" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round">
+<path d="M330 120 V62 l50 -34 l50 34 v58z" fill="#A8261B"/><path d="M362 120 v-34 h36 v34" fill="#F7F1E3"/><path d="M362 86 l36 34 M398 86 l-36 34"/>
+<path d="M40 120 v-34 a20 20 0 0 1 40 0 v34z" fill="#C9CFCB"/>
+</g>
+<rect y="150" width="480" height="50" fill="#A9C79A"/>
+<g stroke="#8A5A3C" stroke-width="5" stroke-linecap="round"><path d="M0 128 H480 M0 142 H480"/><path d="M20 118 v34M110 118 v34M200 118 v34M290 118 v34M380 118 v34M470 118 v34" stroke-width="7"/></g>
+<defs>
+<g id="a" stroke="#1E2A24" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round">
+<path d="M-20 200 v-44 a20 20 0 0 1 40 0 v44z"/>
+<circle cx="0" cy="116" r="16"/>
+</g>
+</defs>
+<g stroke="#1E2A24" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round">
+<g transform="translate(120 4)"><path d="M-20 196 v-44 a20 20 0 0 1 40 0 v44z" fill="#2F6B4F"/><circle cx="0" cy="112" r="16" fill="#E8B48A"/><circle cx="-5" cy="113.0" r="1.8" fill="#1E2A24" stroke="none"/><circle cx="5" cy="113.0" r="1.8" fill="#1E2A24" stroke="none"/><path d="M-16 110 a16 16 0 0 1 32 0 h-32z" fill="#5A3A22"/><path d="M-8 132 v18 M8 132 v18" stroke="#1F4D37"/></g>
+<g transform="translate(176 -6)"><path d="M-22 206 v-46 a22 22 0 0 1 44 0 v46z" fill="#C8641E"/><circle cx="0" cy="116" r="17" fill="#C68E62"/><circle cx="-5" cy="117.0" r="1.8" fill="#1E2A24" stroke="none"/><circle cx="5" cy="117.0" r="1.8" fill="#1E2A24" stroke="none"/><path d="M-18 108 a18 16 0 0 1 36 0 l6 4 h-42z" fill="#2F6B4F"/></g>
+<g transform="translate(234 0)"><path d="M-20 200 v-44 a20 20 0 0 1 40 0 v44z" fill="#1F5FAF"/><circle cx="0" cy="116" r="16" fill="#F1C9A5"/><circle cx="-5" cy="117.0" r="1.8" fill="#1E2A24" stroke="none"/><circle cx="5" cy="117.0" r="1.8" fill="#1E2A24" stroke="none"/><path d="M-17 118 q0 -24 17 -20 q17 -4 17 20 q-2 -12 -17 -12 q-15 0 -17 12z M-17 116 v22 M17 116 v22" fill="#E8C33A"/><rect x="8" y="150" width="20" height="26" rx="2" fill="#FFFFFF"/></g>
+<g transform="translate(290 -4)"><path d="M-21 204 v-46 a21 21 0 0 1 42 0 v46z" fill="#2F6B4F"/><circle cx="0" cy="116" r="16" fill="#8D5A3B"/><circle cx="-5" cy="117.0" r="1.8" fill="#1E2A24" stroke="none"/><circle cx="5" cy="117.0" r="1.8" fill="#1E2A24" stroke="none"/><path d="M-16 112 a16 16 0 0 1 32 0z" fill="#1E2A24"/><path d="M-8 136 v20 M8 136 v20" stroke="#1F4D37"/></g>
+<g transform="translate(346 6)"><path d="M-19 194 v-42 a19 19 0 0 1 38 0 v42z" fill="#7A1F2B"/><circle cx="0" cy="114" r="15" fill="#E8B48A"/><circle cx="-5" cy="115.0" r="1.8" fill="#1E2A24" stroke="none"/><circle cx="5" cy="115.0" r="1.8" fill="#1E2A24" stroke="none"/><path d="M-15 112 q2 -18 15 -16 q13 -2 15 16 q-6 -8 -15 -8 q-9 0 -15 8z" fill="#3B2A1E"/></g>
+<g transform="translate(420 156)"><ellipse cx="0" cy="0" rx="26" ry="16" fill="#FFFFFF"/><circle cx="26" cy="-10" r="10" fill="#FFFFFF"/><path d="M28 -18 l8 -10 M20 -18 l-2 -12" fill="none"/><path d="M-14 14 v16 M12 14 v16" /></g>
+<g transform="translate(56 166)"><ellipse cx="0" cy="0" rx="28" ry="16" fill="#E9A3A8"/><ellipse cx="-28" cy="-2" rx="8" ry="7" fill="#E9A3A8"/><path d="M14 -14 l6 -8 l4 10" fill="#E9A3A8"/><path d="M-14 14 v12 M12 14 v12"/><circle cx="-28" cy="-2" r="1.5" fill="#1E2A24"/></g>
+</g>
+</svg>

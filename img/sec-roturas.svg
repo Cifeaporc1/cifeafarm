@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 200" role="img" aria-label="Pared rota en la granja y herramientas para repararla">
+<rect width="480" height="200" fill="#DCEBF5"/>
+<path d="M0 120 Q120 100 240 116 T480 108 V200 H0Z" fill="#B9D4B0"/>
+<rect y="150" width="480" height="50" fill="#A9C79A"/>
+<g stroke="#1E2A24" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round">
+<path d="M380 120 v-46 l34 -24 l34 24 v46z" fill="#A8261B"/><path d="M402 120 v-26 h24 v26" fill="#F7F1E3"/>
+<path d="M150 154 V54 H330 V154" fill="#C9CFCB"/>
+</g>
+<g stroke="#8C958F" stroke-width="2"><path d="M150 74H330M150 94H330M150 114H330M150 134H330M190 54v20M250 54v20M310 54v20M170 74v20M230 74v20M290 74v20M190 94v20M250 94v20M310 94v20M170 114v20M230 114v20M290 114v20M190 134v20M250 134v20M310 134v20"/></g>
+<g stroke="#1E2A24" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round">
+<path d="M236 54 l-10 22 l14 10 l-16 22 l10 12 l-12 34" fill="none" stroke-width="4"/>
+<path d="M240 86 l18 6 M224 108 l-16 4" fill="none"/>
+<path d="M226 154 l14 -28 l18 10 l-6 18z" fill="#EDE4D3"/>
+<rect x="196" y="160" width="26" height="14" transform="rotate(-12 209 167)" fill="#C9CFCB"/>
+<rect x="262" y="164" width="22" height="12" transform="rotate(14 273 170)" fill="#C9CFCB"/>
+<path d="M72 176 l20 -64 h12 l20 64z" fill="#C8641E"/><path d="M84 138 h28M78 156 h40" stroke="#FFFFFF" stroke-width="7"/>
+<path d="M66 176 h64" stroke-width="4"/>
+<rect x="342" y="166" width="80" height="10" rx="3" transform="rotate(-18 382 171)" fill="#A8754A"/>
+<path d="M330 150 h26 v16 h-26z" transform="rotate(-18 382 171)" fill="#8C958F"/>
+<path d="M352 180 l70 -24 M422 156 a10 10 0 1 1 10 -12 l-8 6 z" fill="#B8C2BC" stroke-width="5"/>
+</g>
+<g transform="translate(330 22)" stroke="#1E2A24" stroke-width="2.5" stroke-linejoin="round"><path d="M0 26 L15 0 L30 26Z" fill="#E8C33A"/><path d="M15 9v8" stroke-width="3"/><circle cx="15" cy="21" r="1.5" fill="#1E2A24"/></g>
+</svg>

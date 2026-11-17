@@ -454,7 +454,7 @@
     }
     const lista = S.repetidas; const GR = { rumi: 'Cabras y ovejas', porc: 'Porcino' };
     pintar(`${cabecera({ comun: true, volver: '#/admin', textoVolver: 'Administrador', titulo: 'Operaciones repetidas', sub: 'Solo las ves tú' })}
-      <main class="cuerpo">
+      <main class="cuerpo"><div class="foto"><img src="img/sec-repetidas.svg" alt="Dos registros iguales, como en un espejo"></div>
         <div class="suave">El mismo registro apuntado más de una vez (mismo animal, tipo y fecha; mismo tratamiento; misma extracción…). Ábrelo, corrige o borra el que sobre. Si en realidad está bien, pulsa «Está bien así» y no volverá a avisar.</div>
         <button class="btn sec peq" type="button" id="b-revisar">Volver a revisar</button>
         ${lista.length ? lista.map((x, i) => `<section class="tarjeta"><div class="entre"><strong>${esc(x.titulo)}</strong><span class="chip ${x.granja === 'porc' ? 'nar' : ''}">${GR[x.granja]}</span></div>
@@ -1025,7 +1025,7 @@
         ${cam.length ? `<table class="tabla"><thead><tr><th>Dato</th><th>Antes</th><th>Ahora</th></tr></thead><tbody>${cam.map(([k, x, y]) => `<tr><td>${esc(k)}</td><td>${esc(x)}</td><td><strong>${esc(y)}</strong></td></tr>`).join('')}</tbody></table>` : '<div class="suave">Sin cambios visibles.</div>'}
         ${c.deshecha ? '' : `<div class="acciones">${c.revisada ? '' : `<button class="btn peq" type="button" data-rev="${c.id}">Correcta</button>`}<button class="btn peligro peq" type="button" data-deshacer="${c.id}">Deshacer</button></div>`}</div>`; };
     pintar(`${cabecera({ volver: '#/admin', textoVolver: 'Administrador', titulo: 'Correcciones · cabras y ovejas' })}
-      <main class="cuerpo">
+      <main class="cuerpo"><div class="foto"><img src="img/sec-correcciones.svg" alt="Un dato tachado y el visto bueno"></div>
         <div class="suave">Cada vez que un alumno o la veterinaria cambian un registro que hizo otra persona en CIFEARUMI. «Correcta» la da por revisada; «Deshacer» devuelve el registro a como estaba. Las de porcino están en CIFEAPORC.</div>
         ${S.faltaCorr ? '<div class="aviso-caja">Falta ejecutar en Supabase el archivo 06_porcino_correcciones.sql.</div>' : ''}
         <div class="pestanas" role="tablist"><a role="tab" href="#/correcciones/pendientes" class="${sec !== 'todas' ? 'activo' : ''}">Sin revisar (${S.correcciones.filter((c) => !c.revisada).length})</a><a role="tab" href="#/correcciones/todas" class="${sec === 'todas' ? 'activo' : ''}">Todas</a></div>
@@ -2135,7 +2135,7 @@
         <button class="btn sec" type="button" id="b-act-excel">Descargar en Excel</button><div id="estado-act"></div>`;
     }
     pintar(`${cabecera(sel && esAdmin() ? { volver: '#/actividad', textoVolver: 'Actividad', titulo: 'Actividad', comun: true } : { comun: true })}
-      <main class="cuerpo"><h1 style="font-size:22px">${esAdmin() ? 'Actividad de los alumnos' : 'Mi actividad'}</h1>${filtros}${cuerpo}</main>${navegacion(esAdmin() ? 'admin' : 'cuenta')}`);
+      <main class="cuerpo"><div class="foto"><img src="img/sec-actividad.svg" alt="Listado de notas"></div><h1 style="font-size:22px">${esAdmin() ? 'Actividad de los alumnos' : 'Mi actividad'}</h1>${filtros}${cuerpo}</main>${navegacion(esAdmin() ? 'admin' : 'cuenta')}`);
     const cambio = () => { S.borrador.actDesde = document.getElementById('a-desde').value || desde; S.borrador.actHasta = document.getElementById('a-hasta').value || hasta; pintarActividad(alias); };
     $app.querySelectorAll('[data-granja]').forEach((b) => b.addEventListener('click', () => { S.borrador.actGranja = b.dataset.granja; pintarActividad(alias); }));
     document.getElementById('a-desde').addEventListener('change', cambio); document.getElementById('a-hasta').addEventListener('change', cambio);
@@ -2240,7 +2240,7 @@
         ${seccionCambioCurso()}`;
     if (sec === 'personas') cuerpo = seccionPersonas();
     pintar(`${cabecera({ comun: true })}
-      <main class="cuerpo">${faltaSQLCaja()}
+      <main class="cuerpo">${faltaSQLCaja()}${sec === 'personas' ? '<div class="foto"><img src="img/sec-personas.svg" alt="Grupo de alumnos en la granja"></div>' : '<div class="foto"><img src="img/sec-gestion.svg" alt="Libro de registro en la oficina"></div>'}
         <h1 style="font-size:22px">Gestión</h1>
         <div class="pestanas">${pest.map(([k, t]) => `<a href="#/gestion/${k}" class="${sec === k ? 'activo' : ''}">${t}</a>`).join('')}</div>
         ${msg}${cuerpo}

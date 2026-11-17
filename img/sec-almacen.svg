@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 200" role="img" aria-label="Herramientas en el taller de la granja">
+<defs><pattern id="p" width="14" height="14" patternUnits="userSpaceOnUse"><circle cx="7" cy="7" r="1.6" fill="#8A6A4A"/></pattern></defs>
+<rect width="480" height="200" fill="#EDE4D3"/>
+<g stroke="#D9CCB4" stroke-width="2"><path d="M0 30H480M0 60H480M0 90H480M0 120H480"/></g>
+<rect y="178" width="480" height="22" fill="#B7A68C"/>
+<g stroke="#1E2A24" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round">
+<rect x="96" y="16" width="288" height="104" rx="4" fill="#C9A27A"/>
+<rect x="96" y="16" width="288" height="104" rx="4" fill="url(#p)"/>
+<rect x="124" y="40" width="10" height="64" rx="3" fill="#A8754A"/>
+<path d="M110 30 h38 v14 h-38z" fill="#8C958F"/>
+<path d="M172 30 a12 12 0 1 0 8 20 l4 50 a6 6 0 0 0 12 0 l-4 -50 a12 12 0 1 0 8 -20 l-6 10 h-12z" fill="#B8C2BC"/>
+<rect x="228" y="28" width="12" height="32" rx="4" fill="#C8641E"/>
+<path d="M234 60 v42" stroke-width="5"/>
+<path d="M260 30 h20 v14 l60 54 l-8 8 l-72 -54z" fill="#B8C2BC"/>
+<rect x="260" y="26" width="22" height="22" rx="3" fill="#2F6B4F"/>
+<circle cx="356" cy="52" r="18" fill="#E8C33A"/><circle cx="356" cy="52" r="6" fill="#1E2A24"/>
+<path d="M356 70 v18 h18" fill="none"/>
+<rect x="40" y="128" width="400" height="14" fill="#8A5A3C"/>
+<path d="M58 142 v36M422 142 v36" stroke-width="6"/>
+<rect x="150" y="96" width="96" height="32" rx="4" fill="#A8261B"/>
+<path d="M176 96 v-10 h44 v10" fill="none" stroke-width="4"/>
+<path d="M150 110 h96"/>
+<path d="M276 100 l4 28 h30 l4 -28z" fill="#8C958F"/><path d="M276 100 q19 -14 38 0" fill="none"/>
+<path d="M332 128 v-22 l12 -6 h18 l12 6 v22z" fill="#F7F1E3"/>
+<text x="353" y="122" font-family="Arial,sans-serif" font-size="9" font-weight="700" fill="#2F6B4F" text-anchor="middle" stroke="none">PIENSO</text>
+<path d="M94 178 v-26 q16 -8 32 0 v26z" fill="#E1EEE7"/>
+</g>
+</svg>

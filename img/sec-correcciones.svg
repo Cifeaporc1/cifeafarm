@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 200" role="img" aria-label="Un dato tachado y, al lado, el visto bueno">
+<rect width="480" height="200" fill="#F3F5F2"/>
+<g stroke="#1E2A24" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round">
+<path d="M84 22 h120 l20 20 v138 h-140z" fill="#FFFFFF"/><path d="M204 22 v20 h20" fill="#E6EBE7"/>
+</g>
+<g stroke="#9FB3A8" stroke-width="5" stroke-linecap="round"><path d="M102 52 h80M102 72 h104M102 96 h96M102 120 h104M102 144 h70M102 160 h88"/></g>
+<g stroke="#A8261B" stroke-width="5" stroke-linecap="round"><path d="M96 98 L212 92M96 122 L212 116"/></g>
+<path d="M106 90 q30 -12 60 -2 q20 6 40 -4" fill="none" stroke="#1F5FAF" stroke-width="3" stroke-linecap="round"/>
+<g stroke="#C8641E" stroke-width="6" stroke-linecap="round" stroke-linejoin="round" fill="none"><path d="M246 100 h44 M276 86 l14 14 l-14 14"/></g>
+<g stroke="#1E2A24" stroke-width="2.5"><circle cx="366" cy="100" r="58" fill="#2F6B4F"/></g>
+<path d="M338 102 l20 20 l38 -42" fill="none" stroke="#FFFFFF" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

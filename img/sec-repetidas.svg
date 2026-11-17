@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 480 200" role="img" aria-label="Dos registros iguales, como en un espejo">
+<defs>
+<g id="f" stroke="#1E2A24" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round">
+<rect x="100" y="24" width="118" height="156" rx="8" fill="#A8754A"/>
+<rect x="110" y="36" width="98" height="136" rx="3" fill="#FFFFFF"/>
+<rect x="138" y="16" width="42" height="18" rx="5" fill="#8C958F"/>
+<rect x="122" y="50" width="30" height="28" rx="4" fill="#FBE7D6"/>
+<g transform="rotate(-45 137 64)" stroke="#C8641E" stroke-width="2"><rect x="128" y="60" width="16" height="8" rx="1" fill="#FFFFFF"/><path d="M128 64 h-5 M123 59 v10 M144 64 h8" fill="none"/></g>
+<path d="M160 56 h36 M160 68 h26" stroke="#9FB3A8" stroke-width="4"/>
+<path d="M122 96 h74 M122 112 h60 M122 128 h70" stroke="#9FB3A8" stroke-width="4"/>
+<rect x="122" y="142" width="42" height="18" rx="4" fill="#E1EEE7"/>
+<path d="M130 151 h26" stroke="#2F6B4F" stroke-width="3"/>
+</g>
+</defs>
+<rect width="480" height="200" fill="#F3F5F2"/>
+<rect x="230" y="6" width="20" height="188" rx="4" fill="#DCEBF5" stroke="#9FB3C8" stroke-width="2"/>
+<path d="M236 20 l8 -8 M236 40 l8 -8" stroke="#FFFFFF" stroke-width="3"/>
+<path d="M240 20 V184" stroke="#6E8FB0" stroke-width="2" stroke-dasharray="6 6"/>
+<use href="#f" xlink:href="#f"/>
+<use href="#f" xlink:href="#f" transform="translate(480 0) scale(-1 1)"/>
+<g stroke="#1E2A24" stroke-width="2.5"><circle cx="240" cy="100" r="20" fill="#C8641E"/></g>
+<text x="240" y="107" font-family="Arial,sans-serif" font-weight="700" font-size="20" fill="#FFFFFF" text-anchor="middle">=</text>
+</svg>

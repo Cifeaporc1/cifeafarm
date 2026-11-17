@@ -1785,7 +1785,7 @@
         ${cam.length ? `<table class="tabla"><thead><tr><th>Dato</th><th>Antes</th><th>Ahora</th></tr></thead><tbody>${cam.map(([k, x, y]) => `<tr><td>${esc(k)}</td><td>${esc(x)}</td><td><strong>${esc(y)}</strong></td></tr>`).join('')}</tbody></table>` : '<div class="suave">Sin cambios visibles.</div>'}
         ${c.deshecha ? '' : `<div class="acciones">${c.revisada ? '' : `<button class="btn peq" type="button" data-rev="${c.id}">Correcta</button>`}<button class="btn peligro peq" type="button" data-deshacer="${c.id}">Deshacer</button></div>`}</div>`; };
     pintar(`${cabecera({ volver: '#/inicio', textoVolver: 'Inicio', titulo: 'Correcciones de alumnos' })}
-      <main class="cuerpo">
+      <main class="cuerpo"><div class="foto"><img src="../img/sec-correcciones.svg" alt="Un dato tachado y el visto bueno"></div>
         <div class="suave">Aquí aparece cada vez que un alumno cambia un registro que hizo otra persona. «Correcta» la da por revisada; «Deshacer» devuelve el registro a como estaba.</div>
         ${S.faltaCorr ? '<div class="aviso-caja">Falta ejecutar en Supabase el archivo 06_porcino_correcciones.sql.</div>' : ''}
         <div class="pestanas" role="tablist"><a role="tab" href="#/correcciones/pendientes" class="${sec !== 'todas' ? 'activo' : ''}">Sin revisar (${S.correcciones.filter((c) => !c.revisada).length})</a><a role="tab" href="#/correcciones/todas" class="${sec === 'todas' ? 'activo' : ''}">Todas</a></div>

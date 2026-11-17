@@ -227,3 +227,9 @@ No hay que ejecutar nada en Supabase.
 2. **Fichas:** el número principal sale en grande y, al lado, el resto de números del animal.
 3. **Plano:** los cerdos se mueven un poco y los lechones salen como cerditos pequeños. Al entrar en una zona, abajo aparecen sus roturas pendientes.
 
+
+## 30. Imágenes de cabecera en las secciones (0.21.6)
+
+No hay que ejecutar nada en Supabase.
+- Gestión, Personas, Almacenes y herramientas, Roturas e instalaciones, Operaciones repetidas, Correcciones y Actividad para evaluar llevan ahora una imagen arriba, como la ficha de la cerda.
+- Son dibujos guardados en la carpeta `img` con nombre `sec-….svg`. Si quieres poner una foto real de la granja en su lugar, pásamela y la cambio (conviene que sea apaisada).

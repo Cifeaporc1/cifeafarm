@@ -145,6 +145,7 @@
       const poco = M.articulos.filter((a) => pocoStock(a) && a.estado !== 'baja');
       const revisar = M.articulos.filter((a) => a.proxima_revision && a.proxima_revision <= hoy() && a.estado !== 'baja');
       pantalla({ volver: '#/granjas', textoVolver: 'CIFEAFARM', titulo: 'Almacenes y herramientas' }, `
+        <div class="foto"><img src="img/sec-almacen.svg" alt="Herramientas en el taller de la granja"></div>
         <div class="botones"><a class="btn" href="#/almacen/nuevo">Añadir artículo</a>${adm ? '<a class="btn sec" href="#/almacen/almacenes">Almacenes</a><a class="btn sec" href="#/almacen/inventario">Sacar inventario</a>' : ''}</div>
         ${poco.length ? `<section class="tarjeta" style="border-color:var(--naranja-borde)"><h2>Queda poco (${poco.length})</h2>${poco.map((a) => `<a class="evento enlace" href="#/almacen/articulo/${a.id}"><div class="entre"><strong>${esc(a.nombre)}</strong><span class="chip nar">${esc(cant(a))}</span></div>
           <div class="suave peq">${esc(nomAlmacen(a.almacen_id))}${a.queda_poco ? ` · avisó ${esc(ctx.verAlias(a.queda_poco_alias, a.queda_poco_curso) || '?')} el ${esc(fmt(String(a.queda_poco_fecha || '').slice(0, 10)))}` : ' · por debajo del mínimo'}</div></a>`).join('')}</section>` : ''}
@@ -428,6 +429,7 @@
       const cerradas = de.filter((r) => ['reparada', 'descartada'].includes(r.estado)).sort((a, b) => String(b.reparada_fecha || b.modificado).localeCompare(String(a.reparada_fecha || a.modificado)));
       const urg = abiertas.filter((r) => r.prioridad === 'urgente').length;
       pantalla({ volver: '#/granjas', textoVolver: 'CIFEAFARM', titulo: 'Roturas e instalaciones' }, `
+        <div class="foto"><img src="img/sec-roturas.svg" alt="Pared rota y herramientas para repararla"></div>
         <div class="botones"><a class="btn" href="#/roturas/nueva/${g === 'todas' ? '' : g}">Avisar de una rotura</a>${ctx.esProf() ? '<a class="btn sec" href="#/roturas/listado">Sacar listado</a>' : ''}</div>
         ${avisoFotos()}
         <div class="pestanas">${[['todas', 'Todas'], ['rumi', 'Rumiantes'], ['porc', 'Porcino'], ['otra', 'Otras']].map(([k, t]) => `<button type="button" data-g="${k}" class="${g === k ? 'activo' : ''}">${t}</button>`).join('')}</div>
