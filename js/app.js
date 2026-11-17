@@ -2347,7 +2347,7 @@
     const Lo = S.borrador.lote;
     if (S.borrador.resultado) {
       const R = S.borrador.resultado;
-      return `<section class="tarjeta"><h2>Accesos creados (${R.filter((r) => !r.error).length} de ${R.length})</h2>
+      return `<section class="tarjeta"><h2>${S.borrador.resultadoTitulo || 'Accesos creados'} (${R.filter((r) => !r.error).length} de ${R.length})</h2>
         <div class="aviso-caja"><strong>Copia o imprime esta lista ahora:</strong> los PIN no se vuelven a mostrar. Entrégale a cada alumno su alias y su PIN.</div>
         <table class="tabla"><thead><tr><th>Nombre</th><th>Alias</th><th>PIN</th></tr></thead><tbody>${R.map((r) => `<tr><td>${esc(r.nombre || '—')}</td><td><strong>${esc(r.alias)}</strong></td><td>${r.error ? `<span class="chip rojo">${esc(r.error)}</span>` : `<strong>${esc(r.pin)}</strong>`}</td></tr>`).join('')}</tbody></table>
         <div class="botones"><button class="btn sec peq" type="button" data-accion="copiar-lista">Copiar lista</button><button class="btn sec peq" type="button" data-accion="imprimir">Imprimir</button><button class="btn peq" type="button" data-accion="cerrar-lista">Hecho</button></div></section>`;
@@ -2440,7 +2440,7 @@
         <div class="campo"><label for="al-nombre">Nombre <span class="suave">(opcional: nombre e inicial del apellido)</span></label><input id="al-nombre" name="nombre" type="text" maxlength="40" placeholder="Juan G."></div>
         <button class="btn" type="submit">Crear acceso</button></form>
       ${bloqueVarios()}
-      ${[1, 2].map((g) => `<section class="tarjeta"><h2>Alumnos · ${g}.º curso (${al(g).length})</h2>${al(g).map((p) => fila(p, true, true)).join('') || '<div class="suave">Sin alumnos.</div>'}</section>`).join('')}
+      ${[1, 2].map((g) => `<section class="tarjeta"><div class="entre"><h2>Alumnos · ${g}.º curso (${al(g).length})</h2>${al(g).some((p) => p.activo) ? `<button class="btn sec peq" type="button" data-pines-curso="${g}">Nuevo PIN a todos los de ${g}.º</button>` : ''}</div>${al(g).map((p) => fila(p, true, true)).join('') || '<div class="suave">Sin alumnos.</div>'}</section>`).join('')}
       <section class="tarjeta"><h2>Profesores</h2>${S.perfiles.filter((p) => p.rol === 'profesor').map((p) => fila(p, false, false) + (p.admin ? '' : granjasPersona(p))).join('')}
         <div class="suave peq">Otro profesor se crea siguiendo la guía de puesta en marcha (paso del profesor). Trabaja en la granja, pero no ve la parte de Administrador.</div></section>
       ${seccionVeterinaria()}`;
@@ -2517,7 +2517,19 @@
       try { await navigator.clipboard.writeText(texto); toast('Lista copiada: pégala en un Excel o documento'); } catch (_) { toast('No se pudo copiar. Usa Imprimir.'); }
     });
     acc('imprimir', () => window.print());
-    acc('cerrar-lista', () => { S.borrador.resultado = null; vistaGestion('personas'); });
+    acc('cerrar-lista', () => { S.borrador.resultado = null; S.borrador.resultadoTitulo = null; vistaGestion('personas'); });
+    // Nuevo PIN a todos los alumnos activos de un curso (los PIN antiguos no se pueden ver: se guardan cifrados)
+    $app.querySelectorAll('[data-pines-curso]').forEach((b) => b.addEventListener('click', async () => {
+      const g = +b.dataset.pinesCurso; const lista = (S.perfiles || []).filter((p) => p.rol === 'alumno' && p.activo && p.granja_id === g);
+      if (b.dataset.confirmar !== '1') { b.dataset.confirmar = '1'; b.textContent = `¿Cambiar el PIN a los ${lista.length} de ${g}.º? Sus PIN actuales dejarán de valer. Pulsa otra vez`; return; }
+      b.disabled = true; const resultado = [];
+      for (const [i, p] of lista.entries()) {
+        b.textContent = `Generando ${i + 1} de ${lista.length}…`;
+        const pin = pinAzar(); const { error } = await sb.rpc('restablecer_pin', { p_user: p.user_id, p_pin: pin });
+        resultado.push({ alias: p.alias, nombre: p.nombre || '', pin, error: error ? traducirError(error) : null });
+      }
+      S.borrador.resultado = resultado; S.borrador.resultadoTitulo = `Nuevos PIN · ${g}.º curso`; vistaGestion('personas');
+    }));
     $app.querySelectorAll('[data-pin]').forEach((b) => b.addEventListener('click', async () => {
       const pin = pinAzar(); const { error } = await sb.rpc('restablecer_pin', { p_user: b.dataset.pin, p_pin: pin });
       if (error) return vistaGestion('personas', errorCaja(traducirError(error)));
