@@ -233,3 +233,13 @@ No hay que ejecutar nada en Supabase.
 No hay que ejecutar nada en Supabase.
 - Gestión, Personas, Almacenes y herramientas, Roturas e instalaciones, Operaciones repetidas, Correcciones y Actividad para evaluar llevan ahora una imagen arriba, como la ficha de la cerda.
 - Son dibujos guardados en la carpeta `img` con nombre `sec-….svg`. Si quieres poner una foto real de la granja en su lugar, pásamela y la cambio (conviene que sea apaisada).
+
+## 31. Mover animales en el plano, roturas y bebederos bajos (0.22.0)
+
+No hay que ejecutar nada en Supabase.
+1. **Mover animales:** en el plano de porcino pulsa «✋ Mover animales». Arrastra el animal hasta su nuevo corral (o tócalo y después toca el corral). Se abre su registro ya relleno: revisa la fecha y pulsa Guardar. Al terminar, pulsa «✓ Terminar de mover» para que el plano vuelva a abrir las zonas al tocarlas.
+   - Cerda gestante a una paridera → «Entrada en paridera». Cerda con lechones a vacías → «Destete». Resto de cerdas → «Traslado».
+   - Verraco → otra verraquera. Lechones o cebo → otra lechonera o corral de cebo (se propone mover todos; cambia el número si son menos).
+   - En el móvil, con dos dedos amplías el plano; con uno, arrastras.
+2. **Roturas:** el corral o la zona con una rotura pendiente se ve en naranja, o en rojo si es urgente, con un «!».
+3. **Bebedero bajo:** los corrales de cebo con el bebedero más bajo se ven en azul claro, con su explicación debajo del plano.

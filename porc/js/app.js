@@ -884,6 +884,7 @@
       <main class="cuerpo">
         <div class="foto"><img src="img/${foto}.jpg" alt=""></div>
         ${avisoAjeno(evento)}
+        ${!eventoId && S.borrador.plano ? `<div class="ok-caja">Desde el plano: <strong>${esc(S.borrador.plano)}</strong>. Revisa la fecha y los datos y pulsa Guardar.</div>` : ''}
         ${T.ayuda ? `<div class="suave">${esc(T.ayuda)}</div>` : ''}
         <form class="formu" id="f-evento" novalidate>
           ${T.campos.map((x) => campoHTML(x, v, cerdaId)).join('')}
@@ -1046,6 +1047,29 @@
     }
     return `<g aria-hidden="true">${out}</g>`;
   }
+  // Corrales de cebo con el bebedero más bajo (para cerdos más pequeños). Números del 1 al 24.
+  const BEBEDERO_BAJO = [];
+  // Mientras se dibuja el plano: animales que se pueden arrastrar y corrales donde soltarlos (coordenadas del dibujo)
+  let REG_PLANO = null;
+  // Texto de la zona de una rotura → clave del corral o de la zona en el plano
+  function claveRotura(z) {
+    let m; z = String(z || '');
+    const con = (k, n) => (n ? `${k}:${n}` : k);
+    if ((m = /^Parques de vacías(?: · parque (\d+))?$/.exec(z))) return con('vacias', m[1]);
+    if ((m = /^Sala de implantación(?: · jaula (\d+))?$/.exec(z))) return con('implantacion', m[1]);
+    if (/^Parque (vacías efecto macho|erótico)/.test(z)) return 'erotico';
+    if ((m = /^Parques de gestación(?: · parque (\d+))?$/.exec(z))) return con('gestacion', m[1]);
+    if ((m = /^Sala de partos (\d+)(?: · paridera (\d+))?$/.exec(z))) return m[2] ? `partos:${m[1]}:${m[2]}` : `partos:${m[1]}`;
+    if ((m = /^Verraqueras?(?: (\d+))?$/.exec(z))) return con('verraqueras', m[1]);
+    if ((m = /^Lechoneras?(?: (\d+))?$/.exec(z))) return con('lechoneras', m[1]);
+    if ((m = /^Cebadero(?: (\d+))?$/.exec(z))) return con('cebadero', m[1]);
+    if ((m = /^Silos?(?: (\S+))?/.exec(z))) return con('silo', m[1]);
+    if (/^Contenedor/.test(z)) return 'contenedor';
+    if (/^Foso/.test(z)) return 'foso';
+    if (/^Sala de extracción/.test(z)) return 'extraccion';
+    if (/^Despacho/.test(z)) return 'despacho';
+    return null; // pasillos, exterior u otros sitios: no tienen un lugar concreto en el plano
+  }
   // Coloca n cerditos dentro de un rectángulo del plano (unidades del dibujo)
   function cerdosSVG(items, x, y, w, h, enlaces, etiqueta = (it) => it.c.crotal, color = (it) => COLOR_FASE[it.fase]) {
     if (!items.length) return '';
@@ -1057,6 +1081,7 @@
     return items.map((it, i) => {
       const cx = x + cw * (i % cols) + cw / 2, cy = y + ch * Math.floor(i / cols) + (ch - ph - 16) / 2;
       const id = it.c ? it.c.id : it.id;
+      if (REG_PLANO) REG_PLANO.items.push({ tipo: it.c ? 'cerda' : 'verraco', id, x: cx - pw / 2, y: cy, w: pw, h: ph + 18, nombre: etiqueta(it) });
       const dentro = `<ellipse cx="${cx}" cy="${cy + ph * 0.95}" rx="${pw * 0.48}" ry="${ph * 0.16}" fill="${color(it)}"/>
         <g class="anda" style="${andar(i, pw * 0.07)}"><use href="#cerdito" x="${cx - pw / 2}" y="${cy}" width="${pw}" height="${ph}"/></g>
         <text x="${cx}" y="${cy + ph + 15}" text-anchor="middle" class="crotal">${esc(etiqueta(it))}</text>`;
@@ -1068,7 +1093,18 @@
     const D = datosPlano();
     const ancho = window.matchMedia('(min-width: 760px)').matches; // en el móvil, los cerditos no son enlaces (se toca la zona)
     const zona = (z, x, y, w, h, titulo, cont) => `<a href="#/plano/${z}" class="zona-plano" aria-label="${esc(titulo)}"><rect x="${x}" y="${y}" width="${w}" height="${h}" rx="6"/></a>${cont}`;
-    const caja = (x, y, w, h, extra = '') => `<rect class="corral ${extra}" x="${x}" y="${y}" width="${w}" height="${h}"/>`;
+    // Roturas pendientes de porcino con su sitio en el plano
+    const ROT = (S.roturas || []).filter((r) => r.granja === 'porc').map((r) => ({ k: claveRotura(r.zona), urg: r.prioridad === 'urgente' }));
+    const rotSinSitio = ROT.filter((r) => !r.k).length;
+    const rotDe = (clave) => { if (!clave) return ''; const l = ROT.filter((r) => r.k && (clave === r.k || clave.startsWith(`${r.k}:`))); return !l.length ? '' : l.some((r) => r.urg) ? 'rot urg' : 'rot'; };
+    const marcaRot = (cl, x, y) => (cl ? `<circle class="rot-marca ${cl.includes('urg') ? 'urg' : ''}" cx="${x}" cy="${y}" r="9"/><text x="${x}" y="${y + 5}" class="rot-txt" text-anchor="middle">!</text>` : '');
+    REG_PLANO = { items: [], dest: [] };
+    const caja = (x, y, w, h, extra = '', clave = '') => {
+      const cl = rotDe(clave);
+      if (clave) REG_PLANO.dest.push({ clave, x, y, w, h });
+      return `<rect class="corral ${extra} ${cl}" x="${x}" y="${y}" width="${w}" height="${h}"/>${marcaRot(cl, x + w - 10, y + 10)}`;
+    };
+    const grupo = (z, k, est, x, y, w, h, n) => { if (n > 0) REG_PLANO.items.push({ tipo: 'grupo', z, k, est, x, y, w, h, nombre: `${n} en ${est}` }); };
     const num = (x, y, t, cls = 'num') => `<text x="${x}" y="${y}" class="${cls}" text-anchor="middle">${t}</text>`;
     const circulo = (x, y, t) => `<circle cx="${x}" cy="${y}" r="15" class="circ"/>${num(x, y + 6, t)}`;
     let g = '';
@@ -1082,21 +1118,22 @@
     const nVerr = Object.values(D.verraqueras).reduce((a, l) => a + l.length, 0);
     // Parques de gestación 5 y 6, encima de implantación y de vacías
     let t = '';
-    [[5, 20, -135, 290], [6, 330, -135, 280]].forEach(([p, x, y, w]) => { const it = D.gestacion[p]; t += caja(x, y, w, 160) + circulo(x + w / 2, y + 24, p) + cerdosSVG(it, x + 6, y + 42, w - 12, 100, ancho) + num(x + w - 30, y + 152, `${it.length}/8`, 'num peq'); });
+    [[5, 20, -135, 290], [6, 330, -135, 280]].forEach(([p, x, y, w]) => { const it = D.gestacion[p]; t += caja(x, y, w, 160, '', `gestacion:${p}`) + circulo(x + w / 2, y + 24, p) + cerdosSVG(it, x + 6, y + 42, w - 12, 100, ancho) + num(x + w - 30, y + 152, `${it.length}/8`, 'num peq'); });
     g += `<a href="#/plano/gestacion" class="zona-plano" aria-label="Parques de gestación 5 y 6"><rect x="20" y="-135" width="590" height="160" rx="6"/></a>` + t + num(315, 45, `PARQUES GESTACIÓN 5 Y 6 · ${cuantos(nArr(D.gestacion, [5, 6]), 'cerda', 'cerdas')}`, 'rotulo');
     // Parque de vacías efecto macho (a la izquierda, bajo implantación, cerca de las verraqueras)
-    { const it = D.erotico[1]; g += zona('erotico', 20, 380, 150, 230, 'Parque vacías efecto macho', caja(20, 380, 150, 230, it.length ? '' : 'libre') + cerdosSVG(it, 24, 400, 142, 180, ancho)) + num(95, 636, 'PARQUE VACÍAS', 'rotulo chico') + num(95, 658, 'EFECTO MACHO', 'rotulo chico') + num(95, 680, cuantos(D.erotico[1].length, 'cerda', 'cerdas'), 'rotulo chico'); }
+    { const it = D.erotico[1]; g += zona('erotico', 20, 380, 150, 230, 'Parque vacías efecto macho', caja(20, 380, 150, 230, it.length ? '' : 'libre', 'erotico:1') + cerdosSVG(it, 24, 400, 142, 180, ancho)) + num(95, 636, 'PARQUE VACÍAS', 'rotulo chico') + num(95, 658, 'EFECTO MACHO', 'rotulo chico') + num(95, 680, cuantos(D.erotico[1].length, 'cerda', 'cerdas'), 'rotulo chico'); }
     // Silos, contenedor de cadáveres y foso de purines (los silos llevan a su control de piensos)
-    const silo = (x, y, nombre, l1, l2) => `<a href="#/piensos/silo/${encodeURIComponent(nombre)}" aria-label="${esc(nombre)}"><circle cx="${x}" cy="${y}" r="17" class="silo"/></a>${num(x, y + 36, l1, 'num mini')}${l2 ? num(x, y + 50, l2, 'num mini') : ''}`;
+    const silo = (x, y, nombre, l1, l2) => `<a href="#/piensos/silo/${encodeURIComponent(nombre)}" aria-label="${esc(nombre)}"><circle cx="${x}" cy="${y}" r="17" class="silo"/></a>${marcaRot(rotDe(`silo:${nombre.split(' ')[1]}`), x + 16, y - 14)}${num(x, y + 36, l1, 'num mini')}${l2 ? num(x, y + 50, l2, 'num mini') : ''}`;
     g += silo(660, -60, 'Silo madres', 'Silo', 'madres') + silo(1132, 335, 'Silo transición', 'Silo', 'transición') + silo(1625, 830, 'Silo cebo', 'Silo', 'cebo');
-    g += caja(1650, 560, 70, 55, 'servicio') + num(1765, 580, 'Contenedor', 'num mini izq') + num(1765, 596, 'cadáveres', 'num mini izq');
-    g += `<rect class="foso" x="1650" y="650" width="200" height="240" rx="4"/>` + num(1750, 755, 'Foso subterráneo', 'num mini') + num(1750, 773, 'de purines', 'num mini');
+    g += caja(1650, 560, 70, 55, 'servicio', 'contenedor') + num(1765, 580, 'Contenedor', 'num mini izq') + num(1765, 596, 'cadáveres', 'num mini izq');
+    g += `<rect class="foso ${rotDe('foso')}" x="1650" y="650" width="200" height="240" rx="4"/>${marcaRot(rotDe('foso'), 1838, 662)}` + num(1750, 755, 'Foso subterráneo', 'num mini') + num(1750, 773, 'de purines', 'num mini');
     // Sala de implantación (10 jaulas, la 10 arriba)
     t = '';
     for (let j = 10; j >= 1; j--) {
       const yy = 50 + (10 - j) * 27; const it = D.implantacion[j] || [];
-      t += caja(180, yy, 120, 27, it.length ? '' : 'libre') + num(194, yy + 19, j, 'num peq');
+      t += caja(180, yy, 120, 27, it.length ? '' : 'libre', `implantacion:${j}`) + num(194, yy + 19, j, 'num peq');
       if (it.length) {
+        REG_PLANO.items.push({ tipo: 'cerda', id: it[0].c.id, x: 208, y: yy + 1, w: 90, h: 25, nombre: it[0].c.crotal });
         const dib = `<ellipse cx="226" cy="${yy + 23}" rx="17" ry="3.5" fill="${COLOR_FASE[it[0].fase]}"/><use href="#cerdito" x="210" y="${yy + 3}" width="33" height="21"/><text x="247" y="${yy + 19}" class="crotal izq">${esc(it.map((x) => x.c.crotal).join(','))}</text>`;
         t += ancho ? `<a href="#/cerda/${it[0].c.id}">${dib}</a>` : `<g>${dib}</g>`;
       }
@@ -1104,7 +1141,7 @@
     g += zona('implantacion', 180, 50, 120, 270, 'Sala de implantación', t) + num(240, 345, 'IMPLANTACIÓN', 'rotulo') + num(240, 367, cuantos(nImpl, 'cerda', 'cerdas'), 'rotulo chico');
     // Parques de vacías (2 a la izquierda, 1 a la derecha)
     t = '';
-    [[2, 330], [1, 470]].forEach(([p, x]) => { const it = D.vacias[p]; t += caja(x, 50, 140, 270) + circulo(x + 70, 75, p) + cerdosSVG(it, x + 4, 95, 132, 220, ancho) + num(x + 70, 312, `${it.length}/10`, 'num peq'); });
+    [[2, 330], [1, 470]].forEach(([p, x]) => { const it = D.vacias[p]; t += caja(x, 50, 140, 270, '', `vacias:${p}`) + circulo(x + 70, 75, p) + cerdosSVG(it, x + 4, 95, 132, 220, ancho) + num(x + 70, 312, `${it.length}/10`, 'num peq'); });
     g += zona('vacias', 330, 50, 280, 270, 'Parques de vacías', t) + num(470, 345, `PARQUE VACÍAS · ${cuantos(nArr(D.vacias, [1, 2]), 'cerda', 'cerdas')}`, 'rotulo');
     // Parideras: 3 salas; en cada una, plazas 1-3, pasillo, plazas 4-6
     t = '';
@@ -1114,39 +1151,41 @@
       t += `<rect class="pasillo-plano" x="${x0 + 57}" y="62" width="36" height="257"/>` + circulo(x0 + 75, 30, s);
       for (let k = 1; k <= 6; k++) {
         const x = k <= 3 ? x0 : x0 + 93, y = 62 + ((k - 1) % 3) * 85.6; const it = D.partos[`${s}-${k}`] || [];
-        t += caja(x, y, 57, 85.6, it.length ? '' : 'libre') + num(x + 10, y + 16, k, 'num peq');
+        t += caja(x, y, 57, 85.6, it.length ? '' : 'libre', `partos:${s}:${k}`) + num(x + 10, y + 16, k, 'num peq');
         t += cerdosSVG(it, x + 2, y + 18, 53, 52, ancho);
         if (it[0] && it[0].lechones != null) t += lechonesSVG(it[0].lechones, x + 3, y + 66, 51, 18, 14);
-        { const dg = D.grupos[`Paridera ${s}-${k}`]; if (dg && dg.n > 0) t += it.length ? num(x + 28, y + 30, `${dg.n} dest.`, 'num lech') : lechonesSVG(dg.n, x + 3, y + 22, 51, 48, 15, true) + num(x + 28, y + 82, `${dg.n} destetados`, 'num mini'); }
+        { const dg = D.grupos[`Paridera ${s}-${k}`]; if (dg && dg.n > 0) grupo('parideras', `${s}-${k}`, `Paridera ${s}-${k}`, x, y, 57, 85.6, dg.n); if (dg && dg.n > 0) t += it.length ? num(x + 28, y + 30, `${dg.n} dest.`, 'num lech') : lechonesSVG(dg.n, x + 3, y + 22, 51, 48, 15, true) + num(x + 28, y + 82, `${dg.n} destetados`, 'num mini'); }
       }
       t += `<rect class="pared" x="${x0}" y="62" width="150" height="257"/>` + num(x0 + 75, 200, 'pasillo', 'num vertical');
     }
     g += zona('partos', 640, 50, 480, 270, 'Parideras', t) + num(880, 345, 'PARIDERAS · 3 SALAS', 'rotulo') + num(880, 367, `${cuantos(nPartos, 'cerda', 'cerdas')}${nLechPartos ? ` y ${cuantos(nLechPartos, 'lechón', 'lechones')}` : ''}`, 'rotulo chico');
     // Parques de gestación: 3 y 4 arriba, 1 y 2 abajo
     t = '';
-    [[3, 1150, 40], [4, 1380, 40], [1, 1150, 400], [2, 1380, 400]].forEach(([p, x, y]) => { const it = D.gestacion[p]; t += caja(x, y, 220, 270) + circulo(x + 110, y + 26, p) + cerdosSVG(it, x + 6, y + 48, 208, 200, ancho) + num(x + 110, y + 262, `${it.length}/8`, 'num peq'); });
+    [[3, 1150, 40], [4, 1380, 40], [1, 1150, 400], [2, 1380, 400]].forEach(([p, x, y]) => { const it = D.gestacion[p]; t += caja(x, y, 220, 270, '', `gestacion:${p}`) + circulo(x + 110, y + 26, p) + cerdosSVG(it, x + 6, y + 48, 208, 200, ancho) + num(x + 110, y + 262, `${it.length}/8`, 'num peq'); });
     g += `<a href="#/plano/gestacion" class="zona-plano" aria-label="Parques de gestación"><rect x="1150" y="40" width="450" height="270" rx="6"/></a>`;
     g += `<a href="#/plano/gestacion" class="zona-plano" aria-label="Parques de gestación"><rect x="1150" y="400" width="450" height="270" rx="6"/></a>` + t + num(1375, 360, `PARQUES GESTACIÓN · ${cuantos(nArr(D.gestacion, [1, 2, 3, 4]), 'cerda', 'cerdas')}`, 'rotulo');
     // Lechoneras 1-4
     t = '';
     for (let l = 1; l <= 4; l++) { const y = 420 + (l - 1) * 62; const r = D.recuento[`Lechonera ${l}`];
-      t += caja(930, y, 130, 62, r && r.n ? '' : 'libre') + num(942, y + 20, l, 'num peq') + (r && r.n > 0 ? lechonesSVG(r.n, 950, y + 6, 66, 52, 20, true) : '')
+      if (r) grupo('lechoneras', l, `Lechonera ${l}`, 930, y, 130, 62, r.n);
+      t += caja(930, y, 130, 62, r && r.n ? '' : 'libre', `lechoneras:${l}`) + num(942, y + 20, l, 'num peq') + (r && r.n > 0 ? lechonesSVG(r.n, 950, y + 6, 66, 52, 20, true) : '')
         + (r ? num(1042, y + 34, r.n, `num grande ${r.n > 25 ? 'exceso' : ''}`) + num(1042, y + 54, corta(r.fecha), 'num mini') : num(1020, y + 40, '·', 'num')); }
     g += zona('lechoneras', 930, 420, 130, 248, 'Lechoneras', t) + `<text x="920" y="550" class="rotulo" text-anchor="end">LECHONERAS</text><text x="920" y="574" class="rotulo chico" text-anchor="end">${cuantos(nGrupo('Lechonera'), 'lechón', 'lechones')}</text>`;
     // Verraqueras 5..1, salas de servicio
     t = '';
-    [5, 4, 3, 2, 1].forEach((v, i) => { const x = 20 + i * 100 + (v === 1 ? 10 : 0); const it = D.verraqueras[v]; t += caja(x, 720, 95, 180, it.length ? '' : 'libre') + num(x + 47, 745, v) + cerdosSVG(it, x + 4, 760, 87, 120, ancho, (y) => y.crotal, () => '#5B6470'); });
+    [5, 4, 3, 2, 1].forEach((v, i) => { const x = 20 + i * 100 + (v === 1 ? 10 : 0); const it = D.verraqueras[v]; t += caja(x, 720, 95, 180, it.length ? '' : 'libre', `verraqueras:${v}`) + num(x + 47, 745, v) + cerdosSVG(it, x + 4, 760, 87, 120, ancho, (y) => y.crotal, () => '#5B6470'); });
     g += zona('verraqueras', 20, 720, 505, 180, 'Verraqueras', t) + num(260, 705, `VERRAQUERAS · ${cuantos(nVerr, 'verraco', 'verracos')}`, 'rotulo');
-    g += caja(535, 720, 110, 130, 'servicio') + num(590, 780, 'Sala', 'num mini') + num(590, 798, 'extracción', 'num mini');
-    g += caja(645, 720, 120, 130, 'servicio') + num(705, 790, 'Laboratorio', 'num mini');
-    g += caja(765, 720, 200, 130, 'servicio') + num(865, 780, 'Despacho', 'num mini') + num(865, 798, 'almacén', 'num mini');
+    g += caja(535, 720, 110, 130, 'servicio', 'extraccion') + num(590, 780, 'Sala', 'num mini') + num(590, 798, 'extracción', 'num mini');
+    g += caja(645, 720, 120, 130, 'servicio', 'extraccion') + num(705, 790, 'Laboratorio', 'num mini');
+    g += caja(765, 720, 200, 130, 'servicio', 'despacho') + num(865, 780, 'Despacho', 'num mini') + num(865, 798, 'almacén', 'num mini');
     g += `<path d="M1010 905v-20M1100 905v-20" class="puerta"/>` + num(1055, 905, 'ENTRADA', 'rotulo');
     // Cebadero: pares arriba, impares abajo
     t = '';
     let totalCebo = 0;
     for (let k = 1; k <= 24; k++) {
       const col = Math.ceil(k / 2) - 1, x = 1140 + col * 38, y = k % 2 === 0 ? 720 : 812; const r = D.recuento[`Cebadero ${k}`]; if (r) totalCebo += r.n;
-      t += caja(x, y, 38, 80, r && r.n ? '' : 'libre') + num(x + 19, y + 16, k, 'num mini') + (r && r.n > 0 ? lechonesSVG(r.n, x + 1, y + 20, 36, 32, 15, true) : '') + num(x + 19, y + 70, r ? r.n : '·', 'num');
+      if (r) grupo('cebadero', k, `Cebadero ${k}`, x, y, 38, 80, r.n);
+      t += caja(x, y, 38, 80, `${r && r.n ? '' : 'libre'} ${BEBEDERO_BAJO.includes(k) ? 'bajo' : ''}`, `cebadero:${k}`) + num(x + 19, y + 16, k, 'num mini') + (r && r.n > 0 ? lechonesSVG(r.n, x + 1, y + 20, 36, 32, 15, true) : '') + num(x + 19, y + 70, r ? r.n : '·', 'num');
     }
     g += zona('cebadero', 1140, 720, 456, 172, 'Cebadero', t) + num(1368, 915, `CEBADERO · ${cuantos(totalCebo, 'cerdo', 'cerdos')}`, 'rotulo');
 
@@ -1163,10 +1202,14 @@
             <div class="dato"><span class="et">Lechoneras</span><span class="val">${lech}</span></div>
             <div class="dato"><span class="et">Cebo</span><span class="val">${totalCebo}</span></div>
             <div class="dato nar"><span class="et">Total en la granja</span><span class="val">${tot}</span></div></div>`; })()}
-        <div class="plano-caja"><svg class="plano" viewBox="0 -150 1870 1080" role="img" aria-label="Plano de la granja con la posición de cada animal">${g}</svg></div>
+        <div class="botones"><button type="button" class="btn ${S.moverPlano ? '' : 'sec'}" id="b-mover" aria-pressed="${S.moverPlano ? 'true' : 'false'}">${S.moverPlano ? '✓ Terminar de mover' : '✋ Mover animales'}</button></div>
+        ${S.moverPlano ? `<div class="ok-caja" id="ayuda-mover">Arrastra una cerda, un verraco o un grupo de lechones o de cebo hasta su nuevo sitio (o tócalo y después toca el corral). Se abrirá su ficha para completar el traslado. ${ancho ? '' : 'Con dos dedos puedes ampliar el plano.'}</div>` : ''}
+        <div class="plano-caja"><svg class="plano ${S.moverPlano ? 'moviendo' : ''}" viewBox="0 -150 1870 1080" role="img" aria-label="Plano de la granja con la posición de cada animal">${g}</svg></div>
         <div class="zonas-botones">${[['implantacion', 'Implantación', Object.values(D.implantacion).flat().length + D.implSin.length], ['vacias', 'Vacías', D.vacias[1].length + D.vacias[2].length], ['erotico', 'Efecto macho', D.erotico[1].length], ['partos', 'Parideras', Object.values(D.partos).flat().length], ['gestacion', 'Gestación', Object.values(D.gestacion).flat().length], ['verraqueras', 'Verraqueras', Object.values(D.verraqueras).flat().length], ['lechoneras', 'Lechoneras', Object.values(D.recuento).filter((r) => r.estancia.startsWith('Lechonera')).reduce((a, r) => a + r.n, 0)], ['cebadero', 'Cebadero', totalCebo]].map(([z, t, n]) => `<a href="#/plano/${z}"><span>${t}</span><strong>${n}</strong></a>`).join('')}</div>
         <div class="suave peq">${ancho ? 'Toca un animal para abrir su ficha o una zona para verla en grande.' : 'Toca una zona para verla en grande.'}</div>
         <div class="leyenda">${L.FASES.map((f) => `<span><i style="background:${COLOR_FASE[f.id]}"></i>${f.nombre}</span>`).join('')}<span><i style="background:#5B6470"></i>Verraco</span></div>
+        <div class="leyenda"><span><i class="cuadro rot"></i>Rotura pendiente</span><span><i class="cuadro rot urg"></i>Rotura urgente</span>${BEBEDERO_BAJO.length ? `<span><i class="cuadro bajo"></i>Cebo con bebedero bajo (cerdos pequeños): ${BEBEDERO_BAJO.join(', ')}</span>` : ''}</div>
+        ${rotSinSitio ? `<div class="suave peq">Y ${rotSinSitio} rotura${rotSinSitio > 1 ? 's' : ''} en pasillos, exterior u otros sitios. <a href="../#/roturas">Ver roturas</a></div>` : ''}
         ${D.sinUbicar.length || D.implSin.length || D.verracosSin.length ? `<section class="tarjeta"><h2>Sin sitio en el plano</h2>
           ${D.sinUbicar.length ? `<div>Cerdas sin ubicación: ${lista(D.sinUbicar, (x) => `<a href="#/cerda/${x.c.id}">${esc(x.c.crotal)}</a>`)}. <span class="suave">Registra un traslado desde su ficha.</span></div>` : ''}
           ${D.implSin.length ? `<div>En implantación sin jaula: ${lista(D.implSin, (x) => `<a href="#/cerda/${x.c.id}">${esc(x.c.crotal)}</a>`)}. <span class="suave">Corrige su inseminación o registra un traslado indicando la jaula.</span></div>` : ''}
@@ -1174,6 +1217,88 @@
         <div class="suave peq">El plano muestra dónde dicen los registros que está cada animal. Si no coincide con la nave, falta registrar un movimiento.</div>
       </main>${navegacion('mapa')}`);
     $app.className = 'ancho';
+    const reg = REG_PLANO; REG_PLANO = null;
+    document.getElementById('b-mover').addEventListener('click', () => { S.moverPlano = !S.moverPlano; vistaPlano(); });
+    if (S.moverPlano) moverEnPlano(reg);
+  }
+
+  // ---- Mover animales arrastrándolos en el plano: al soltar, se abre su registro ya relleno
+  function moverEnPlano(R) {
+    const svg = $app.querySelector('svg.plano'); if (!svg || !R) return;
+    const NS = 'http://www.w3.org/2000/svg';
+    const pt = (ev) => { const p = svg.createSVGPoint(); p.x = ev.clientX; p.y = ev.clientY; return p.matrixTransform(svg.getScreenCTM().inverse()); };
+    const dentro = (o, p) => p.x >= o.x && p.x <= o.x + o.w && p.y >= o.y && p.y <= o.y + o.h;
+    const menor = (l, p) => l.filter((o) => dentro(o, p)).sort((a, b) => a.w * a.h - b.w * b.h)[0];
+    const rect = (cls) => { const r = document.createElementNS(NS, 'rect'); r.setAttribute('class', cls); r.style.display = 'none'; svg.appendChild(r); return r; };
+    const poner = (r, o) => { if (!o) { r.style.display = 'none'; return; } r.style.display = ''; r.setAttribute('x', o.x); r.setAttribute('y', o.y); r.setAttribute('width', o.w); r.setAttribute('height', o.h); r.setAttribute('rx', 6); };
+    const marcaDestino = rect('destino-plano'), marcaOrigen = rect('origen-plano');
+    const fantasma = document.createElementNS(NS, 'g'); fantasma.setAttribute('class', 'fantasma'); fantasma.style.display = 'none';
+    fantasma.innerHTML = '<use href="#cerdito" x="-32" y="-20" width="64" height="40"/><text x="0" y="36" text-anchor="middle" class="crotal"></text>';
+    svg.appendChild(fantasma);
+    const ayuda = document.getElementById('ayuda-mover');
+    let sel = null, arr = null;
+    const limpiar = () => { arr = null; fantasma.style.display = 'none'; poner(marcaDestino, null); };
+    svg.addEventListener('pointerdown', (ev) => {
+      const p = pt(ev); const it = menor(R.items, p);
+      if (!it) return;
+      ev.preventDefault(); svg.setPointerCapture(ev.pointerId);
+      arr = { it, x0: ev.clientX, y0: ev.clientY, movido: false };
+    });
+    svg.addEventListener('pointermove', (ev) => {
+      if (!arr) return;
+      if (!arr.movido && Math.hypot(ev.clientX - arr.x0, ev.clientY - arr.y0) < 8) return;
+      arr.movido = true; const p = pt(ev);
+      fantasma.style.display = ''; fantasma.setAttribute('transform', `translate(${p.x} ${p.y - 30})`); fantasma.querySelector('text').textContent = arr.it.nombre;
+      poner(marcaDestino, menor(R.dest, p));
+    });
+    svg.addEventListener('pointerup', (ev) => {
+      const p = pt(ev);
+      if (arr) {
+        const { it, movido } = arr; limpiar();
+        if (movido) return soltar(it, menor(R.dest, p));
+        if (sel && sel !== it) return soltar(sel, menor(R.dest, p)); // tocar otro animal = tocar su corral
+        sel = sel === it ? null : it; poner(marcaOrigen, sel);
+        if (ayuda) ayuda.innerHTML = sel ? `Has elegido <strong>${esc(sel.nombre)}</strong>. Ahora toca el corral al que va.` : 'Arrastra un animal hasta su nuevo sitio (o tócalo y después toca el corral).';
+        return;
+      }
+      if (sel) soltar(sel, menor(R.dest, p));
+    });
+    svg.addEventListener('pointercancel', limpiar);
+  }
+  // Qué registro se abre al soltar un animal en un corral
+  function soltar(it, d) {
+    if (!d) return toast('Suéltalo dentro de un corral.');
+    const [zona, a, b] = d.clave.split(':');
+    if (it.tipo === 'verraco') {
+      if (zona !== 'verraqueras') return toast('Un verraco solo puede ir a una verraquera.');
+      const x = verracoPorId(it.id); if (x && String(x.verraquera) === a) return toast('Ya está en esa verraquera.');
+      location.hash = `#/trasladoverraco/${it.id}/${a}`; return;
+    }
+    if (it.tipo === 'grupo') {
+      if (!['lechoneras', 'cebadero'].includes(zona)) return toast('Los lechones y los cerdos de cebo solo pueden ir a una lechonera o al cebadero.');
+      const destino = `${zona === 'lechoneras' ? 'Lechonera' : 'Cebadero'} ${a}`;
+      if (destino === it.est) return toast('Ya están ahí.');
+      const n = Math.max(0, (L.cuentaGrupos(S.recuentos, movsGrupos())[it.est] || { n: 0 }).n);
+      S.borrador = { clave: `movg/traslado/${it.z}/${it.k}/`, v: { tipo: 'traslado', fecha: hoy(), n: String(n), origen: it.est, destino, procedencia: '', causa: '', causa_otra: '', obs: '' }, confirmado: false, filtro: S.borrador.filtro };
+      location.hash = `#/movg/traslado/${it.z}/${it.k}`; return;
+    }
+    // Cerdas
+    const e = estadoDe(it.id); const s = L.sitioPlano(e.ubicacion);
+    const actual = s ? (s.zona === 'partos' ? `partos:${s.sala}:${s.n}` : `${s.zona}:${s.n}`) : '';
+    if (actual === d.clave) return toast('Ya está ahí.');
+    let tipo = 'traslado', datos;
+    if (zona === 'partos') { if (e.fase === 'gestante') { tipo = 'paridera'; datos = { sala: a, plaza: b }; } else datos = { zona: 'Partos', sala: a, plaza: b }; }
+    else if (e.fase === 'lactante') {
+      if (zona !== 'vacias') return toast('Una cerda con lechones solo puede cambiar de paridera o, al destetar, ir a vacías.');
+      tipo = 'destete'; datos = { parque_v: a };
+    } else if (zona === 'vacias') datos = { zona: 'Vacías', parque: a };
+    else if (zona === 'erotico') datos = { zona: 'Efecto macho' };
+    else if (zona === 'implantacion') datos = { zona: 'Implantación', jaula: a };
+    else if (zona === 'gestacion') datos = { zona: 'Gestación', parque_g: a };
+    else return toast('Una cerda no puede ir ahí.');
+    if (!(ACCIONES[e.fase] || []).includes(tipo)) return toast('En la fase en que está, esta cerda no se puede mover así. Ábrela desde su ficha.');
+    S.borrador = { clave: `${it.id}/${tipo}/`, v: Object.assign(valoresIniciales(tipo), datos), confirmado: false, plano: `${e.ubicacion || 'sin ubicación'} → ${TIPOS[tipo].ubicacion(Object.assign(valoresIniciales(tipo), datos)) || ''}`, filtro: S.borrador.filtro, faseFiltro: S.borrador.faseFiltro, orden: S.borrador.orden, dir: S.borrador.dir };
+    location.hash = `#/registrar/${it.id}/${tipo}`;
   }
 
   // ---- Una zona en grande
@@ -1878,14 +2003,14 @@
     }));
   }
 
-  function vistaTrasladoVerraco(id) {
+  function vistaTrasladoVerraco(id, pre) {
     const x = verracoPorId(id);
     if (!x || x.fecha_baja) return vistaNoEncontrado();
     const ocup = (k) => verracosActivos().filter((v) => v.id !== id && String(v.verraquera) === String(k)).map((v) => v.crotal);
     pintar(`${cabecera({ volver: `#/verraco/${id}`, textoVolver: 'Cancelar', titulo: `Traslado de ${x.crotal}`, sub: `Ahora en ${x.verraquera ? `la verraquera ${x.verraquera}` : 'ninguna verraquera'}` })}
       <main class="cuerpo"><form class="formu" id="f-tv" novalidate>
         <div class="campo"><span class="et" id="et-vq">Pasa a la verraquera</span><div class="opciones" role="radiogroup" aria-labelledby="et-vq">
-          ${rango(1, 5).map((k) => { const o = ocup(k); return `<label><input type="radio" name="verraquera" value="${k}" ${String(x.verraquera) === k ? 'checked' : ''}> ${k}${o.length ? ` <span class="suave">(${esc(o.join(', '))})</span>` : ''}</label>`; }).join('')}</div></div>
+          ${rango(1, 5).map((k) => { const o = ocup(k); return `<label><input type="radio" name="verraquera" value="${k}" ${String(pre || x.verraquera) === k ? 'checked' : ''}> ${k}${o.length ? ` <span class="suave">(${esc(o.join(', '))})</span>` : ''}</label>`; }).join('')}</div></div>
         
         <div id="mensajes" aria-live="polite"></div>
         <button class="btn" type="submit">Guardar traslado</button>
@@ -2146,7 +2271,7 @@
       case 'movg': return vistaMovGrupo(a, b, c);
       case 'censo': return a === 'historial' ? vistaHistorialCenso() : vistaAnimal(a, b, 'censo');
       case 'extraccion': return vistaExtraccion(a, b);
-      case 'trasladoverraco': return vistaTrasladoVerraco(a);
+      case 'trasladoverraco': return vistaTrasladoVerraco(a, b);
       case 'sanidad':
         if (['nuevo', 'programar'].includes(a)) return vistaSanidadForm(a, null, { ambito: b, ref: c });
         if (['editar', 'realizar'].includes(a)) return vistaSanidadForm(a, b);

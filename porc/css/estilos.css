@@ -284,3 +284,21 @@ html[data-granja="archivo"] { --verde: #5E6460; --verde-osc: #3F4441; --verde-cl
 .aviso-roturas { border-color: var(--naranja-borde, #E3AF85); }
 .aviso-roturas.urgente { border: 2px solid var(--rojo, #A8261B); }
 .aviso-roturas.urgente h2 { color: var(--rojo, #A8261B); }
+/* 0.22.0 · Roturas, bebedero bajo y mover animales en el plano */
+.plano .corral.bajo { fill: #D6E8F7; }
+.plano .corral.rot { fill: rgba(200, 100, 30, .22); stroke: #C8641E; stroke-width: 4; }
+.plano .corral.rot.urg { fill: rgba(168, 38, 27, .22); stroke: #A8261B; }
+.plano .foso.rot { stroke: #C8641E; stroke-width: 4; stroke-dasharray: none; }
+.plano .foso.rot.urg { stroke: #A8261B; }
+.plano .rot-marca { fill: #C8641E; stroke: #fff; stroke-width: 2; pointer-events: none; }
+.plano .rot-marca.urg { fill: #A8261B; }
+.plano .rot-txt { fill: #fff; font-size: 14px; font-weight: 700; }
+.leyenda i.cuadro { border-radius: 3px; width: 16px; }
+.leyenda i.cuadro.rot { background: rgba(200, 100, 30, .3); border: 2px solid #C8641E; }
+.leyenda i.cuadro.rot.urg { background: rgba(168, 38, 27, .3); border-color: #A8261B; }
+.leyenda i.cuadro.bajo { background: #D6E8F7; border: 2px solid #2B3A33; }
+.plano.moviendo { touch-action: pinch-zoom; cursor: grab; user-select: none; -webkit-user-select: none; }
+.plano.moviendo a { pointer-events: none; }
+.plano .destino-plano { fill: rgba(47, 107, 79, .25); stroke: #2F6B4F; stroke-width: 5; pointer-events: none; }
+.plano .origen-plano { fill: none; stroke: #C8641E; stroke-width: 4; stroke-dasharray: 8 5; pointer-events: none; }
+.plano .fantasma { opacity: .9; pointer-events: none; }
