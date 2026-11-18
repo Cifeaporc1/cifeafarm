@@ -7,7 +7,7 @@
 --    lo común; porc = CIFEAPORC). Solo cuenta un minuto si la app está a la
 --    vista y el alumno ha tocado algo en los 2 últimos minutos.
 -- 2. sumar_minuto(): la app la llama una vez por minuto. Solo apunta alumnos.
--- 3. Lo ve el administrador; cada alumno ve solo lo suyo.
+-- 3. Solo lo ve el administrador (los alumnos no ven su tiempo, ni el suyo).
 -- 4. nombres_visibles() (la del 13_mejoras_noviembre.sql) devuelve también si la
 --    persona está activa, para que la actividad liste a quien no ha hecho nada.
 -- =====================================================================
@@ -25,7 +25,7 @@ create table if not exists public.uso_app (
 alter table public.uso_app enable row level security;
 drop policy if exists uso_app_ver on public.uso_app;
 create policy uso_app_ver on public.uso_app for select to authenticated
-  using (public.es_admin() or user_id = auth.uid());
+  using (public.es_admin());
 -- Nadie escribe directamente: solo a través de sumar_minuto()
 
 -- ---------- 2. Sumar un minuto

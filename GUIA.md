@@ -250,4 +250,4 @@ No hay que ejecutar nada en Supabase.
 2. **Cómo cuenta:** solo alumnos; suma un minuto cada minuto que la app está a la vista y el alumno ha tocado algo en los 2 últimos minutos. Una pestaña olvidada no suma. Es tiempo aproximado de uso, no de trabajo.
 3. **Elegir alumnos:** «Todo 1.º» o «Todo 2.º» para un curso completo; o marca las casillas de los que quieras («Marcar los n de la lista» marca todos los que se ven) y activa «Ver solo los marcados».
 4. **Excel:** si hay marcados, descarga solo esos; si no, todos los de la lista. Hojas: Resumen (con minutos y tiempo), Detalle y Tiempo por día.
-5. Cada alumno ve su propio tiempo en «Mi actividad».
+5. El tiempo solo lo ves tú (administrador); los alumnos no lo ven, ni el suyo.

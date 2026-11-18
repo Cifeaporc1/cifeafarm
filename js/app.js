@@ -2109,7 +2109,8 @@
       pintar(`${cabecera({ comun: true })}<main class="cuerpo"><div class="ok-caja">Reuniendo la actividad de las dos granjas…</div></main>${navegacion(esAdmin() ? 'admin' : 'cuenta')}`);
       try { S.porcAct = await cargarPorcino(); S.porcActCargado = Date.now(); } catch (e) { S.porcAct = []; toast(`No se pudo leer porcino: ${traducirError(e)}`); }
     }
-    if (!S.usoApp || Date.now() - S.usoCargado > 60000) { // tiempo de uso (SQL 25)
+    if (!esAdmin()) { S.usoApp = []; S.faltaSQL25 = true; } // el tiempo de uso solo lo ve el administrador
+    else if (!S.usoApp || Date.now() - S.usoCargado > 60000) { // tiempo de uso (SQL 25)
       const u = []; S.faltaSQL25 = false;
       for (let d = 0; ; d += 1000) { const r = await sb.from('uso_app').select('*').order('dia').range(d, d + 999); if (r.error) { S.faltaSQL25 = true; break; } u.push(...r.data); if (r.data.length < 1000) break; }
       S.usoApp = u; S.usoCargado = Date.now();
