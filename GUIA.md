@@ -251,3 +251,5 @@ No hay que ejecutar nada en Supabase.
 3. **Elegir alumnos:** «Todo 1.º» o «Todo 2.º» para un curso completo; o marca las casillas de los que quieras («Marcar los n de la lista» marca todos los que se ven) y activa «Ver solo los marcados».
 4. **Excel:** si hay marcados, descarga solo esos; si no, todos los de la lista. Hojas: Resumen (con minutos y tiempo), Detalle y Tiempo por día.
 5. El tiempo solo lo ves tú (administrador); los alumnos no lo ven, ni el suyo.
+
+**Historial de actividad (0.23.2):** Administrador → Historial de actividad → en «Persona» elige «Todo 1.º (alumnos)» o «Todo 2.º (alumnos)» para ver el curso completo. En el resumen por persona sale también la columna «Tiempo en la app» (con el SQL 25 ejecutado).

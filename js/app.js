@@ -492,22 +492,35 @@
     const F = S.borrador.hist || (S.borrador.hist = { desde: L.sumarDias(hoy(), -7), hasta: hoy(), alias: '', accion: '' });
     pintar(`${cabecera({ comun: true, volver: '#/admin', textoVolver: 'Administrador', titulo: 'Historial de actividad', sub: 'Solo lo ves tú' })}<main class="cuerpo"><div class="ok-caja">Cargando el historial…</div></main>${navegacion('admin')}`);
     let q = sb.from('historial').select('*').gte('creado', new Date(`${F.desde}T00:00:00`).toISOString()).lte('creado', new Date(`${F.hasta}T23:59:59`).toISOString()).order('creado', { ascending: false }).limit(3000);
-    if (F.alias) q = q.eq('alias', F.alias); if (F.accion) q = q.eq('accion', F.accion);
+    const cursoF = /^curso:/.test(F.alias) ? Number(F.alias.slice(6)) : null; // «Todo 1.º» / «Todo 2.º»
+    // Alumnos que están ahora en ese curso (aunque algo lo hicieran antes en otro)
+    const delCurso = cursoF ? Object.values(S.nombres).filter((p) => p.rol === 'alumno' && p.activo !== false && p.granja_id === cursoF && p.alias).map((p) => p.alias) : [];
+    if (cursoF) q = q.in('alias', delCurso.length ? delCurso : ['—']); else if (F.alias) q = q.eq('alias', F.alias);
+    if (F.accion) q = q.eq('accion', F.accion);
     const { data, error } = await q;
+    // Tiempo en la app en esas fechas (SQL 25; solo alumnos)
+    const usoR = await sb.from('uso_app').select('user_id,alias,curso,minutos,dia').gte('dia', F.desde).lte('dia', F.hasta).limit(20000);
+    const minDe = {}; const cursoDe = {};
+    if (!usoR.error) for (const u of usoR.data) { const p = S.nombres[u.user_id]; const al = (p && p.alias) || u.alias; const cu = (p && p.granja_id) || u.curso; if (!al) continue;
+      if (cursoF ? !delCurso.includes(al) : F.alias && al !== F.alias) continue; minDe[al] = (minDe[al] || 0) + u.minutos; cursoDe[al] = cu; }
     if (!location.hash.startsWith('#/admin/historial')) return;
     if (error) return pintar(`${cabecera({ comun: true, volver: '#/admin', textoVolver: 'Administrador', titulo: 'Historial de actividad' })}<main class="cuerpo"><div class="error-caja">${/historial/.test(error.message || '') ? 'Falta ejecutar en Supabase el archivo 12_administrador.sql.' : esc(traducirError(error))}</div></main>${navegacion('admin')}`);
     const res = {}; for (const h of data) { const r = (res[h.alias || '?'] = res[h.alias || '?'] || { alias: h.alias || '?', rol: h.rol, curso: h.curso, entrar: 0, alta: 0, cambio: 0, borrado: 0, ultima: h.creado }); r[h.accion] += 1; }
+    if (cursoF && !F.accion) for (const al of delCurso) if (!res[al]) res[al] = { alias: al, rol: 'alumno', curso: cursoF, entrar: 0, alta: 0, cambio: 0, borrado: 0, ultima: null };
+    if (!F.accion || F.accion === 'entrar') for (const al of Object.keys(minDe)) if (!res[al]) res[al] = { alias: al, rol: 'alumno', curso: cursoDe[al], entrar: 0, alta: 0, cambio: 0, borrado: 0, ultima: null };
     const filas = Object.values(res).sort((a, b) => (b.alta + b.cambio + b.borrado + b.entrar) - (a.alta + a.cambio + a.borrado + a.entrar));
     const fh = (t) => { const x = new Date(t); return `${dos(x.getDate())}/${dos(x.getMonth() + 1)}/${x.getFullYear()} ${dos(x.getHours())}:${dos(x.getMinutes())}`; };
-    const quien = (r) => `${r.rol === 'alumno' ? `${r.curso || '?'}.º` : r.rol === 'veterinario' ? 'Veterinaria' : r.rol === 'profesor' ? 'Profesor' : ''}`;
+    const cursoAhora = (r) => { const p = Object.values(S.nombres).find((x) => x.alias === r.alias && x.rol === 'alumno'); return (p && p.granja_id) || r.curso; };
+    const quien = (r) => `${r.rol === 'alumno' ? `${cursoAhora(r) || '?'}.º` : r.rol === 'veterinario' ? 'Veterinaria' : r.rol === 'profesor' ? 'Profesor' : ''}`;
     const alias = [...new Set(Object.values(S.nombres).map((p) => p.alias).filter(Boolean).concat(filas.map((r) => r.alias)))].sort();
     pintar(`${cabecera({ comun: true, volver: '#/admin', textoVolver: 'Administrador', titulo: 'Historial de actividad', sub: 'Solo lo ves tú' })}
       <main class="cuerpo">
         <div class="dos"><div class="campo"><label for="h-desde">Desde</label><input id="h-desde" type="date" value="${F.desde}"></div><div class="campo"><label for="h-hasta">Hasta</label><input id="h-hasta" type="date" value="${F.hasta}" max="${hoy()}"></div></div>
-        <div class="dos"><div class="campo"><label for="h-alias">Persona</label><select id="h-alias"><option value="">Todas</option>${alias.map((a) => `<option ${F.alias === a ? 'selected' : ''}>${esc(a)}</option>`).join('')}</select></div>
+        <div class="dos"><div class="campo"><label for="h-alias">Persona</label><select id="h-alias"><option value="">Todas</option><option value="curso:1" ${F.alias === 'curso:1' ? 'selected' : ''}>Todo 1.º (alumnos)</option><option value="curso:2" ${F.alias === 'curso:2' ? 'selected' : ''}>Todo 2.º (alumnos)</option>${alias.map((a) => `<option ${F.alias === a ? 'selected' : ''}>${esc(a)}</option>`).join('')}</select></div>
           <div class="campo"><label for="h-acc">Qué</label><select id="h-acc"><option value="">Todo</option>${Object.entries(ACC_HIST).map(([k, [t]]) => `<option value="${k}" ${F.accion === k ? 'selected' : ''}>${t}</option>`).join('')}</select></div></div>
-        <section class="tarjeta"><h2>Resumen por persona</h2>${filas.length ? `<div class="tabla-scroll"><table class="tabla"><thead><tr><th>Persona</th><th>Entradas</th><th>Añadió</th><th>Cambió</th><th>Borró</th><th>Última vez</th></tr></thead><tbody>
-          ${filas.map((r) => `<tr><td><button type="button" class="enlace-boton" data-ver="${esc(r.alias)}"><strong>${esc(r.alias)}</strong></button> <span class="suave peq">${quien(r)}</span></td><td>${r.entrar}</td><td>${r.alta}</td><td>${r.cambio}</td><td>${r.borrado}</td><td class="peq">${fh(r.ultima)}</td></tr>`).join('')}</tbody></table></div>`
+        ${usoR.error ? '<div class="aviso-caja">Para ver el tiempo en la app, ejecuta en Supabase <strong>sql/25_tiempo_en_app.sql</strong>.</div>' : ''}
+        <section class="tarjeta"><h2>Resumen por persona</h2>${filas.length ? `<div class="tabla-scroll"><table class="tabla"><thead><tr><th>Persona</th><th>Entradas</th><th>Añadió</th><th>Cambió</th><th>Borró</th>${usoR.error ? '' : '<th>Tiempo en la app</th>'}<th>Última vez</th></tr></thead><tbody>
+          ${filas.map((r) => `<tr><td><button type="button" class="enlace-boton" data-ver="${esc(r.alias)}"><strong>${esc(r.alias)}</strong></button> <span class="suave peq">${quien(r)}</span></td><td>${r.entrar}</td><td>${r.alta}</td><td>${r.cambio}</td><td>${r.borrado}</td>${usoR.error ? '' : `<td>${r.rol === 'alumno' ? Comun.fmtMin(minDe[r.alias] || 0) : ''}</td>`}<td class="peq">${r.ultima ? fh(r.ultima) : ''}</td></tr>`).join('')}</tbody></table></div>`
           : '<div class="suave">Nada en estas fechas.</div>'}</section>
         <section class="tarjeta"><h2>Detalle (${data.length}${data.length === 3000 ? ', los 3000 más recientes' : ''})</h2>
           ${data.slice(0, 500).map((h) => `<div class="evento"><div class="entre"><strong>${esc(h.alias || '?')}</strong><span class="chip ${ACC_HIST[h.accion][1]}">${ACC_HIST[h.accion][0]}</span></div>
