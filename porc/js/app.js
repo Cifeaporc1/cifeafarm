@@ -85,6 +85,7 @@
     if (error) throw error;
     S.perfil = data && data.activo ? data : null;
     if (!S.perfil) return;
+    Comun.contarUso(sb, 'porc', () => S.perfil);
     // Granja en la que se trabaja: 1 = GRANJA 1.º, 2 = GRANJA 2.º, 3 = GRANJA MADRE (la elige el administrador en CIFEAFARM)
     S.granja = Comun.granjaDe(S.perfil); Comun.aplicarColorGranja(S.granja);
     if (!S.granja) { S.perfil = null; location.replace('../#/granjas'); return; }

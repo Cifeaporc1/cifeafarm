@@ -243,3 +243,11 @@ No hay que ejecutar nada en Supabase.
    - En el móvil, con dos dedos amplías el plano; con uno, arrastras.
 2. **Roturas:** el corral o la zona con una rotura pendiente se ve en naranja, o en rojo si es urgente, con un «!».
 3. **Bebedero bajo:** los corrales de cebo con el bebedero más bajo se ven en azul claro, con su explicación debajo del plano.
+
+## 32. Tiempo en la app y elegir alumnos en «Actividad para evaluar» (0.23.0)
+
+1. Ejecuta una vez en Supabase `sql/25_tiempo_en_app.sql` (se puede repetir sin perder nada). Desde ese momento la app empieza a contar; el tiempo anterior no existe.
+2. **Cómo cuenta:** solo alumnos; suma un minuto cada minuto que la app está a la vista y el alumno ha tocado algo en los 2 últimos minutos. Una pestaña olvidada no suma. Es tiempo aproximado de uso, no de trabajo.
+3. **Elegir alumnos:** «Todo 1.º» o «Todo 2.º» para un curso completo; o marca las casillas de los que quieras («Marcar los n de la lista» marca todos los que se ven) y activa «Ver solo los marcados».
+4. **Excel:** si hay marcados, descarga solo esos; si no, todos los de la lista. Hojas: Resumen (con minutos y tiempo), Detalle y Tiempo por día.
+5. Cada alumno ve su propio tiempo en «Mi actividad».

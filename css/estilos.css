@@ -375,3 +375,8 @@ html[data-granja="archivo"] { --verde: #5E6460; --verde-osc: #3F4441; --verde-cl
 .aviso-roturas { border-color: var(--naranja-borde, #E3AF85); }
 .aviso-roturas.urgente { border: 2px solid var(--rojo, #A8261B); }
 .aviso-roturas.urgente h2 { color: var(--rojo, #A8261B); }
+/* 0.23.0 · Actividad: marcar alumnos */
+.act-fila { display: flex; align-items: center; gap: 6px; }
+.act-fila .animal-fila { flex: 1; min-width: 0; }
+.act-marca { flex: none; width: 44px; min-height: 44px; display: flex; align-items: center; justify-content: center; }
+.act-marca input { width: 22px; height: 22px; }

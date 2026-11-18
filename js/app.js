@@ -105,6 +105,7 @@
     const { data, error } = await sb.from('perfiles').select('*').eq('user_id', uid()).maybeSingle();
     if (error) throw error;
     S.perfil = data && data.activo ? data : null; S.cursoCerrado = false;
+    Comun.contarUso(sb, 'rumi', () => S.perfil);
     // Alumno con el acceso de su curso cerrado: no ve su curso en la tabla de cursos.
     if (S.perfil && S.perfil.rol === 'alumno') {
       const g = await sb.from('granjas').select('*').eq('id', S.perfil.granja_id).maybeSingle();
@@ -2108,31 +2109,60 @@
       pintar(`${cabecera({ comun: true })}<main class="cuerpo"><div class="ok-caja">Reuniendo la actividad de las dos granjas…</div></main>${navegacion(esAdmin() ? 'admin' : 'cuenta')}`);
       try { S.porcAct = await cargarPorcino(); S.porcActCargado = Date.now(); } catch (e) { S.porcAct = []; toast(`No se pudo leer porcino: ${traducirError(e)}`); }
     }
+    if (!S.usoApp || Date.now() - S.usoCargado > 60000) { // tiempo de uso (SQL 25)
+      const u = []; S.faltaSQL25 = false;
+      for (let d = 0; ; d += 1000) { const r = await sb.from('uso_app').select('*').order('dia').range(d, d + 999); if (r.error) { S.faltaSQL25 = true; break; } u.push(...r.data); if (r.data.length < 1000) break; }
+      S.usoApp = u; S.usoCargado = Date.now();
+    }
     return pintarActividad(alias);
   }
   function pintarActividad(alias) {
     const desde = S.borrador.actDesde || `${hoy().slice(0, 7)}-01`; const hasta = S.borrador.actHasta || hoy(); const cursoF = S.borrador.actCurso || ''; const granjaF = S.borrador.actGranja || '';
+    const marcados = new Set(S.borrador.actSel || []); const solo = !!S.borrador.actSolo && marcados.size > 0;
     const GR = { rumi: 'Rumiantes', porc: 'Porcino' };
+    const fmtMin = Comun.fmtMin;
     const profes = new Set(Object.values(S.nombres).filter((p) => p.rol === 'profesor').map((p) => p.alias));
+    const perfilDe = (al) => Object.values(S.nombres).find((p) => p.alias === al);
     let regs = registrosDe().filter((x) => x.fecha >= desde && x.fecha <= hasta && x.alias && !profes.has(x.alias) && (!granjaF || x.granja === granjaF));
-    if (!esAdmin()) regs = regs.filter((x) => x.alias === S.perfil.alias);
-    else if (cursoF) regs = regs.filter((x) => String(x.curso || '') === cursoF);
+    // Minutos en la app en esas fechas (rumi = CIFEARUMI y lo común; porc = CIFEAPORC)
+    let uso = (S.usoApp || []).filter((u) => u.dia >= desde && u.dia <= hasta && (!granjaF || u.modulo === granjaF))
+      .map((u) => { const p = S.nombres[u.user_id]; return { ...u, alias: (p && p.alias) || u.alias, curso: (p && p.granja_id) || u.curso }; }).filter((u) => u.alias);
+    if (!esAdmin()) { regs = regs.filter((x) => x.alias === S.perfil.alias); uso = uso.filter((u) => u.alias === S.perfil.alias); }
+    else if (cursoF) { regs = regs.filter((x) => String(x.curso || '') === cursoF); uso = uso.filter((u) => String(u.curso || '') === cursoF); }
+    if (esAdmin() && solo) { regs = regs.filter((x) => marcados.has(x.alias)); uso = uso.filter((u) => marcados.has(u.alias)); }
+    const minDe = {}; for (const u of uso) minDe[u.alias] = (minDe[u.alias] || 0) + u.minutos;
     const sel = esAdmin() ? alias && decodeURIComponent(alias) : S.perfil.alias;
-    const filtros = `<div class="dos"><div class="campo"><label for="a-desde">Desde</label><input id="a-desde" type="date" value="${desde}"></div><div class="campo"><label for="a-hasta">Hasta</label><input id="a-hasta" type="date" value="${hasta}"></div></div>
+    const avisoSQL = S.faltaSQL25 && esAdmin() ? '<div class="aviso-caja">Para ver el tiempo en la app, ejecuta en Supabase <strong>sql/25_tiempo_en_app.sql</strong>.</div>' : '';
+    const filtros = `${avisoSQL}<div class="dos"><div class="campo"><label for="a-desde">Desde</label><input id="a-desde" type="date" value="${desde}"></div><div class="campo"><label for="a-hasta">Hasta</label><input id="a-hasta" type="date" value="${hasta}"></div></div>
       <div class="pestanas">${[['', 'Las dos granjas'], ['rumi', 'Rumiantes'], ['porc', 'Porcino']].map(([k, t]) => `<button type="button" data-granja="${k}" class="${granjaF === k ? 'activo' : ''}">${t}</button>`).join('')}</div>
-      ${esAdmin() ? `<div class="pestanas">${[['', 'Todos'], ['1', '1.º'], ['2', '2.º']].map(([k, t]) => `<button type="button" data-curso="${k}" class="${cursoF === k ? 'activo' : ''}">${t}</button>`).join('')}</div>` : ''}`;
+      ${esAdmin() && !sel ? `<div class="campo"><span class="et">Curso</span><div class="pestanas">${[['', 'Los dos cursos'], ['1', 'Todo 1.º'], ['2', 'Todo 2.º']].map(([k, t]) => `<button type="button" data-curso="${k}" class="${cursoF === k ? 'activo' : ''}">${t}</button>`).join('')}</div></div>` : ''}`;
     let cuerpo;
     if (sel) {
       const mios = regs.filter((x) => x.alias === sel).sort((x, y) => y.fecha.localeCompare(x.fecha));
-      const nombre = Object.values(S.nombres).find((p) => p.alias === sel);
+      const nombre = perfilDe(sel);
+      const dias = {}; for (const u of uso.filter((u) => u.alias === sel)) (dias[u.dia] = dias[u.dia] || { rumi: 0, porc: 0 })[u.modulo] += u.minutos;
+      const diasL = Object.entries(dias).sort((x, y) => y[0].localeCompare(x[0]));
       cuerpo = `<h2>${esc(nombre && nombre.nombre ? `${nombre.nombre} (${sel})` : sel)} · ${mios.length} registros</h2>
+        ${S.faltaSQL25 ? '' : `<section class="tarjeta"><div class="entre"><h2>Tiempo en la app</h2><strong>${fmtMin(minDe[sel] || 0)}</strong></div>
+          ${diasL.length ? `<details><summary class="suave peq" style="min-height:44px;display:flex;align-items:center">Ver por días (${diasL.length})</summary><table class="tabla"><thead><tr><th>Día</th><th class="num">Rumiantes</th><th class="num">Porcino</th></tr></thead><tbody>${diasL.map(([d, o]) => `<tr><td>${fmt(d)}</td><td class="num">${o.rumi ? fmtMin(o.rumi) : ''}</td><td class="num">${o.porc ? fmtMin(o.porc) : ''}</td></tr>`).join('')}</tbody></table></details>` : '<div class="suave peq">Sin uso en esas fechas.</div>'}
+          <div class="suave peq">Minutos con la app abierta y en uso (si no se toca nada en 2 minutos, deja de contar).</div></section>`}
         ${mios.map((x) => `<a class="evento enlace" href="${x.enlace}"><div class="entre"><strong><span class="chip ${x.granja === 'porc' ? 'gris' : ''}">${GR[x.granja]}</span> ${esc(x.clase)}</strong><span class="suave">${fmt(x.fecha)}</span></div><div class="suave peq">${esc(x.que)}</div></a>`).join('') || '<div class="vacio">Sin registros en esas fechas.</div>'}`;
     } else {
-      const por = {}; for (const x of regs) { const k = x.alias; (por[k] = por[k] || { curso: x.curso, n: 0, tipos: {}, rumi: 0, porc: 0 }); por[k].n++; por[k][x.granja]++; por[k].tipos[x.clase] = (por[k].tipos[x.clase] || 0) + 1; }
+      const por = {};
+      const de = (k, curso) => (por[k] = por[k] || { curso, n: 0, tipos: {}, rumi: 0, porc: 0 });
+      for (const x of regs) { const o = de(x.alias, x.curso); o.n++; o[x.granja]++; o.tipos[x.clase] = (o.tipos[x.clase] || 0) + 1; }
+      for (const u of uso) de(u.alias, u.curso);
+      // Alumnos activos que no han hecho nada en esas fechas (también cuentan para evaluar)
+      if (esAdmin()) for (const p of Object.values(S.nombres)) if (p.rol === 'alumno' && p.activo === true && p.alias && (!cursoF || String(p.granja_id) === cursoF) && (!solo || marcados.has(p.alias))) de(p.alias, p.granja_id);
       const filas = Object.entries(por).sort((a, b) => String(a[1].curso || 9).localeCompare(String(b[1].curso || 9)) || a[0].localeCompare(b[0], 'es', { numeric: true }));
-      cuerpo = `<div class="suave">Cuenta lo que cada uno ha registrado en CIFEARUMI y en CIFEAPORC (sin los datos importados). Toca un alumno para ver el detalle.</div>
-        <div class="lista">${filas.map(([al, o]) => { const nm = Object.values(S.nombres).find((p) => p.alias === al); return `<a class="animal-fila" href="#/actividad/${encodeURIComponent(al)}"><div><strong>${esc(nm && nm.nombre ? `${nm.nombre} (${al})` : al)}</strong><div class="suave peq">${o.curso ? `${o.curso}.º · ` : ''}<strong>rumiantes ${o.rumi} · porcino ${o.porc}</strong></div><div class="suave peq">${Object.entries(o.tipos).map(([t, n]) => `${esc(t)} ${n}`).join(' · ')}</div></div><span class="chip">${o.n}</span></a>`; }).join('') || '<div class="vacio">Sin registros en esas fechas.</div>'}</div>
-        <button class="btn sec" type="button" id="b-act-excel">Descargar en Excel</button><div id="estado-act"></div>`;
+      const fila = ([al, o]) => { const nm = perfilDe(al); const enl = `<a class="animal-fila" href="#/actividad/${encodeURIComponent(al)}"><div><strong>${esc(nm && nm.nombre ? `${nm.nombre} (${al})` : al)}</strong><div class="suave peq">${o.curso ? `${o.curso}.º · ` : ''}<strong>rumiantes ${o.rumi} · porcino ${o.porc}</strong>${S.faltaSQL25 ? '' : ` · ⏱ ${fmtMin(minDe[al] || 0)}`}</div><div class="suave peq">${Object.entries(o.tipos).map(([t, n]) => `${esc(t)} ${n}`).join(' · ') || 'Sin registros'}</div></div><span class="chip">${o.n}</span></a>`;
+        return esAdmin() ? `<div class="act-fila"><label class="act-marca"><input type="checkbox" data-sel="${esc(al)}" ${marcados.has(al) ? 'checked' : ''} aria-label="Marcar a ${esc(al)}"></label>${enl}</div>` : enl; };
+      cuerpo = `<div class="suave">Cuenta lo que cada uno ha registrado en CIFEARUMI y en CIFEAPORC (sin los datos importados)${S.faltaSQL25 ? '' : ' y el tiempo que ha usado la app'}. Toca un alumno para ver el detalle.</div>
+        ${esAdmin() ? `<div class="botones"><button type="button" class="btn sec" id="b-marcar-todos">Marcar los ${filas.length} de la lista</button><button type="button" class="btn sec" id="b-desmarcar" ${marcados.size ? '' : 'disabled'}>Quitar marcas</button></div>
+          <label class="check-todos"><input type="checkbox" id="a-solo" ${S.borrador.actSolo ? 'checked' : ''} ${marcados.size ? '' : 'disabled'}> Ver solo los marcados (${marcados.size})</label>` : ''}
+        <div class="lista">${filas.map(fila).join('') || '<div class="vacio">Sin registros en esas fechas.</div>'}</div>
+        <button class="btn sec" type="button" id="b-act-excel">Descargar en Excel${esAdmin() && marcados.size ? ` (los ${S.actFilasMarcadas = filas.filter(([al]) => marcados.has(al)).length} marcados)` : ''}</button><div id="estado-act"></div>`;
+      S.actFilas = filas.map(([al]) => al);
     }
     pintar(`${cabecera(sel && esAdmin() ? { volver: '#/actividad', textoVolver: 'Actividad', titulo: 'Actividad', comun: true } : { comun: true })}
       <main class="cuerpo"><div class="foto"><img src="img/sec-actividad.svg" alt="Listado de notas"></div><h1 style="font-size:22px">${esAdmin() ? 'Actividad de los alumnos' : 'Mi actividad'}</h1>${filtros}${cuerpo}</main>${navegacion(esAdmin() ? 'admin' : 'cuenta')}`);
@@ -2140,14 +2170,24 @@
     $app.querySelectorAll('[data-granja]').forEach((b) => b.addEventListener('click', () => { S.borrador.actGranja = b.dataset.granja; pintarActividad(alias); }));
     document.getElementById('a-desde').addEventListener('change', cambio); document.getElementById('a-hasta').addEventListener('change', cambio);
     $app.querySelectorAll('[data-curso]').forEach((b) => b.addEventListener('click', () => { S.borrador.actCurso = b.dataset.curso; pintarActividad(alias); }));
+    const guardarSel = (set) => { S.borrador.actSel = [...set]; if (!set.size) S.borrador.actSolo = false; pintarActividad(alias); };
+    $app.querySelectorAll('[data-sel]').forEach((c) => c.addEventListener('change', () => { const m = new Set(S.borrador.actSel || []); if (c.checked) m.add(c.dataset.sel); else m.delete(c.dataset.sel); guardarSel(m); }));
+    const bt = document.getElementById('b-marcar-todos'); if (bt) bt.addEventListener('click', () => guardarSel(new Set([...(S.borrador.actSel || []), ...S.actFilas])));
+    const bd = document.getElementById('b-desmarcar'); if (bd) bd.addEventListener('click', () => guardarSel(new Set()));
+    const so = document.getElementById('a-solo'); if (so) so.addEventListener('change', () => { S.borrador.actSolo = so.checked; pintarActividad(alias); });
     const bx = document.getElementById('b-act-excel');
     if (bx) bx.addEventListener('click', async () => {
       try { await cargarXLSX(); const X = window.XLSX; const libro = X.utils.book_new();
+        const lista = new Set((S.actFilas || []).filter((al) => !marcados.size || marcados.has(al)));
+        const rs = regs.filter((x) => lista.has(x.alias)), us = uso.filter((u) => lista.has(u.alias));
         const col = (x) => `${GR[x.granja]}: ${x.clase}`;
-        const tipos = [...new Set(regs.map(col))].sort();
-        const por = {}; for (const x of regs) { (por[x.alias] = por[x.alias] || { Alias: x.alias, Nombre: (Object.values(S.nombres).find((p) => p.alias === x.alias) || {}).nombre || '', Curso: x.curso ? `${x.curso}.º` : '', Total: 0, Rumiantes: 0, Porcino: 0 }); por[x.alias].Total++; por[x.alias][GR[x.granja]]++; por[x.alias][col(x)] = (por[x.alias][col(x)] || 0) + 1; }
+        const tipos = [...new Set(rs.map(col))].sort();
+        const por = {}; const fila0 = (al, curso) => (por[al] = por[al] || { Alias: al, Nombre: (perfilDe(al) || {}).nombre || '', Curso: curso ? `${curso}.º` : '', Total: 0, Rumiantes: 0, Porcino: 0, 'Minutos en la app': minDe[al] || 0, 'Tiempo en la app': fmtMin(minDe[al] || 0) });
+        for (const al of lista) { const p = perfilDe(al); fila0(al, p && p.granja_id); }
+        for (const x of rs) { const o = fila0(x.alias, x.curso); o.Total++; o[GR[x.granja]]++; o[col(x)] = (o[col(x)] || 0) + 1; }
         X.utils.book_append_sheet(libro, X.utils.json_to_sheet(Object.values(por).map((o) => { for (const t of tipos) o[t] = o[t] || 0; return o; })), 'Resumen');
-        X.utils.book_append_sheet(libro, X.utils.json_to_sheet(regs.sort((x, y) => x.alias.localeCompare(y.alias) || x.fecha.localeCompare(y.fecha)).map((x) => ({ Alias: x.alias, Curso: x.curso ? `${x.curso}.º` : '', Granja: GR[x.granja], Fecha: x.fecha, Registro: x.clase, Detalle: x.que }))), 'Detalle');
+        X.utils.book_append_sheet(libro, X.utils.json_to_sheet(rs.length ? rs.sort((x, y) => x.alias.localeCompare(y.alias) || x.fecha.localeCompare(y.fecha)).map((x) => ({ Alias: x.alias, Curso: x.curso ? `${x.curso}.º` : '', Granja: GR[x.granja], Fecha: x.fecha, Registro: x.clase, Detalle: x.que })) : [{ '': 'Sin registros' }]), 'Detalle');
+        if (!S.faltaSQL25) X.utils.book_append_sheet(libro, X.utils.json_to_sheet(us.length ? us.sort((x, y) => x.alias.localeCompare(y.alias) || x.dia.localeCompare(y.dia)).map((u) => ({ Alias: u.alias, Curso: u.curso ? `${u.curso}.º` : '', Día: u.dia, App: GR[u.modulo], Minutos: u.minutos })) : [{ '': 'Sin uso' }]), 'Tiempo por día');
         X.writeFile(libro, `CIFEAFARM_actividad_${desde}_${hasta}.xlsx`);
       } catch (e) { document.getElementById('estado-act').innerHTML = errorCaja(traducirError(e)); }
     });

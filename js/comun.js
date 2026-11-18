@@ -360,13 +360,27 @@
     if (p.granja_activa && gs.includes(p.granja_activa)) return p.granja_activa;
     return gs[0] || (p.granjas === undefined ? 2 : null); // sin el SQL 18 todo seguía en la 2
   }
+  // Tiempo de uso (solo alumnos, SQL 25): cada minuto suma uno si la app está a la vista
+  // y el alumno ha tocado algo en los 2 últimos minutos (una pestaña olvidada no cuenta).
+  let usoEnMarcha = false;
+  function contarUso(sb, modulo, perfil) {
+    if (usoEnMarcha || typeof document === 'undefined') return; usoEnMarcha = true;
+    let ultimo = Date.now();
+    ['pointerdown', 'keydown', 'scroll', 'touchstart', 'input'].forEach((t) => document.addEventListener(t, () => { ultimo = Date.now(); }, { passive: true, capture: true }));
+    const id = setInterval(async () => {
+      const p = perfil(); if (!p || p.rol !== 'alumno') return;
+      if (document.visibilityState !== 'visible' || Date.now() - ultimo > 120000 || (typeof navigator !== 'undefined' && navigator.onLine === false)) return;
+      try { const { error } = await sb.rpc('sumar_minuto', { p_modulo: modulo }); if (error && (error.code === 'PGRST202' || /sumar_minuto/.test(error.message || ''))) clearInterval(id); } catch (_) { /* sin conexión: ese minuto no cuenta */ }
+    }, 60000);
+  }
+  const fmtMin = (m) => (m >= 60 ? `${Math.floor(m / 60)} h ${String(m % 60).padStart(2, '0')} min` : `${m || 0} min`);
   // Granjas archivadas (id 100 en adelante): lo que tenía un curso al pasarle la granja del otro
   function registrarGranjas(lista) { for (const g of lista || []) if (g.id > 3) GRANJAS[g.id] = { nombre: g.nombre || `ARCHIVO ${g.id}`, corto: 'Archivo', color: 'gris', archivo: true }; }
   const granjasDe = (p) => (!p ? [] : p.granjas === undefined ? [2] : p.rol === 'alumno' ? [p.granja_id] : p.admin ? [1, 2, 3, ...Object.keys(GRANJAS).map(Number).filter((g) => g > 3)] : (p.granjas || []).slice().sort());
   function aplicarColorGranja(g) { try { document.documentElement.dataset.granja = g > 3 ? 'archivo' : String(g || ''); } catch (_) {} }
   const chipGranja = (g, href) => (!GRANJAS[g] && g > 3 ? `<span class="granja-chip">ARCHIVO</span>` : GRANJAS[g] ? (href ? `<a class="granja-chip" href="${href}" aria-label="Cambiar de granja (ahora ${GRANJAS[g].nombre})">${GRANJAS[g].nombre} ▾</a>` : `<span class="granja-chip">${GRANJAS[g].nombre}</span>`) : '');
 
-  const api = { PROTOCOLOS, NOMBRE_CADA, periodo, tareasDe, htmlTareas, repetidas, leerPauta, htmlPauta, siguienteDosis, textoPauta, POCOS, GRUPOS_FECHA, calcular, fmtNum, svgBarras, htmlTabla, textoIA, htmlResultados, htmlComparar, enlazarAnalisis, GRANJAS, granjaDe, granjasDe, aplicarColorGranja, chipGranja, registrarGranjas };
+  const api = { contarUso, fmtMin, PROTOCOLOS, NOMBRE_CADA, periodo, tareasDe, htmlTareas, repetidas, leerPauta, htmlPauta, siguienteDosis, textoPauta, POCOS, GRUPOS_FECHA, calcular, fmtNum, svgBarras, htmlTabla, textoIA, htmlResultados, htmlComparar, enlazarAnalisis, GRANJAS, granjaDe, granjasDe, aplicarColorGranja, chipGranja, registrarGranjas };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else raiz.Comun = api;
 })(typeof window !== 'undefined' ? window : globalThis);
