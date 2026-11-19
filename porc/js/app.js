@@ -34,10 +34,13 @@
   const esVet = () => S.perfil && S.perfil.rol === 'veterinario';
   const aliasPersonal = () => new Set(Object.values(S.nombres).filter((p) => p.rol !== 'alumno' && p.alias).map((p) => p.alias).concat(S.perfil ? [S.perfil.alias] : []));
   // Los alias y nombres de los alumnos solo los ve el administrador; cada uno ve los suyos.
-  const verAlias = (alias, cursoN) => (esAdmin() || !alias || aliasPersonal().has(alias) ? alias : `un alumno${cursoN ? ` de ${cursoN}.º` : ''}`);
+  // Para el administrador: «Nombre (ALIAS)» si el alumno tiene nombre puesto
+  const conNombre = (alias, cursoN) => { if (!alias) return alias; const l = Object.values(S.nombres).filter((x) => x.alias === alias && x.nombre);
+    const p = l.find((x) => cursoN && x.granja_id === Number(cursoN)) || l[0]; return p ? `${p.nombre} (${alias})` : alias; };
+  const verAlias = (alias, cursoN) => (esAdmin() ? conNombre(alias, cursoN) : !alias || aliasPersonal().has(alias) ? alias : `un alumno${cursoN ? ` de ${cursoN}.º` : ''}`);
   const quienEs = (userId, alias) => { const p = S.nombres[userId];
     if (!esAdmin() && (!p || p.rol === 'alumno')) return verAlias(alias, p && p.granja_id) || '?';
-    return p && p.nombre ? `${p.nombre} (${p.alias})` : (alias || (p && p.alias) || '?'); };
+    return p && p.nombre ? `${p.nombre} (${p.alias})` : (esAdmin() ? conNombre(alias) : alias) || (p && p.alias) || '?'; };
   const yo = () => (S.perfil.nombre ? `${S.perfil.nombre} (${S.perfil.alias})` : S.perfil.alias);
   const faseNombre = (id) => (L.FASES.find((f) => f.id === id) || {}).nombre || id;
 
@@ -262,7 +265,7 @@
       sb.from('avisos_descartados').select('clave').then((r) => {
         const desc = new Set(r.error ? [] : r.data.map((x) => x.clave)); const crot = {}; for (const x of S.cerdas.concat(S.verracos)) crot[x.id] = x.crotal;
         S.repPorc = Comun.repetidas(null, { eventos: S.eventos, sanidad: S.sanidad, extracciones: S.extracciones, recuentos: S.recuentos, mov_grupos: S.movGrupos }, { rumi: '../', porc: '' },
-          { eventoPorc: (e) => TIPOS_EV_NOMBRE(e), cerda: (id) => `Cerda ${crot[id] || '?'}`, verraco: (id) => `Verraco ${crot[id] || '?'}` }).filter((x) => !desc.has(x.clave)).length;
+          { alias: verAlias, eventoPorc: (e) => TIPOS_EV_NOMBRE(e), cerda: (id) => `Cerda ${crot[id] || '?'}`, verraco: (id) => `Verraco ${crot[id] || '?'}` }).filter((x) => !desc.has(x.clave)).length;
         if (location.hash === '#/inicio' || location.hash === '') vistaInicio();
       });
     }

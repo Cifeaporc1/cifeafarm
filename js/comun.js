@@ -163,7 +163,7 @@
   function repetidas(R, P, base, nombres = {}) {
     const out = [];
     const add = (granja, tabla, filas, titulo, detalle, enlace) => out.push({ clave: claveAviso(tabla, filas), granja, tabla, titulo, detalle, filas, enlace });
-    const quien = (x) => [...new Set(x.map((y) => y.realizado_por || y.autor_alias || '?'))].join(', ');
+    const quien = (x) => [...new Set(x.map((y) => { const a = y.realizado_por || y.autor_alias || '?'; return nombres.alias ? nombres.alias(a, y.curso || y.granja_id) || a : a; }))].join(', ');
     if (R) {
       for (const g of agrupar((R.eventos || []).filter((e) => !['nota', 'lechero', 'alta'].includes(e.tipo) && !(e.datos && e.datos.importado)), (e) => `${e.animal_id}|${e.tipo}|${e.fecha}|${e.estado || ''}`))
         add('rumi', 'rum_eventos', g, `${nombres.evento ? nombres.evento(g[0]) : g[0].tipo} repetido`, `${nombres.animal ? nombres.animal(g[0].animal_id) : ''} · ${ff(g[0].fecha)} · ${g.length} veces · ${quien(g)}`, `${base.rumi}#/animal/${g[0].animal_id}`);

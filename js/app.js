@@ -42,10 +42,13 @@
   const esVet = () => S.perfil && S.perfil.rol === 'veterinario';
   const aliasPersonal = () => new Set(Object.values(S.nombres).filter((p) => p.rol !== 'alumno' && p.alias).map((p) => p.alias).concat(S.perfil ? [S.perfil.alias] : []));
   // Los alias y nombres de los alumnos solo los ve el administrador; cada uno ve los suyos.
-  const verAlias = (alias, cursoN) => (esAdmin() || !alias || aliasPersonal().has(alias) ? alias : `un alumno${cursoN ? ` de ${cursoN}.º` : ''}`);
+  // Para el administrador: «Nombre (ALIAS)» si el alumno tiene nombre puesto
+  const conNombre = (alias, cursoN) => { if (!alias) return alias; const l = Object.values(S.nombres).filter((x) => x.alias === alias && x.nombre);
+    const p = l.find((x) => cursoN && x.granja_id === Number(cursoN)) || l[0]; return p ? `${p.nombre} (${alias})` : alias; };
+  const verAlias = (alias, cursoN) => (esAdmin() ? conNombre(alias, cursoN) : !alias || aliasPersonal().has(alias) ? alias : `un alumno${cursoN ? ` de ${cursoN}.º` : ''}`);
   const quienEs = (userId, alias, cursoN) => { const p = S.nombres[userId];
     if (!esAdmin() && (!p || p.rol === 'alumno')) return verAlias(alias, cursoN || (p && p.granja_id)) || '?';
-    return p && p.nombre ? `${p.nombre} (${p.alias})` : (alias || (p && p.alias) || '?'); };
+    return p && p.nombre ? `${p.nombre} (${p.alias})` : (esAdmin() ? conNombre(alias) : alias) || (p && p.alias) || '?'; };
   const curso = (g) => (g ? `${g}.º` : 'profesor');
   const animal = (id) => S.animales.find((a) => a.id === id);
   const activos = () => S.animales.filter((a) => !a.fecha_baja);
@@ -306,7 +309,7 @@
   }
   function listaRepetidas() {
     const crot = {}; for (const x of (S.porcRaw ? S.porcRaw.cerdas.concat(S.porcRaw.verracos) : [])) crot[x.id] = x.crotal;
-    const nombres = { evento: (e) => nombreEvento(e), animal: (id) => nombreA(animal(id)), eventoPorc: (e) => TIPOS_PORC[e.tipo] || e.tipo, cerda: (id) => `Cerda ${crot[id] || '?'}`, verraco: (id) => `Verraco ${crot[id] || '?'}` };
+    const nombres = { alias: verAlias, evento: (e) => nombreEvento(e), animal: (id) => nombreA(animal(id)), eventoPorc: (e) => TIPOS_PORC[e.tipo] || e.tipo, cerda: (id) => `Cerda ${crot[id] || '?'}`, verraco: (id) => `Verraco ${crot[id] || '?'}` };
     return Comun.repetidas({ eventos: S.eventos, sanidad: S.sanidad, manejo: S.manejo }, S.porcRaw, { rumi: '', porc: 'porc/' }, nombres).filter((x) => !(S.descartados || new Set()).has(x.clave));
   }
   // ---------------------------------------------------------------- tres granjas: elegir y pasar a MADRE
@@ -516,14 +519,14 @@
     pintar(`${cabecera({ comun: true, volver: '#/admin', textoVolver: 'Administrador', titulo: 'Historial de actividad', sub: 'Solo lo ves tú' })}
       <main class="cuerpo">
         <div class="dos"><div class="campo"><label for="h-desde">Desde</label><input id="h-desde" type="date" value="${F.desde}"></div><div class="campo"><label for="h-hasta">Hasta</label><input id="h-hasta" type="date" value="${F.hasta}" max="${hoy()}"></div></div>
-        <div class="dos"><div class="campo"><label for="h-alias">Persona</label><select id="h-alias"><option value="">Todas</option><option value="curso:1" ${F.alias === 'curso:1' ? 'selected' : ''}>Todo 1.º (alumnos)</option><option value="curso:2" ${F.alias === 'curso:2' ? 'selected' : ''}>Todo 2.º (alumnos)</option>${alias.map((a) => `<option ${F.alias === a ? 'selected' : ''}>${esc(a)}</option>`).join('')}</select></div>
+        <div class="dos"><div class="campo"><label for="h-alias">Persona</label><select id="h-alias"><option value="">Todas</option><option value="curso:1" ${F.alias === 'curso:1' ? 'selected' : ''}>Todo 1.º (alumnos)</option><option value="curso:2" ${F.alias === 'curso:2' ? 'selected' : ''}>Todo 2.º (alumnos)</option>${alias.map((a) => `<option value="${esc(a)}" ${F.alias === a ? 'selected' : ''}>${esc(verAlias(a))}</option>`).join('')}</select></div>
           <div class="campo"><label for="h-acc">Qué</label><select id="h-acc"><option value="">Todo</option>${Object.entries(ACC_HIST).map(([k, [t]]) => `<option value="${k}" ${F.accion === k ? 'selected' : ''}>${t}</option>`).join('')}</select></div></div>
         ${usoR.error ? '<div class="aviso-caja">Para ver el tiempo en la app, ejecuta en Supabase <strong>sql/25_tiempo_en_app.sql</strong>.</div>' : ''}
         <section class="tarjeta"><h2>Resumen por persona</h2>${filas.length ? `<div class="tabla-scroll"><table class="tabla"><thead><tr><th>Persona</th><th>Entradas</th><th>Añadió</th><th>Cambió</th><th>Borró</th>${usoR.error ? '' : '<th>Tiempo en la app</th>'}<th>Última vez</th></tr></thead><tbody>
-          ${filas.map((r) => `<tr><td><button type="button" class="enlace-boton" data-ver="${esc(r.alias)}"><strong>${esc(r.alias)}</strong></button> <span class="suave peq">${quien(r)}</span></td><td>${r.entrar}</td><td>${r.alta}</td><td>${r.cambio}</td><td>${r.borrado}</td>${usoR.error ? '' : `<td>${r.rol === 'alumno' ? Comun.fmtMin(minDe[r.alias] || 0) : ''}</td>`}<td class="peq">${r.ultima ? fh(r.ultima) : ''}</td></tr>`).join('')}</tbody></table></div>`
+          ${filas.map((r) => `<tr><td><button type="button" class="enlace-boton" data-ver="${esc(r.alias)}"><strong>${esc(verAlias(r.alias, r.curso))}</strong></button> <span class="suave peq">${quien(r)}</span></td><td>${r.entrar}</td><td>${r.alta}</td><td>${r.cambio}</td><td>${r.borrado}</td>${usoR.error ? '' : `<td>${r.rol === 'alumno' ? Comun.fmtMin(minDe[r.alias] || 0) : ''}</td>`}<td class="peq">${r.ultima ? fh(r.ultima) : ''}</td></tr>`).join('')}</tbody></table></div>`
           : '<div class="suave">Nada en estas fechas.</div>'}</section>
         <section class="tarjeta"><h2>Detalle (${data.length}${data.length === 3000 ? ', los 3000 más recientes' : ''})</h2>
-          ${data.slice(0, 500).map((h) => `<div class="evento"><div class="entre"><strong>${esc(h.alias || '?')}</strong><span class="chip ${ACC_HIST[h.accion][1]}">${ACC_HIST[h.accion][0]}</span></div>
+          ${data.slice(0, 500).map((h) => `<div class="evento"><div class="entre"><strong>${esc(verAlias(h.alias, h.curso) || '?')}</strong><span class="chip ${ACC_HIST[h.accion][1]}">${ACC_HIST[h.accion][0]}</span></div>
             <div class="peq">${esc(queHist(h))}</div><div class="suave peq">${fh(h.creado)}</div></div>`).join('') || '<div class="suave">Nada en estas fechas.</div>'}
           ${data.length > 500 ? '<div class="suave peq">Se muestran los 500 más recientes. Acota las fechas o elige una persona para ver el resto.</div>' : ''}</section>
       </main>${navegacion('admin')}`);
