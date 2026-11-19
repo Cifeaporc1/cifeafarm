@@ -1049,7 +1049,7 @@
     return `<g aria-hidden="true">${out}</g>`;
   }
   // Corrales de cebo con el bebedero más bajo (para cerdos más pequeños). Números del 1 al 24.
-  const BEBEDERO_BAJO = [];
+  const BEBEDERO_BAJO = [1, 3, 6, 9, 17, 19];
   // Mientras se dibuja el plano: animales que se pueden arrastrar y corrales donde soltarlos (coordenadas del dibujo)
   let REG_PLANO = null;
   // Texto de la zona de una rotura → clave del corral o de la zona en el plano
@@ -1103,7 +1103,7 @@
     const caja = (x, y, w, h, extra = '', clave = '') => {
       const cl = rotDe(clave);
       if (clave) REG_PLANO.dest.push({ clave, x, y, w, h });
-      return `<rect class="corral ${extra} ${cl}" x="${x}" y="${y}" width="${w}" height="${h}"/>${marcaRot(cl, x + w - 10, y + 10)}`;
+      return `<rect class="corral ${extra} ${cl}" x="${x}" y="${y}" width="${w}" height="${h}"/>${w >= 50 ? marcaRot(cl, x + w - 10, y + 10) : ''}`; // en corrales estrechos (cebo) basta el color: el «!» taparía el número
     };
     const grupo = (z, k, est, x, y, w, h, n) => { if (n > 0) REG_PLANO.items.push({ tipo: 'grupo', z, k, est, x, y, w, h, nombre: `${n} en ${est}` }); };
     const num = (x, y, t, cls = 'num') => `<text x="${x}" y="${y}" class="${cls}" text-anchor="middle">${t}</text>`;
