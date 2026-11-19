@@ -302,3 +302,5 @@ html[data-granja="archivo"] { --verde: #5E6460; --verde-osc: #3F4441; --verde-cl
 .plano .destino-plano { fill: rgba(47, 107, 79, .25); stroke: #2F6B4F; stroke-width: 5; pointer-events: none; }
 .plano .origen-plano { fill: none; stroke: #C8641E; stroke-width: 4; stroke-dasharray: 8 5; pointer-events: none; }
 .plano .fantasma { opacity: .9; pointer-events: none; }
+/* 0.23.4 · Si un corral con bebedero bajo tiene rotura: fondo azul y borde de rotura (se ven las dos cosas) */
+.plano .corral.bajo.rot { fill: #D6E8F7; stroke-width: 5; }
