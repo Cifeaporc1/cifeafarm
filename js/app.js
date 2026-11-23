@@ -381,29 +381,46 @@
       cambiado: [['actualizar', 'Actualizar MADRE'], ['descartar', 'Dejar MADRE como está']], borrado: [['borrar', 'Borrar también en MADRE'], ['olvidar', 'Mantener en MADRE']] };
     const opciones = (x) => OPC[x.estado === 'nuevo' && x.duplicado ? 'dup' : x.estado];
     const grupos = [[1, 'GRANJA 1.º'], [2, 'GRANJA 2.º']];
+    // Qué entra al pulsar «Aplicar»: solo lo marcado. Lo no marcado sigue pendiente para otro día (no se descarta).
+    const idsPend = new Set(lista.map((x) => x.id));
+    const sel = S.madreSel = new Set([...(S.madreSel || [])].filter((i) => idsPend.has(i)));
+    const personas = {}; for (const x of lista) { const k = `${x.granja}|${x.autor_alias || ''}`; personas[k] = (personas[k] || 0) + 1; }
+    const nomPersona = (k) => { const [g, al] = k.split('|'); return `${al ? verAlias(al, g) || al : 'Sin autor'} · ${g}.º`; };
     pintar(`${cab}<main class="cuerpo" id="madre"><div id="msg"></div>
-      ${lista.length ? `<div class="suave">Revisa lo que han metido los cursos y decide qué pasa a la GRANJA MADRE. Lo que no pases seguirá en la granja del curso. Lo que la app cree que ya existe en MADRE (mismo animal, tipo y fecha) se propone unir, sin duplicarlo.</div>
-        <div class="botones"><button class="btn" type="button" id="b-aplicar">Aplicar lo marcado (${lista.length})</button></div>` : '<div class="vacio">No hay nada pendiente: MADRE está al día con lo de los cursos. 👍</div>'}
+      ${lista.length ? `<div class="suave">Marca lo que quieres llevar a la GRANJA MADRE y pulsa «Aplicar lo marcado». Lo que no marques se queda pendiente para otro día. Lo que la app cree que ya existe en MADRE (mismo animal, tipo y fecha) se propone unir, sin duplicarlo.</div>
+        <section class="tarjeta"><h2>Marcar</h2>
+          <div class="botones">${grupos.filter(([g]) => lista.some((x) => x.granja === g)).map(([g]) => `<button class="btn sec peq" type="button" data-todo="${g}">Todo ${g}.º (${lista.filter((x) => x.granja === g).length})</button>`).join('')}
+            <button class="btn sec peq" type="button" id="b-desmarcar">Quitar marcas</button></div>
+          <div class="campo"><label for="m-persona">Lo de una persona</label><select id="m-persona"><option value="">Elige alumno o profesor…</option>${Object.keys(personas).sort((a, b) => a.localeCompare(b, 'es', { numeric: true })).map((k) => `<option value="${esc(k)}">${esc(nomPersona(k))} (${personas[k]})</option>`).join('')}</select></div>
+          <div class="suave peq">Al marcar a una persona se añade a lo que ya estuviera marcado.</div></section>
+        <div class="botones"><button class="btn" type="button" id="b-aplicar" ${sel.size ? '' : 'disabled'}>Aplicar lo marcado (${sel.size} de ${lista.length})</button></div>` : '<div class="vacio">No hay nada pendiente: MADRE está al día con lo de los cursos. 👍</div>'}
       ${grupos.map(([g, n]) => { const l = lista.filter((x) => x.granja === g); if (!l.length) return '';
         const est = { nuevo: 'Nuevos', cambiado: 'Cambiados después de pasarlos', borrado: 'Borrados en el curso después de pasarlos' };
-        return `<section class="tarjeta"><div class="entre"><h2>${n} (${l.length})</h2><button class="btn sec peq" type="button" data-todo="${g}">Pasar todo lo de ${n}</button></div>
-          ${Object.entries(est).map(([k, t]) => { const ll = l.filter((x) => x.estado === k); return ll.length ? `<h3 class="peq" style="margin:10px 0 4px">${t} (${ll.length})</h3>${ll.map((x) => `<div class="evento" data-item="${x.id}">
-            <div class="entre"><strong>${esc(TABLAS_MADRE[x.tabla] || x.tabla)}</strong><span class="suave peq">${x.fecha ? esc(fmt(x.fecha)) : ''}</span></div>
+        return `<section class="tarjeta"><div class="entre"><h2>${n} (${l.length})</h2></div>
+          ${Object.entries(est).map(([k, t]) => { const ll = l.filter((x) => x.estado === k); return ll.length ? `<h3 class="peq" style="margin:10px 0 4px">${t} (${ll.length})</h3>${ll.map((x) => `<div class="evento madre-item ${sel.has(x.id) ? '' : 'fuera'}" data-item="${x.id}">
+            <div class="entre"><label class="madre-marca"><input type="checkbox" data-incl="${x.id}" ${sel.has(x.id) ? 'checked' : ''}> <strong>${esc(TABLAS_MADRE[x.tabla] || x.tabla)}</strong></label><span class="suave peq">${x.fecha ? esc(fmt(x.fecha)) : ''}</span></div>
             <div class="peq">${esc(resumenPendiente(x)) || '—'}${x.duplicado ? ' <span class="chip nar">Ya existe en MADRE</span>' : ''}</div>
             <div class="suave peq">${x.autor_alias ? `Lo metió ${esc(verAlias(x.autor_alias, x.curso || x.granja) || x.autor_alias)}` : ''}</div>
             <div class="opciones">${opciones(x).map(([a, t]) => `<label><input type="radio" name="d-${x.id}" value="${a}" ${accionPor(x) === a ? 'checked' : ''}> ${t}</label>`).join('')}</div></div>`).join('')}` : ''; }).join('')}</section>`; }).join('')}
       ${[1, 2].map((g) => `<button class="btn sec peq" type="button" data-traer="${g}">Traer el censo de MADRE a ${Comun.GRANJAS[g].nombre}</button>`).join('')}
       <div class="suave peq">«Traer el censo» copia a la granja del curso las altas y bajas de animales de MADRE (sin su historia), para que no se alejen de la granja real.</div></main>${navegacion('granjas')}`);
     $app.querySelectorAll('input[type=radio][name^="d-"]').forEach((i) => i.addEventListener('change', () => { decision[i.name.slice(2)] = i.value; }));
-    $app.querySelectorAll('[data-todo]').forEach((b) => b.addEventListener('click', () => { const g = +b.dataset.todo; for (const x of lista.filter((y) => y.granja === g)) { const o = opciones(x)[0][0]; decision[x.id] = o; const i = $app.querySelector(`input[name="d-${x.id}"][value="${o}"]`); if (i) i.checked = true; } toast('Marcado: pasar todo'); }));
     const ba = document.getElementById('b-aplicar');
+    const refrescar = () => { $app.querySelectorAll('[data-incl]').forEach((c) => { c.checked = sel.has(c.dataset.incl); c.closest('.madre-item').classList.toggle('fuera', !c.checked); });
+      if (ba) { ba.disabled = !sel.size; ba.textContent = `Aplicar lo marcado (${sel.size} de ${lista.length})`; } };
+    const marcar = (l) => { for (const x of l) sel.add(x.id); refrescar(); toast(`Marcados ${l.length}`); };
+    $app.querySelectorAll('[data-incl]').forEach((c) => c.addEventListener('change', () => { if (c.checked) sel.add(c.dataset.incl); else sel.delete(c.dataset.incl); refrescar(); }));
+    $app.querySelectorAll('[data-todo]').forEach((b) => b.addEventListener('click', () => marcar(lista.filter((y) => y.granja === +b.dataset.todo))));
+    const bq = document.getElementById('b-desmarcar'); if (bq) bq.addEventListener('click', () => { sel.clear(); refrescar(); });
+    const mp = document.getElementById('m-persona'); if (mp) mp.addEventListener('change', () => { if (!mp.value) return; marcar(lista.filter((x) => `${x.granja}|${x.autor_alias || ''}` === mp.value)); mp.value = ''; });
     if (ba) ba.addEventListener('click', async () => {
       ba.disabled = true; ba.textContent = 'Aplicando…';
-      const items = lista.map((x) => ({ tabla: x.tabla, granja: x.granja, id: x.id, fecha: x.fecha, accion: accionPor(x) }));
+      const items = lista.filter((x) => sel.has(x.id)).map((x) => ({ tabla: x.tabla, granja: x.granja, id: x.id, fecha: x.fecha, accion: accionPor(x) }));
+      if (!items.length) { ba.disabled = false; return; }
       const res = await sb.rpc('pasar_madre', { items });
-      if (res.error) { ba.disabled = false; ba.textContent = 'Aplicar lo marcado'; document.getElementById('msg').innerHTML = errorCaja(traducirError(res.error)); return; }
+      if (res.error) { ba.disabled = false; ba.textContent = `Aplicar lo marcado (${sel.size} de ${lista.length})`; document.getElementById('msg').innerHTML = errorCaja(traducirError(res.error)); return; }
       const mal = (res.data || []).filter((x) => !x.ok);
-      S.decisiones = {};
+      S.decisiones = {}; S.madreSel = new Set();
       const ok = (res.data || []).length - mal.length;
       await vistaMadre();
       document.getElementById('msg').innerHTML = `<div class="ok-caja" role="status">${ok} registro${ok === 1 ? '' : 's'} aplicado${ok === 1 ? '' : 's'}.</div>${mal.length ? errorCaja(`${mal.length} no se ha${mal.length === 1 ? '' : 'n'} podido pasar: ${[...new Set(mal.map((x) => x.error))].slice(0, 3).join(' · ')}`) : ''}`;

@@ -253,3 +253,10 @@ No hay que ejecutar nada en Supabase.
 5. El tiempo solo lo ves tú (administrador); los alumnos no lo ven, ni el suyo.
 
 **Historial de actividad (0.23.2):** Administrador → Historial de actividad → en «Persona» elige «Todo 1.º (alumnos)» o «Todo 2.º (alumnos)» para ver el curso completo. En el resumen por persona sale también la columna «Tiempo en la app» (con el SQL 25 ejecutado).
+
+## 33. Pasar a MADRE marcando por curso o por persona (0.24.0)
+
+No hay que ejecutar nada en Supabase.
+- En «Pasar a MADRE» cada registro tiene una casilla. **Solo se pasa lo marcado**; lo que no marques se queda pendiente para otro día (no se pierde ni se descarta).
+- Para marcar de golpe: «Todo 1.º», «Todo 2.º», o elige a un alumno en «Lo de una persona». Se pueden combinar (por ejemplo, dos alumnos). «Quitar marcas» lo deja todo sin marcar.
+- Dentro de cada registro marcado sigues eligiendo qué hacer (Pasar, No pasar, Actualizar…). Ojo: «No pasar» en un registro marcado lo descarta para siempre.
