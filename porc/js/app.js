@@ -399,7 +399,7 @@
       const fila = (x, tipo) => `<a class="cerda-fila" href="#/${tipo}/${x.id}"><div><strong>${esc(x.crotal)}</strong><div class="suave">${tipo === 'cerda' ? 'Cerda' : 'Verraco'} · baja ${fmt(x.fecha_baja)} · ${esc(x.causa_baja || '')}</div></div><span class="chip gris">Baja</span></a>`;
       cuerpo = `<a class="btn sec peq" href="#/censo/historial">Historial de altas y bajas</a>
         <section class="tarjeta"><h2>Cerdas y verracos dados de baja (${bc.length + bv.length})</h2>${[...bc.map((x) => fila(x, 'cerda')), ...bv.map((x) => fila(x, 'verraco'))].join('') || '<div class="suave">Ninguno.</div>'}</section>
-        <section class="tarjeta"><h2>Lechones y cebo: muertes, ventas y matadero</h2>${bg.map((m) => `<div class="evento"><div class="entre"><strong>${esc(TIPOS_MOVG[m.tipo] || m.tipo)} · ${m.n}</strong><span class="suave">${fmt(m.fecha)}</span></div><div class="suave peq">${esc(m.origen || '')}${m.causa ? ` · ${esc(m.causa)}` : ''}</div></div>`).join('') || '<div class="suave">Ninguna.</div>'}</section>`;
+        <section class="tarjeta"><h2>Lechones y cebo: muertes, ventas y matadero</h2>${bg.map((m) => `<div class="evento"><div class="entre"><strong>${esc(TIPOS_MOVG[m.tipo] || m.tipo)} · ${m.n}${m.hembras != null ? ` (${m.hembras} H · ${m.machos} M)` : ''}</strong><span class="suave">${fmt(m.fecha)}</span></div><div class="suave peq">${esc(m.origen || '')}${m.causa ? ` · ${esc(m.causa)}` : ''}</div></div>`).join('') || '<div class="suave">Ninguna.</div>'}</section>`;
     }
     pintar(`${cabecera()}
       <main class="cuerpo">
@@ -559,7 +559,7 @@
       case 'paridera': return `Sala ${esc(d.sala)} · paridera ${esc(d.plaza)}`;
       case 'parto': { const ss = d.vivos_ss !== undefined; return `Vivos ${(+d.vivos_h || 0) + (+d.vivos_m || 0) + (+d.vivos_ss || 0)}${ss ? '' : ` (${+d.vivos_h || 0} H, ${+d.vivos_m || 0} M)`} · muertos ${(+d.muertos_h || 0) + (+d.muertos_m || 0) + (+d.muertos_ss || 0)}${ss ? '' : ` · momias ${+d.momificados || 0}`}`; }
       case 'adopcion': return `${d.sentido === 'entra' ? 'Recibe' : 'Cede'} ${esc(d.numero)} lechones ${d.sentido === 'entra' ? 'de' : 'a'} ${esc(d.otra_crotal || '?')}`;
-      case 'baja_lechones': return `${esc(d.numero)} lechones · ${esc(d.causa === 'Otros' ? d.causa_otra || 'Otros' : d.causa)}`;
+      case 'baja_lechones': return `${esc(d.numero)} lechones${d.numero_h !== undefined ? ` (${+d.numero_h || 0} H, ${+d.numero_m || 0} M)` : ''} · ${esc(d.causa === 'Otros' ? d.causa_otra || 'Otros' : d.causa)}`;
       case 'destete': return d.destetados_ss !== undefined ? `Destetados ${+d.destetados_ss || 0}` : `Destetados ${(+d.destetados_h || 0) + (+d.destetados_m || 0)} (${+d.destetados_h || 0} H, ${+d.destetados_m || 0} M) · lechonera ${esc(d.lechonera)}`;
       case 'traslado': return esc(d.ubicacion || '');
       case 'aborto': return 'Fin de la gestación sin parto';
@@ -611,6 +611,17 @@
       </tbody></table></div></section>`;
   }
 
+  // Anular una baja hecha por error: el animal vuelve al censo (cualquiera en su granja; SQL 20)
+  function engancharAnularBaja(tipo, id) {
+    const b = $app.querySelector(`[data-anular-baja="${tipo}"]`); if (!b) return;
+    b.addEventListener('click', async () => {
+      if (b.dataset.confirmar !== '1') { b.dataset.confirmar = '1'; b.textContent = '¿Seguro? Vuelve al censo. Pulsa otra vez'; return; }
+      b.disabled = true;
+      const { error } = await sb.from(tipo === 'cerda' ? 'cerdas' : 'verracos').update({ fecha_baja: null, causa_baja: null }).eq('id', id);
+      if (error) { b.disabled = false; return toast(traducirError(error)); }
+      toast('Baja anulada: vuelve a estar de alta'); await refrescar(); render();
+    });
+  }
   function vistaFicha(id) {
     const c = cerdaPorId(id);
     if (!c) return vistaNoEncontrado();
@@ -628,7 +639,7 @@
     else if (est.fase === 'paridera' && f.ia) fechas = datoPar('Parto probable', corta(f.parto), (() => { const x = L.dias(h, f.parto); return x > 1 ? `Faltan ${x} días` : x === 1 ? 'Mañana' : x === 0 ? 'Hoy' : `Pasado ${-x} ${x === -1 ? 'día' : 'días'}`; })(), true, 'Ubicación', esc(est.ubicacion || '—').replace('Partos · ', ''), '');
     else if (est.fase === 'lactante' && cur && cur.parto) {
       const cm = L.camada(cur);
-      fechas = datoPar('Destete previsto', corta(L.sumarDias(cur.parto.fecha, L.REF.lactacion)), `${L.dias(cur.parto.fecha, h)} días de lactación`, true, 'Lechones ahora', String(cm.actuales), `${cm.vivos} vivos${cm.entran ? ` +${cm.entran}` : ''}${cm.salen ? ` −${cm.salen}` : ''}${cm.bajas ? ` −${cm.bajas} bajas` : ''}`);
+      fechas = datoPar('Destete previsto', corta(L.sumarDias(cur.parto.fecha, L.REF.lactacion)), `${L.dias(cur.parto.fecha, h)} días de lactación`, true, 'Lechones ahora', String(cm.actuales), `${cm.ahoraH != null ? `<strong>${cm.ahoraH} hembras · ${cm.ahoraM} machos</strong><br>` : `nacieron ${cm.vivosH} H · ${cm.vivosM} M<br>`}${cm.vivos} vivos${cm.entran ? ` +${cm.entran}` : ''}${cm.salen ? ` −${cm.salen}` : ''}${cm.bajas ? ` −${cm.bajas} bajas` : ''}`);
     } else if (est.fase === 'destetada' && est.ultimoDestete) {
       const dd = L.dias(est.ultimoDestete.fecha, h);
       fechas = `<div class="${dd > L.REF.idcMax ? 'aviso-caja' : 'ok-caja'}">Destetada hace ${dd} días · cubrición de referencia a los ${L.REF.idcMin}–${L.REF.idcMax} días.</div>`;
@@ -653,7 +664,7 @@
     const partos = conParto.map((x) => {
       const cm = L.camada(x); const ix = L.indicesCiclo(x);
       const dest = cm.destetados;
-      return `<tr><td><strong>${x.numParto}.º</strong></td><td>${x.parto.fecha.slice(8)}/${x.parto.fecha.slice(5, 7)}/${x.parto.fecha.slice(2, 4)}</td><td>${cm.vivos} / ${cm.muertos} / ${cm.momias}</td>
+      return `<tr><td><strong>${x.numParto}.º</strong></td><td>${x.parto.fecha.slice(8)}/${x.parto.fecha.slice(5, 7)}/${x.parto.fecha.slice(2, 4)}</td><td>${cm.vivos} <span class="suave peq">(${cm.vivosH} H · ${cm.vivosM} M)</span> / ${cm.muertos} / ${cm.momias}</td>
         <td>${dest === null ? '—' : `<span class="chip ${dest < L.REF.destetadosMin || dest > L.REF.destetadosMax ? 'nar' : ''}">${dest}</span>`}</td>
         <td>${ix.gestacion ?? '—'}</td><td>${ix.lactacion ?? '—'}</td></tr>`;
     }).join('');
@@ -675,6 +686,7 @@
     pintar(`${cabecera({ volver: '#/cerdas', textoVolver: 'Cerdas', titulo: c.crotal, otros: c.otros_crotales || [], sub: `${esc(c.raza)} · ${est.partos} ${est.partos === 1 ? 'parto' : 'partos'} · <strong>${faseNombre(est.fase)}${est.ubicacion ? ` · ${esc(est.ubicacion)}` : ''}</strong>` })}
       <main class="cuerpo">
         ${navFichas}
+        ${c.fecha_baja ? `<div class="aviso-caja"><strong>Dada de baja</strong> el ${fmt(c.fecha_baja)} · ${esc(c.causa_baja || '')}${c.baja_por ? ` · por ${esc(verAlias(c.baja_por) || c.baja_por)}` : ''}<div class="botones"><button class="btn sec peq" type="button" data-anular-baja="cerda">Anular la baja (darla otra vez de alta)</button></div></div>` : ''}
         <div class="foto"><img src="img/hembra.jpg" alt="Cerda chata murciana"></div>
         <section class="tarjeta" aria-label="Fase del ciclo"><div class="suave peq" style="font-weight:700">FASE DEL CICLO</div>
           <div class="ciclo">${L.FASES.map((x, i) => `<div class="${i < idx ? 'hecho' : i === idx ? 'ahora' : ''}"><i></i>${x.nombre.replace('Inseminada', 'Insemi\u00ADnada')}</div>`).join('')}</div></section>
@@ -704,6 +716,7 @@
       </main>${navegacion('cerdas')}`);
 
     $app.querySelectorAll('[data-borrar]').forEach((b) => b.addEventListener('click', () => confirmarBorrado(b, id)));
+    engancharAnularBaja('cerda', id);
   }
 
   function datoPar(et1, v1, n1, nar, et2, v2, n2) {
@@ -775,7 +788,8 @@
     },
     baja_lechones: {
       nombre: 'Baja de lechones',
-      campos: [F.fecha, { n: 'numero', t: 'contador', l: 'Número de lechones' },
+      campos: [F.fecha, { grupo: 'Lechones dados de baja', campos: [{ n: 'numero_h', t: 'contador', l: 'Hembras' }, { n: 'numero_m', t: 'contador', l: 'Machos' },
+          { n: 'numero_ss', t: 'contador', l: 'Sin sexo anotado (registros antiguos)', si: (v) => +v.numero_ss > 0 }] },
         { n: 'causa', t: 'select', l: 'Causa', op: [['', 'Elige…'], ...L.CAUSAS_BAJA.map((x) => [x, x])] },
         { n: 'causa_otra', t: 'text', l: 'Escribe la causa', si: (v) => v.causa === 'Otros' }, F.obs],
       ubicacion: () => null,
@@ -822,6 +836,7 @@
     });
     recorrer(TIPOS[tipo].campos);
     if (evento) { Object.assign(v, evento.datos || {}); v.fecha = evento.fecha; }
+    if (tipo === 'baja_lechones' && evento && evento.datos && evento.datos.numero_h === undefined) v.numero_ss = String(+evento.datos.numero || 0); // anterior a 0.25.0
     return v;
   }
 
@@ -932,6 +947,7 @@
   async function guardarEvento(c, tipo, evento) {
     const T = TIPOS[tipo];
     const v = S.borrador.v;
+    if (tipo === 'baja_lechones') v.numero = String((parseInt(v.numero_h, 10) || 0) + (parseInt(v.numero_m, 10) || 0) + (parseInt(v.numero_ss, 10) || 0));
     const propios = (S.porCerda[c.id] || []).filter((e) => !evento || e.id !== evento.id);
     const est = L.estadoCerda(propios);
     const destino = T.ubicacion(v);
@@ -952,6 +968,7 @@
     const datos = {};
     const recorrer = (cs) => cs.forEach((x) => { if (x.grupo) return recorrer(x.campos); if (x.n !== 'fecha' && (!x.si || x.si(v))) datos[x.n] = x.t === 'contador' ? Math.max(0, parseInt(v[x.n], 10) || 0) : v[x.n]; });
     recorrer(T.campos);
+    if (tipo === 'baja_lechones') { datos.numero = +v.numero; if (!datos.numero_ss) delete datos.numero_ss; }
     if (destino) datos.ubicacion = destino;
     if (tipo === 'destete' && datos.lechonera === 'paridera') {
       const s = L.sitioPlano(est.ubicacion);
@@ -1401,7 +1418,7 @@
       if (r._t === 'recuento') txt = `<strong>Recuento: ${r.n}</strong>`;
       else if (r.tipo === 'entrada') txt = `<strong>Entrada +${r.n}</strong>${r.procedencia ? ` · ${esc(r.procedencia)}` : ''}`;
       else if (r.tipo === 'traslado') txt = r.destino === est ? `<strong>Llegan +${r.n}</strong> de ${esc(r.origen)}` : `<strong>Salen −${r.n}</strong> a ${esc(r.destino)}`;
-      else txt = `<strong>${TIPOS_MOVG[r.tipo]} −${r.n}</strong>${r.causa ? ` · ${esc(r.causa)}` : ''}`;
+      else txt = `<strong>${TIPOS_MOVG[r.tipo]} −${r.n}</strong>${r.hembras != null ? ` (${r.hembras} H · ${r.machos} M)` : ''}${r.causa ? ` · ${esc(r.causa)}` : ''}`;
       const cuenta = r._t === 'mov' && G.recuento && !(r.fecha > G.recuento.fecha || (r.fecha === G.recuento.fecha && String(r.creado) > String(G.recuento.creado)));
       return `<div class="evento"><div class="entre"><span>${txt}</span><span class="suave">${fmt(r.fecha)}</span></div>
         <div class="suave peq">Por ${esc(quienEs(r.autor, r.autor_alias))}${cuenta ? ' · anterior al último recuento (ya incluido en él)' : ''}${r.obs ? ` · ${esc(r.obs)}` : ''}</div>
@@ -1447,6 +1464,9 @@
         ${tipo !== 'entrada' ? `<div class="campo"><label for="g-origen">${tipo === 'traslado' ? 'Salen de' : 'De'}</label><select id="g-origen" name="origen"><option value="">Elige…</option>${opEst(v.origen)}</select></div>` : ''}
         ${['entrada', 'traslado'].includes(tipo) ? `<div class="campo"><label for="g-destino">${tipo === 'traslado' ? 'Van a' : 'Entran en'}</label><select id="g-destino" name="destino"><option value="">Elige…</option>${opEst(v.destino, (e) => e !== v.origen && !e.startsWith('Paridera') && (hacia !== 'lechonera' || e.startsWith('Lechonera')) && (hacia !== 'cebadero' || e.startsWith('Cebadero')))}</select></div>` : ''}
         <div class="campo"><label for="g-n">Número de animales</label><input id="g-n" name="n" type="number" inputmode="numeric" min="1" max="200" value="${esc(v.n)}"></div>
+        ${['muerte', 'venta'].includes(tipo) ? `<fieldset><legend>Sexo <span class="suave">(si lo sabes; entre los dos, el número de animales)</span></legend><div class="dos">
+          <div class="campo"><label for="g-h">Hembras</label><input id="g-h" name="hembras" type="number" inputmode="numeric" min="0" max="200" value="${esc(v.hembras || '')}"></div>
+          <div class="campo"><label for="g-m">Machos</label><input id="g-m" name="machos" type="number" inputmode="numeric" min="0" max="200" value="${esc(v.machos || '')}"></div></div></fieldset>` : ''}
         ${tipo === 'entrada' ? `<div class="campo"><label for="g-proc">Procedencia</label><select id="g-proc" name="procedencia">${['Otra granja del centro', 'Compra', 'Otro'].map((o) => `<option ${v.procedencia === o ? 'selected' : ''}>${o}</option>`).join('')}</select><span class="ayuda">Los lechones destetados se suman solos a su lechonera al registrar el destete: no hace falta apuntarlos aquí.</span></div>` : ''}
         ${tipo === 'muerte' ? `<div class="campo"><label for="g-causa">Causa</label><select id="g-causa" name="causa"><option value="">Elige…</option>${L.CAUSAS_CEBO.map((c) => `<option ${v.causa === c ? 'selected' : ''}>${c}</option>`).join('')}</select></div>
           ${v.causa === 'Otros' ? `<div class="campo"><label for="g-co">Escribe la causa</label><input id="g-co" name="causa_otra" type="text" value="${esc(v.causa_otra)}"></div>` : ''}` : ''}
@@ -1461,11 +1481,15 @@
     form.addEventListener('submit', async (ev) => {
       ev.preventDefault(); leer(); const msj = document.getElementById('mensajes');
       const comp = L.comprobarMovGrupo(v, G, { hoy: hoy() });
+      const conSexo = ['muerte', 'venta', 'matadero'].includes(v.tipo) && (v.hembras || v.machos);
+      if (conSexo && (parseInt(v.hembras, 10) || 0) + (parseInt(v.machos, 10) || 0) !== parseInt(v.n, 10)) comp.errores.push('Hembras y machos tienen que sumar el número de animales (o deja los dos en blanco).');
       if (comp.errores.length) { msj.innerHTML = `<div class="error-caja" role="alert">${comp.errores.map(esc).join('<br>')}</div>`; return; }
       if (comp.avisos.length && !S.borrador.confirmado) { S.borrador.confirmado = true; msj.innerHTML = `<div class="aviso-caja" role="alert">${comp.avisos.map(esc).join('<br>')}<br><br>Si es correcto, pulsa otra vez <strong>Guardar</strong>.</div>`; return; }
       const fila = { granja_id: S.granja, fecha: v.fecha, tipo: v.tipo, n: parseInt(v.n, 10), origen: v.tipo === 'entrada' ? null : v.origen, destino: ['entrada', 'traslado'].includes(v.tipo) ? v.destino : null,
         procedencia: v.tipo === 'entrada' ? v.procedencia : null, causa: v.tipo === 'muerte' ? (v.causa === 'Otros' ? v.causa_otra : v.causa) : null, obs: v.obs || null };
+      if (conSexo) { fila.hembras = parseInt(v.hembras, 10) || 0; fila.machos = parseInt(v.machos, 10) || 0; }
       const { error } = await sb.from('mov_grupos').insert(fila);
+      if (error && conSexo && /hembras|machos/.test(error.message || '')) { msj.innerHTML = `<div class="error-caja" role="alert">${esProf() ? 'Para guardar el sexo, ejecuta en Supabase sql/26_sexo_bajas_lechones.sql.' : 'Aún no se puede guardar el sexo (falta preparar la base de datos): deja hembras y machos en blanco y avisa al profesor.'}</div>`; return; }
       if (error) { msj.innerHTML = `<div class="error-caja" role="alert">${esc(traducirError(error))}</div>`; return; }
       S.borrador = { filtro: S.borrador.filtro, faseFiltro: S.borrador.faseFiltro, orden: S.borrador.orden, dir: S.borrador.dir };
       toast('Guardado'); await refrescar(); location.hash = volver;
@@ -1969,6 +1993,7 @@
     pintar(`${cabecera({ volver: '#/verracos', textoVolver: 'Verracos', titulo: x.crotal, otros: x.otros_crotales || [], sub: `${esc(x.raza)}${x.verraquera ? ` · verraquera ${x.verraquera}` : ''}${x.fecha_baja ? ` · <strong>baja ${fmt(x.fecha_baja)}</strong>` : ''}` })}
       <main class="cuerpo">
         ${navV}
+        ${x.fecha_baja ? `<div class="aviso-caja"><strong>Dado de baja</strong> el ${fmt(x.fecha_baja)} · ${esc(x.causa_baja || '')}${x.baja_por ? ` · por ${esc(verAlias(x.baja_por) || x.baja_por)}` : ''}<div class="botones"><button class="btn sec peq" type="button" data-anular-baja="verraco">Anular la baja (darlo otra vez de alta)</button></div></div>` : ''}
         <div class="foto"><img src="img/verraco.jpg" alt="Verraco chato murciano"></div>
         ${avisoSQL05()}
         <div class="dos"><div class="dato"><span class="et">Inseminaciones</span><span class="val">${s.ia}</span><span class="nota">registradas</span></div>
@@ -2005,6 +2030,7 @@
       if (error) { toast(traducirError(error)); b.disabled = false; return; }
       toast('Dosis caducadas eliminadas'); await refrescar(); vistaVerraco(id);
     }));
+    engancharAnularBaja('verraco', id);
   }
 
   function vistaTrasladoVerraco(id, pre) {

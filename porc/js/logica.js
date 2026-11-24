@@ -135,13 +135,19 @@
     }
     const bajas = ciclo.bajas.reduce((s, b) => s + n(b.datos.numero), 0);
     const actuales = vivos + entran - salen - bajas;
+    // Sexos: los de las bajas con sexo (desde 0.25.0); las adopciones y lo antiguo no lo llevan
+    const vivosH = n(p.vivos_h), vivosM = n(p.vivos_m);
+    let bajasH = 0, bajasM = 0;
+    for (const b of ciclo.bajas) { bajasH += n(b.datos.numero_h); bajasM += n(b.datos.numero_m); }
+    const sexoSeguro = !n(p.vivos_ss) && !entran && !salen && bajasH + bajasM === bajas;
+    const ahoraH = sexoSeguro ? vivosH - bajasH : null, ahoraM = sexoSeguro ? vivosM - bajasM : null;
     let destetados = null, bajasCalculadas = null;
     if (ciclo.destete) {
       const dd = ciclo.destete.datos || {};
       destetados = n(dd.destetados_h) + n(dd.destetados_m) + n(dd.destetados_ss);
       bajasCalculadas = vivos + entran - salen - destetados;
     }
-    return { vivos, muertos, momias, totales: vivos + muertos + momias, entran, salen, bajas, actuales, destetados, bajasCalculadas };
+    return { vivos, muertos, momias, totales: vivos + muertos + momias, entran, salen, bajas, actuales, destetados, bajasCalculadas, vivosH, vivosM, bajasH, bajasM, ahoraH, ahoraM };
   }
 
   // ---- Fechas clave e índices de un ciclo ----

@@ -260,3 +260,11 @@ No hay que ejecutar nada en Supabase.
 - En «Pasar a MADRE» cada registro tiene una casilla. **Solo se pasa lo marcado**; lo que no marques se queda pendiente para otro día (no se pierde ni se descarta).
 - Para marcar de golpe: «Todo 1.º», «Todo 2.º», o elige a un alumno en «Lo de una persona». Se pueden combinar (por ejemplo, dos alumnos). «Quitar marcas» lo deja todo sin marcar.
 - Dentro de cada registro marcado sigues eligiendo qué hacer (Pasar, No pasar, Actualizar…). Ojo: «No pasar» en un registro marcado lo descarta para siempre.
+
+## 34. Anular bajas y sexo de los lechones (0.25.0)
+
+1. Ejecuta una vez en Supabase `sql/26_sexo_bajas_lechones.sql` (repetible, no borra nada). Solo hace falta para poner el sexo en las muertes, ventas y matadero de lechoneras y cebo.
+2. **Anular una baja por error:** abre la ficha de la cerda o del verraco (están en «Animales dados de baja») y pulsa «Anular la baja», dos veces para confirmar. Vuelve al censo. En CIFEARUMI ya existía el botón en la ficha.
+3. **Baja de lechones (cerda lactante):** ahora se indican hembras y machos.
+4. **Ficha de la cerda:** «Lechones ahora» muestra cuántas hembras y machos quedan; la tabla de partos, los vivos de cada sexo.
+5. **Muerte, venta o matadero en lechonera o cebo:** hembras y machos opcionales; si los pones, tienen que sumar el número de animales.
