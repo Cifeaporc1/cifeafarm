@@ -290,7 +290,7 @@
     const lista = sel.length ? calcular(cat.fuentes, sel, g, st.desde, st.hasta) : [];
     const porFuente = {}; for (const m of cat.medidas) (porFuente[m.fuente] = porFuente[m.fuente] || []).push(m);
     return `${filtrosFechas(st, esc)}
-      <details class="tarjeta" ${sel.length ? '' : 'open'}><summary style="min-height:44px;display:flex;align-items:center;font-weight:700">Qué comparar (${sel.length})</summary>
+      <details class="tarjeta" id="an-que" ${(st.abierto ?? !sel.length) ? 'open' : ''}><summary style="min-height:44px;display:flex;align-items:center;font-weight:700">Qué comparar (${sel.length})</summary>
         ${Object.entries(porFuente).map(([f, ms]) => `<h3 class="peq" style="margin:8px 0 2px">${esc(cat.nombresFuente[f] || f)}</h3>${ms.map((m) => `<label class="check-todos"><input type="checkbox" data-an-medida="${m.id}" ${sel.includes(m) ? 'checked' : ''}> ${esc(m.nombre)}</label>`).join('')}`).join('')}</details>
       <div class="campo"><label for="an-grupo">Agrupar por</label><select id="an-grupo">${cat.grupos.map((x) => `<option value="${x.id}" ${x === g ? 'selected' : ''}>${esc(x.nombre)}</option>`).join('')}</select></div>
       ${sel.length ? `<section class="tarjeta"><h2>Tabla</h2>${lista.length ? htmlTabla(lista, sel, g, esc) : '<div class="suave">No hay datos en estas fechas.</div>'}</section>
@@ -312,9 +312,11 @@
     }));
     ['desde', 'hasta'].forEach((k) => { const i = q(`#an-${k}`); if (i) i.addEventListener('change', () => { st[k] = i.value; o.repintar(); }); });
     raiz.querySelectorAll('[data-an-medida]').forEach((c) => c.addEventListener('change', () => {
-      st.medidas = (st.medidas || []).filter((x) => x !== c.dataset.anMedida); if (c.checked) st.medidas.push(c.dataset.anMedida); o.repintar();
-      const d = raiz.querySelector('details'); if (d) d.open = true;
+      // Al marcar, la lista sigue abierta y la pantalla no salta: se puede marcar varias cosas seguidas
+      st.medidas = (st.medidas || []).filter((x) => x !== c.dataset.anMedida); if (c.checked) st.medidas.push(c.dataset.anMedida);
+      st.abierto = true; const y = window.scrollY; o.repintar(); window.scrollTo(0, y);
     }));
+    const dq = q('#an-que'); if (dq) dq.addEventListener('toggle', () => { st.abierto = dq.open; });
     const gs = q('#an-grupo'); if (gs) gs.addEventListener('change', () => { st.grupo = gs.value; o.repintar(); });
     const datosActuales = () => {
       const sel = st.medidas.map((id) => medidaDe(cat, id)).filter(Boolean); const g = grupoDe(cat, st.grupo);

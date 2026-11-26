@@ -836,7 +836,7 @@
     });
     recorrer(TIPOS[tipo].campos);
     if (evento) { Object.assign(v, evento.datos || {}); v.fecha = evento.fecha; }
-    if (tipo === 'baja_lechones' && evento && evento.datos && evento.datos.numero_h === undefined) v.numero_ss = String(+evento.datos.numero || 0); // anterior a 0.25.0
+    if (tipo === 'baja_lechones' && evento && evento.datos && evento.datos.numero_h === undefined) v.numero_ss = String(+evento.datos.numero || 0); // anterior a 0.25.1
     return v;
   }
 
