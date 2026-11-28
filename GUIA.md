@@ -268,3 +268,11 @@ No hay que ejecutar nada en Supabase.
 3. **Baja de lechones (cerda lactante):** ahora se indican hembras y machos.
 4. **Ficha de la cerda:** «Lechones ahora» muestra cuántas hembras y machos quedan; la tabla de partos, los vivos de cada sexo.
 5. **Muerte, venta o matadero en lechonera o cebo:** hembras y machos opcionales; si los pones, tienen que sumar el número de animales.
+
+## 35. Lechones entre parideras, sumar un lechón y ecografía negativa (0.26.0)
+
+No hay que ejecutar nada en Supabase.
+- **Destetados que siguen en la paridera:** en la paridera, «Cambiar de paridera» y elige otra de la misma sala o de otra sala (se ve qué cerda hay en cada una). También se pueden arrastrar en el plano con «Mover animales».
+- **Lechones de una cerda que aún da de mamar:** se mueven con la cerda (Traslado de la cerda a otra paridera) o se pasan a otra cerda con Adopción.
+- **Sumar un lechón a una cerda parida:** Adopción → «Recibe lechones» → en «De la cerda» elige «Otro origen». Si fue un error al contar en el parto, mejor corrige el Parto.
+- **Ecografía negativa:** en «La cerda» elige «Se queda donde está hasta su traslado» si no hay sitio en vacías; cuando lo haya, haz un Traslado.

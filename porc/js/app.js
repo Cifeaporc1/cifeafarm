@@ -759,9 +759,9 @@
       campos: [F.fecha,
         { n: 'resultado', t: 'radio', l: 'Resultado', op: [['positiva', 'Positiva +'], ['negativa', 'Negativa −'], ['dudosa', 'Dudosa ?']] },
         { n: 'parque', t: 'select', l: 'La cerda', op: [...rango(1, 6).map((k) => [k, `Pasa al parque de gestación ${k}`]), ['', 'Se queda donde está (de momento)']], si: (v) => v.resultado === 'positiva' },
-        { n: 'parque_v', t: 'select', l: 'Vuelve al parque de vacías', op: rango(1, 2), si: (v) => v.resultado === 'negativa' },
+        { n: 'parque_v', t: 'select', l: 'La cerda', op: [...rango(1, 2).map((k) => [k, `Vuelve al parque de vacías ${k}`]), ['', 'Se queda donde está hasta su traslado (si no hay sitio)']], si: (v) => v.resultado === 'negativa' },
         F.obs],
-      ubicacion: (v) => (v.resultado === 'positiva' ? (v.parque ? `Gestación · parque ${v.parque}` : null) : v.resultado === 'negativa' ? `Vacías · parque ${v.parque_v}` : null),
+      ubicacion: (v) => (v.resultado === 'positiva' ? (v.parque ? `Gestación · parque ${v.parque}` : null) : v.resultado === 'negativa' ? (v.parque_v ? `Vacías · parque ${v.parque_v}` : null) : null),
     },
     paridera: {
       nombre: 'Entrada en paridera',
@@ -779,7 +779,7 @@
     },
     adopcion: {
       nombre: 'Adopción',
-      ayuda: 'Se anota a la vez en todas las cerdas implicadas. Puede recibir y ceder lechones el mismo día; deja a 0 lo que no ocurra.',
+      ayuda: 'Se anota a la vez en todas las cerdas implicadas. Puede recibir y ceder lechones el mismo día; deja a 0 lo que no ocurra. Para sumarle un lechón que no viene de otra cerda lactante (otra granja, uno que no se contó…), en «De la cerda» elige «Otro origen». Si fue un error al contar en el parto, mejor corrige el Parto.',
       campos: [F.fecha,
         { grupo: 'Recibe lechones', campos: [{ n: 'recibe_num', t: 'contador', l: 'Número' }, { n: 'recibe_de', t: 'lactante', l: 'De la cerda', si: (v) => +v.recibe_num > 0 }] },
         { grupo: 'Cede lechones', campos: [{ n: 'cede_num', t: 'contador', l: 'Número' }, { n: 'cede_a', t: 'lactante', l: 'A la cerda', si: (v) => +v.cede_num > 0 }] },
@@ -836,7 +836,7 @@
     });
     recorrer(TIPOS[tipo].campos);
     if (evento) { Object.assign(v, evento.datos || {}); v.fecha = evento.fecha; }
-    if (tipo === 'baja_lechones' && evento && evento.datos && evento.datos.numero_h === undefined) v.numero_ss = String(+evento.datos.numero || 0); // anterior a 0.25.1
+    if (tipo === 'baja_lechones' && evento && evento.datos && evento.datos.numero_h === undefined) v.numero_ss = String(+evento.datos.numero || 0); // anterior a 0.26.0
     return v;
   }
 
@@ -874,9 +874,10 @@
       }
       case 'lactante': {
         const otras = cerdasActivas().filter((x) => x.id !== cerdaId && estadoDe(x.id).fase === 'lactante');
-        if (!otras.length) return '<div class="aviso-caja">No hay otra cerda lactante con la que hacer la adopción.</div>';
+        const fuera = c.n === 'recibe_de'; // recibir de fuera: otra granja o un lechón que no se contó
+        if (!otras.length && !fuera) return '<div class="aviso-caja">No hay otra cerda lactante con la que hacer la adopción.</div>';
         return `<div class="campo"><label for="${id}">${c.l}</label><select id="${id}" name="${c.n}"><option value="">Elige…</option>${otras.map((x) =>
-          `<option value="${x.id}" ${val === x.id ? 'selected' : ''}>${esc(x.crotal)} · ${L.camada(estadoDe(x.id).actual).actuales} lechones</option>`).join('')}</select></div>`;
+          `<option value="${x.id}" ${val === x.id ? 'selected' : ''}>${esc(x.crotal)} · ${L.camada(estadoDe(x.id).actual).actuales} lechones</option>`).join('')}${fuera ? `<option value="fuera" ${val === 'fuera' ? 'selected' : ''}>Otro origen (otra granja, lechón sin anotar…)</option>` : ''}</select></div>`;
       }
       default: return '';
     }
@@ -986,6 +987,7 @@
       const vinculo = (crypto.randomUUID && crypto.randomUUID()) || String(Date.now());
       const filas = [];
       const mov = (numero, otraId, sentido) => {
+        if (otraId === 'fuera') { filas.push({ granja_id: S.granja, cerda_id: c.id, tipo, fecha: v.fecha, datos: { numero, vinculo, sentido, otra_cerda: null, otra_crotal: 'otro origen', ...(v.obs ? { obs: v.obs } : {}) } }); return; }
         const otra = cerdaPorId(otraId);
         const base = { numero, vinculo, ...(v.obs ? { obs: v.obs } : {}) };
         filas.push({ granja_id: S.granja, cerda_id: c.id, tipo, fecha: v.fecha, datos: { ...base, sentido, otra_cerda: otra.id, otra_crotal: otra.crotal } });
@@ -1296,8 +1298,9 @@
       location.hash = `#/trasladoverraco/${it.id}/${a}`; return;
     }
     if (it.tipo === 'grupo') {
-      if (!['lechoneras', 'cebadero'].includes(zona)) return toast('Los lechones y los cerdos de cebo solo pueden ir a una lechonera o al cebadero.');
-      const destino = `${zona === 'lechoneras' ? 'Lechonera' : 'Cebadero'} ${a}`;
+      const deParidera = it.z === 'parideras';
+      if (!['lechoneras', 'cebadero'].includes(zona) && !(deParidera && zona === 'partos')) return toast(deParidera ? 'Los destetados pueden ir a otra paridera, a una lechonera o al cebadero.' : 'Los lechones y los cerdos de cebo solo pueden ir a una lechonera o al cebadero.');
+      const destino = zona === 'partos' ? `Paridera ${a}-${b}` : `${zona === 'lechoneras' ? 'Lechonera' : 'Cebadero'} ${a}`;
       if (destino === it.est) return toast('Ya están ahí.');
       const n = Math.max(0, (L.cuentaGrupos(S.recuentos, movsGrupos())[it.est] || { n: 0 }).n);
       S.borrador = { clave: `movg/traslado/${it.z}/${it.k}/`, v: { tipo: 'traslado', fecha: hoy(), n: String(n), origen: it.est, destino, procedencia: '', causa: '', causa_otra: '', obs: '' }, confirmado: false, filtro: S.borrador.filtro };
@@ -1429,7 +1432,7 @@
         <div class="dos"><div class="dato ${G.n < 0 || (z === 'lechoneras' && G.n > 25) ? 'nar' : ''}"><span class="et">Animales ahora</span><span class="val">${G.n}</span><span class="nota">${z === 'lechoneras' ? 'capacidad 25' : 'según la app'}</span></div>
           <div class="dato"><span class="et">Último recuento</span><span class="val">${G.recuento ? G.recuento.n : '—'}</span><span class="nota">${G.recuento ? fmt(G.recuento.fecha) : 'sin contar'}</span></div></div>
         ${G.n < 0 ? '<div class="aviso-caja">Salen más animales de los que había: falta registrar una entrada o hacer un recuento.</div>' : ''}
-        ${z === 'parideras' ? `<div class="botones"><a class="btn" href="#/movg/traslado/${z}/${k}/lechonera">Pasar a lechonera</a><a class="btn" href="#/movg/traslado/${z}/${k}/cebadero">Pasar al cebadero</a><a class="btn sec" href="#/movg/muerte/${z}/${k}">Muerte</a></div>
+        ${z === 'parideras' ? `<div class="botones"><a class="btn" href="#/movg/traslado/${z}/${k}/lechonera">Pasar a lechonera</a><a class="btn" href="#/movg/traslado/${z}/${k}/cebadero">Pasar al cebadero</a><a class="btn sec" href="#/movg/traslado/${z}/${k}/paridera">Cambiar de paridera</a><a class="btn sec" href="#/movg/muerte/${z}/${k}">Muerte</a></div>
           ${(() => { const ult = G.movs.filter((m) => m.virtual).sort((a, b) => (a.fecha < b.fecha ? 1 : -1))[0]; const d = ult ? L.dias(ult.fecha, hoy()) : null; return d != null ? `<div class="ok-caja">Destetados hace <strong>${d} día${d === 1 ? '' : 's'}</strong> (${fmt(ult.fecha)}). Se quedan en la paridera sin su madre los días que consideres; después, pásalos a una lechonera o directamente al cebadero.</div>` : ''; })()}<div class="suave peq">Sala ${k.split('-')[0]}, paridera ${k.split('-')[1]}. Puedes pasarlos todos o una parte.</div>` : `<div class="botones"><a class="btn" href="#/recuento/${z}/${k}">Contar</a>${S.faltaSQL07 ? '' : `<a class="btn sec" href="#/movg/entrada/${z}/${k}">Entrada</a><a class="btn sec" href="#/movg/traslado/${z}/${k}">Traslado</a><a class="btn sec" href="#/movg/muerte/${z}/${k}">Muerte</a><a class="btn sec" href="#/movg/venta/${z}/${k}">Venta / matadero</a>`}</div>`}
         <section class="tarjeta"><h2>Historial</h2>${hist.length ? hist.slice(0, 30).map(linea).join('') : '<div class="suave">Sin recuentos ni movimientos.</div>'}</section>
       </main>${navegacion('mapa')}`);
@@ -1453,7 +1456,10 @@
     }
     const v = S.borrador.v;
     const G = L.cuentaGrupos(S.recuentos, movsGrupos());
-    const opEst = (sel, filtro = () => true) => L.ESTANCIAS.filter((e) => filtro(e) && (!e.startsWith('Paridera') || e === sel || G[e].n > 0)).map((e) => `<option value="${e}" ${sel === e ? 'selected' : ''}>${e} (${G[e].n})</option>`).join('');
+    // Quién ocupa cada paridera (para avisar al pasar lechones a otra)
+    const cerdaEn = {}; for (const c of cerdasActivas()) { const st = L.sitioPlano(estadoDe(c.id).ubicacion); if (st && st.zona === 'partos') cerdaEn[`Paridera ${st.sala}-${st.n}`] = c.crotal; }
+    const opEst = (sel, filtro = () => true, todas = false) => L.ESTANCIAS.filter((e) => filtro(e) && (todas || !e.startsWith('Paridera') || e === sel || G[e].n > 0)).map((e) => `<option value="${e}" ${sel === e ? 'selected' : ''}>${e} (${G[e].n}${cerdaEn[e] ? ` · cerda ${esc(cerdaEn[e])}` : ''})</option>`).join('');
+    const aParidera = tipo === 'traslado' && (hacia === 'paridera' || (!hacia && String(v.origen || '').startsWith('Paridera')));
     const titulo = { entrada: 'Entrada de animales', traslado: 'Traslado', muerte: 'Muerte', venta: 'Venta o matadero' }[tipo];
     const volver = k ? `#/corral/${z}/${k}` : `#/plano/${zonaVolver(z || 'cebadero')}`;
     pintar(`${cabecera({ volver, textoVolver: 'Cancelar', titulo })}
@@ -1462,7 +1468,7 @@
         ${tipo === 'venta' ? `<div class="campo"><span class="et" id="et-gt">Salida</span><div class="opciones" role="radiogroup" aria-labelledby="et-gt">
           <label><input type="radio" name="tipo" value="venta" ${v.tipo === 'venta' ? 'checked' : ''}> Venta</label><label><input type="radio" name="tipo" value="matadero" ${v.tipo === 'matadero' ? 'checked' : ''}> Matadero</label></div></div>` : ''}
         ${tipo !== 'entrada' ? `<div class="campo"><label for="g-origen">${tipo === 'traslado' ? 'Salen de' : 'De'}</label><select id="g-origen" name="origen"><option value="">Elige…</option>${opEst(v.origen)}</select></div>` : ''}
-        ${['entrada', 'traslado'].includes(tipo) ? `<div class="campo"><label for="g-destino">${tipo === 'traslado' ? 'Van a' : 'Entran en'}</label><select id="g-destino" name="destino"><option value="">Elige…</option>${opEst(v.destino, (e) => e !== v.origen && !e.startsWith('Paridera') && (hacia !== 'lechonera' || e.startsWith('Lechonera')) && (hacia !== 'cebadero' || e.startsWith('Cebadero')))}</select></div>` : ''}
+        ${['entrada', 'traslado'].includes(tipo) ? `<div class="campo"><label for="g-destino">${tipo === 'traslado' ? 'Van a' : 'Entran en'}</label><select id="g-destino" name="destino"><option value="">Elige…</option>${opEst(v.destino, (e) => e !== v.origen && (aParidera ? e.startsWith('Paridera') || !hacia : !e.startsWith('Paridera')) && (hacia !== 'lechonera' || e.startsWith('Lechonera')) && (hacia !== 'cebadero' || e.startsWith('Cebadero')), aParidera)}</select></div>` : ''}
         <div class="campo"><label for="g-n">Número de animales</label><input id="g-n" name="n" type="number" inputmode="numeric" min="1" max="200" value="${esc(v.n)}"></div>
         ${['muerte', 'venta'].includes(tipo) ? `<fieldset><legend>Sexo <span class="suave">(si lo sabes; entre los dos, el número de animales)</span></legend><div class="dos">
           <div class="campo"><label for="g-h">Hembras</label><input id="g-h" name="hembras" type="number" inputmode="numeric" min="0" max="200" value="${esc(v.hembras || '')}"></div>

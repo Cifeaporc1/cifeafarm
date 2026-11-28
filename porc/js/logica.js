@@ -135,7 +135,7 @@
     }
     const bajas = ciclo.bajas.reduce((s, b) => s + n(b.datos.numero), 0);
     const actuales = vivos + entran - salen - bajas;
-    // Sexos: los de las bajas con sexo (desde 0.25.1); las adopciones y lo antiguo no lo llevan
+    // Sexos: los de las bajas con sexo (desde 0.26.0); las adopciones y lo antiguo no lo llevan
     const vivosH = n(p.vivos_h), vivosM = n(p.vivos_m);
     let bajasH = 0, bajasM = 0;
     for (const b of ciclo.bajas) { bajasH += n(b.datos.numero_h); bajasM += n(b.datos.numero_m); }
@@ -377,7 +377,7 @@
       if (cede && !v.cede_a) errores.push('Elige a qué cerda cede los lechones.');
       if (cede && cur && cur.parto && cede > camada(cur).actuales + recibe)
         errores.push('No puede ceder más lechones de los que tiene.');
-      if (recibe && ctx.camadaDe && v.recibe_de && recibe > ctx.camadaDe(v.recibe_de))
+      if (recibe && ctx.camadaDe && v.recibe_de && v.recibe_de !== 'fuera' && recibe > ctx.camadaDe(v.recibe_de))
         avisosF.push(`La cerda que cede solo tiene ${ctx.camadaDe(v.recibe_de)} lechones según los registros.`);
     }
     if (tipo === 'baja_lechones') {
